@@ -1,0 +1,72 @@
+autoload -U add-zsh-hook
+
+if [[ -f $USER_ZDOTDIR/.zshrc ]]; then
+	ZDOTDIR=$USER_ZDOTDIR
+	. $USER_ZDOTDIR/.zshrc
+fi
+
+__is_prompt_start() {
+	builtin printf '\e]6973;PS\a'
+}
+
+__is_prompt_end() {
+	builtin printf '\e]6973;PE\a'
+}
+
+__is_escape_value() {
+	builtin emulate -L zsh
+
+	# Process text byte by byte, not by codepoint.
+	builtin local LC_ALL=C str="$1" i byte token out=''
+
+	for (( i = 0; i < ${#str}; ++i )); do
+		byte="${str:$i:1}"
+
+		# Escape backslashes and semi-colons
+		if [ "$byte" = "\\" ]; then
+			token="\\\\"
+		elif [ "$byte" = ";" ]; then
+			token="\\x3b"
+		elif [ "$byte" = $'\n' ]; then
+			token="\x0a"
+		elif [ "$byte" = $'\e' ]; then
+			token="\\x1b"
+		elif [ "$byte" = $'\a' ]; then
+			token="\\x07"
+		else
+			token="$byte"
+		fi
+
+		out+="$token"
+	done
+
+	builtin print -r "$out"
+}
+
+__is_update_cwd() {
+	builtin printf '\e]6973;CWD;%s\a' "$(__is_escape_value "${PWD}")"
+}
+
+__is_precmd() {
+	__is_update_cwd
+	if [[ $ISTERM_TESTING == "1" ]]; then
+		PS1="%{$(__is_prompt_start)%}> %{$(__is_prompt_end)%}"
+	fi
+}
+
+if (( ${+widgets[zle-line-init]} )); then
+	zle -A zle-line-init __is_orig_zle_line_init
+	__is_zle_line_init() {
+		__is_prompt_start
+		zle __is_orig_zle_line_init
+		__is_prompt_end
+	}
+else
+	__is_zle_line_init() {
+		__is_prompt_start
+		__is_prompt_end
+	}
+fi
+zle -N zle-line-init __is_zle_line_init
+
+add-zsh-hook precmd __is_precmd

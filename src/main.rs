@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
-use insh_rs::{commands, env as insh_env, pty, shell::Shell, shell_init};
+use insh_rs::{commands, env as insh_env, pty, resources, shell::Shell, shell_init};
 
 /// IDE-style shell autocomplete in Rust. Drop-in compatible with Microsoft's
 /// inshellisense (`is`) — insh-rs ships both `insh` and `is` binaries, reads
@@ -130,9 +130,16 @@ pub fn main() -> Result<()> {
     }
 
     match cli.command.unwrap_or(Cmd::Start) {
-        Cmd::Start => pty::run_wrapped_shell(),
+        Cmd::Start => {
+            // Eagerly unpack resources so the wrapped shell can find its
+            // integration scripts under ~/.insh-rs/. Cheap: the unpacker
+            // is version-gated and no-ops on second run.
+            let _ = resources::unpack();
+            pty::run_wrapped_shell()
+        }
         Cmd::Init { shell, install_rc } => {
             let target = shell.unwrap_or(Shell::Bash);
+            let _ = resources::unpack();
             if install_rc {
                 shell_init::install()
             } else {
@@ -140,7 +147,10 @@ pub fn main() -> Result<()> {
             }
         }
         Cmd::Reinit => commands::reinit::run(),
-        Cmd::Install => shell_init::install(),
+        Cmd::Install => {
+            let _ = resources::unpack();
+            shell_init::install()
+        }
         Cmd::Doctor => commands::doctor::run(),
         Cmd::Complete(CompleteArgs { line, json, cwd }) => {
             commands::complete::run(&line, json, &cwd)
