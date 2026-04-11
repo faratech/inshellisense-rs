@@ -97,9 +97,10 @@ jobs:
           total=$(python3 -c "import json; print(json.load(open('/tmp/specs-data-ci/index.json'))['stats']['total'])")
           pct=$(python3 -c "print(f'{$pure/$total*100:.1f}')")
           echo "Pure extract: ${pure}/${total} (${pct}%)"
-          # Phase 6.6: tightened from 95% to 99% after 6.1/6.2 pushed
-          # coverage to 99.86%. Leaves a ~0.9% margin for upstream drift.
-          min_pct=99.0
+          # Tightened to 100% after phase 6.2e closed the method-
+          # shorthand generateSpec gap. All 1470 upstream specs now
+          # extract cleanly with zero partials.
+          min_pct=100.0
           below=$(python3 -c "print(int(${pct} < ${min_pct}))")
           if [ "$below" = "1" ]; then
             echo "::error::Coverage ${pct}% below ${min_pct}% threshold"

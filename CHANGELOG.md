@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 6.2e — 100.0% pure. Method-shorthand `generateSpec` fix.
+
+Instrumented every `ctx.has_functions = true` site with `flipImpure()`
+tagged call-site traces, then ran the extractor with
+`DEBUG_IMPURE_TRACE=1` on the 2 remaining partial specs.
+
+**Root cause:** pnpm and dotnet both define `generateSpec` using ES6
+method shorthand:
+```ts
+const completionSpec: Fig.Spec = {
+  name: "pnpm",
+  generateSpec(tokens, executeShellCommand) {  // <-- method shorthand
+    ...
+  },
+};
+```
+My `MethodDeclaration` handler treated this like a regular method and
+flipped `has_functions` for anything that wasn't `postProcess`. The
+arrow/function form of `generateSpec` already dropped silently via
+`TOLERANT_SCALAR_FIELDS`, but the method-shorthand form bypassed that
+check.
+
+**Fix** (`tools/extractor/extract.ts`): the MethodDeclaration handler
+now checks `TOLERANT_SCALAR_FIELDS` before flipping impure. Runtime
+hooks (`generateSpec`, `loadSpec`, `getVersionCommand`, etc.) in
+method-shorthand form now drop silently, just like the arrow form.
+
+**Result: 1470/1470 = 100.0% pure. Zero partials. Zero js_only. Zero
+errors.** CI threshold tightened from 99% to 100%.
+
 ### Phase 6.6 — Parity expansion + CI tightening + shared engine
 
 - **Added** shared test-engine via `OnceLock` — the 111-case parity

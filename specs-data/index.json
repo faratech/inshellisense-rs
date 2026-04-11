@@ -2,12 +2,12 @@
   "version": "upstream-unknown",
   "stats": {
     "total": 1470,
-    "pure": 1468,
-    "partial": 2,
+    "pure": 1470,
+    "partial": 0,
     "js_only": 0,
     "error": 0,
     "essentials_extracted": 53,
-    "function_skips": 2
+    "function_skips": 0
   },
   "entries": [
     {
@@ -4861,8 +4861,8 @@
     {
       "name": "dotnet",
       "file": "dotnet.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-add",
@@ -7219,8 +7219,8 @@
     {
       "name": "pnpm",
       "file": "pnpm.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pnpx",

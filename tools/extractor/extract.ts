@@ -95,7 +95,17 @@ type ExtractCtx = {
   /// name is in this map, substitute the mapped value. Used while walking
   /// a function body whose parameters are bound to call arguments.
   param_subs?: ParamSubs;
+  /// Debug-only: captures the stack of impurity flip sites to help
+  /// diagnose why specific specs end up partial.
+  impure_trace?: string[];
 };
+
+function flipImpure(ctx: ExtractCtx, tag: string): void {
+  ctx.has_functions = true;
+  if (process.env.DEBUG_IMPURE_TRACE && ctx.impure_trace) {
+    ctx.impure_trace.push(tag);
+  }
+}
 
 /// Attempt to classify a function expression used as a postProcess
 /// callback into a named PostProcessKind.  Returns the kind descriptor
@@ -392,7 +402,7 @@ function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
       if (typeof left === "string" && typeof right === "number") return left + String(right);
       if (typeof left === "number" && typeof right === "string") return String(left) + right;
     }
-    ctx.has_functions = true;
+    flipImpure(ctx, `BinaryExpression@${node.getStartLineNumber()}`);
     return null;
   }
   if (Node.isTemplateExpression(node)) {
@@ -442,7 +452,7 @@ function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
           out.push(...resolved);
           continue;
         }
-        ctx.has_functions = true;
+        flipImpure(ctx, `SpreadElement@${el.getStartLineNumber()}`);
         continue;
       }
       out.push(extractValue(el, ctx));
@@ -482,7 +492,7 @@ function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
         }
       }
     }
-    ctx.has_functions = true;
+    flipImpure(ctx, `Identifier-unresolved(${node.getText()})@${node.getStartLineNumber()}`);
     return null;
   }
   if (Node.isFunctionExpression(node) || Node.isArrowFunction(node)) {
@@ -494,19 +504,18 @@ function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
       const jsonKind = classifyJsonParsePostProcess(fn);
       if (jsonKind) return { __post_process_kind: jsonKind };
     }
-    ctx.has_functions = true;
+    flipImpure(ctx, `fn-unclassified@${node.getStartLineNumber()}`);
     return { __fn: true };
   }
   if (Node.isMethodDeclaration(node)) {
-    ctx.has_functions = true;
+    flipImpure(ctx, `MethodDecl@${node.getStartLineNumber()}`);
     return { __fn: true };
   }
   if (Node.isAsExpression(node) || Node.isParenthesizedExpression(node)) {
     return extractValue(node.getExpression(), ctx);
   }
   if (Node.isSpreadElement(node)) {
-    // Spread of an unresolvable expression → mark impure.
-    ctx.has_functions = true;
+    flipImpure(ctx, `SpreadElement-top@${node.getStartLineNumber()}`);
     return null;
   }
   if (Node.isPropertyAccessExpression(node)) {
@@ -533,7 +542,7 @@ function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
         }
       }
     }
-    ctx.has_functions = true;
+    flipImpure(ctx, `PropertyAccessExpression@${node.getStartLineNumber()}`);
     return null;
   }
   if (Node.isCallExpression(node)) {
@@ -548,13 +557,13 @@ function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
     // A3: try evaluating the call as a pure factory that returns a literal.
     const factoryResult = tryEvaluateFactoryCall(node, ctx);
     if (factoryResult !== null) return factoryResult;
-    // Any other call result is not statically knowable.
-    ctx.has_functions = true;
+    const calleeText = callee ? callee.getText().slice(0, 40) : "?";
+    flipImpure(ctx, `CallExpression(${calleeText})@${node.getStartLineNumber()}`);
     return null;
   }
 
   // Unknown node shape — conservative: mark impure.
-  ctx.has_functions = true;
+  flipImpure(ctx, `UnknownNode(${node.getKindName()})@${node.getStartLineNumber()}`);
   return null;
 }
 
@@ -593,10 +602,16 @@ const TOLERANT_SCALAR_FIELDS = new Set([
 /// null instead of polluting the outer ctx.
 function extractValueIsolated(node: Node | undefined, ctx: ExtractCtx): any {
   const saved = ctx.has_functions;
+  const savedLen = ctx.impure_trace?.length ?? 0;
   ctx.has_functions = false;
   const v = extractValue(node, ctx);
   const wasImpure = ctx.has_functions;
   ctx.has_functions = saved;
+  // Pop any trace entries added during isolation — the outer spec's
+  // trace should only show flips that actually propagated.
+  if (ctx.impure_trace && wasImpure) {
+    ctx.impure_trace.length = savedLen;
+  }
   if (wasImpure) return null;
   return v;
 }
@@ -677,10 +692,10 @@ function extractObject(obj: ObjectLiteralExpression, ctx: ExtractCtx): any {
         if (resolved !== null && resolved !== undefined) {
           out[propName] = resolved;
         } else {
-          ctx.has_functions = true;
+          flipImpure(ctx, `Shorthand-unresolved(${propName})@${prop.getStartLineNumber()}`);
         }
       } else {
-        ctx.has_functions = true;
+        flipImpure(ctx, `Shorthand-no-value-sym(${propName})@${prop.getStartLineNumber()}`);
       }
     } else if (Node.isSpreadAssignment(prop)) {
       // A4: `{ ...commonFields, name: "foo" }` — resolve the spread's
@@ -689,13 +704,12 @@ function extractObject(obj: ObjectLiteralExpression, ctx: ExtractCtx): any {
       if (resolved && typeof resolved === "object" && !Array.isArray(resolved)) {
         Object.assign(out, resolved);
       } else {
-        ctx.has_functions = true;
+        flipImpure(ctx, `SpreadAssignment@${prop.getStartLineNumber()}`);
       }
     } else if (Node.isMethodDeclaration(prop)) {
-      // Method shorthand: `postProcess(out) { return ...; }`. ts-morph's
-      // MethodDeclaration has getBody/getParameters that match the
-      // FunctionExpression/ArrowFunction shape, so we can run the
-      // postProcess classifier directly via duck-typing.
+      // Method shorthand: `postProcess(out) { return ...; }` or
+      // `generateSpec(tokens, exec) { ... }`. Duck-type the node to the
+      // ArrowFunction/FunctionExpression shape for the classifier.
       const name = prop.getName();
       const isPostProcess = name === "postProcess";
       let classified: any = null;
@@ -706,11 +720,14 @@ function extractObject(obj: ObjectLiteralExpression, ctx: ExtractCtx): any {
       }
       if (classified) {
         out[name] = { __post_process_kind: classified };
+      } else if (TOLERANT_SCALAR_FIELDS.has(name)) {
+        // Runtime hook (generateSpec/loadSpec/etc.) in method-shorthand
+        // form. Drop silently like we do for the arrow/function form.
       } else {
         // Method shorthand we can't classify → impure for this field.
         // Tolerant-list isolation in the parent generator will drop
         // the surrounding object.
-        ctx.has_functions = true;
+        flipImpure(ctx, `MethodShorthand(${name})@${prop.getStartLineNumber()}`);
       }
     }
   }
@@ -1355,9 +1372,16 @@ function extractFileAs(project: Project, filePath: string, relName: string): voi
     has_functions: false,
     file: filePath,
     post_process_in_progress: false,
+    impure_trace: process.env.DEBUG_IMPURE_TRACE ? [] : undefined,
   };
   const raw = rawFromFactory !== null ? rawFromFactory : extractObject(specNode!, ctx);
   sourceFile.forget();
+  if (process.env.DEBUG_IMPURE_TRACE && ctx.impure_trace && ctx.impure_trace.length > 0) {
+    console.error(`${rel} impure sites (has_functions=${ctx.has_functions}, ${ctx.impure_trace.length} flips):`);
+    for (const t of ctx.impure_trace.slice(0, 15)) {
+      console.error(`  ${t}`);
+    }
+  }
 
   // Phase 6.2d: even when has_functions is true, the static fields we
   // already extracted are usable. Emit anyway so the spec loads with
