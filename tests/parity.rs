@@ -1,14 +1,23 @@
-//! Phase-2 parity test scaffold.
+//! Parity test harness — hand-crafted unit cases plus a JSONL-driven
+//! corpus loaded from `tests/parity-corpus.jsonl`.
 //!
-//! Hand-crafted cases covering the correctness basics that phase 1+2
-//! should handle: subcommand completion, option completion, option-value
-//! binding, aliases, `--foo=bar` splitting, and the `--` raw marker.
+//! Each corpus entry supports these assertion keys (any combination,
+//! all must pass for the case to count as a pass):
 //!
-//! Phase 5 expands this into a 500-case corpus generated from
-//! inshellisense's own output. For now these are the smoke cases we
-//! check on every commit.
+//! * `line`   — command line input (required)
+//! * `cwd`    — optional working directory override (default ".")
+//! * `expect_tail` — `engine.suggest()` must return exactly this tail
+//! * `expect_top_name` — `blob.first().name` must equal this
+//! * `expect_contains_name` — these names must all appear in the blob
+//! * `expect_blob_min` — blob must contain at least N suggestions
+//! * `expect_none` — `engine.suggest()` must return None
+//!
+//! The `corpus_drives_parity_above_threshold` test loads the JSONL at
+//! runtime, runs every case, prints a summary, and fails if the pass
+//! rate drops below the configured threshold (currently 90%).
 
 use insh_rs::{spec::Registry, suggest::Engine};
+use serde::Deserialize;
 
 fn top_suggestion(line: &str) -> Option<String> {
     let registry = Registry::new_with_defaults();
@@ -168,6 +177,153 @@ fn extracted_find_has_options() {
 fn extracted_grep_count_option() {
     // grep is extracted; --count is one of its common options.
     assert_eq!(top_suggestion("grep --cou"), Some("nt".to_string()));
+}
+
+// ---- JSONL-driven corpus ----
+
+#[derive(Deserialize, Debug)]
+struct CorpusCase {
+    line: String,
+    #[serde(default)]
+    cwd: Option<String>,
+    #[serde(default)]
+    expect_tail: Option<String>,
+    #[serde(default)]
+    expect_top_name: Option<String>,
+    #[serde(default)]
+    expect_contains_name: Option<Vec<String>>,
+    #[serde(default)]
+    expect_blob_min: Option<usize>,
+    #[serde(default)]
+    expect_none: Option<bool>,
+}
+
+fn run_case(case: &CorpusCase) -> Result<(), String> {
+    let registry = Registry::new_with_defaults();
+    let engine = Engine::new(registry, Vec::new());
+    let cwd = case.cwd.as_deref().unwrap_or(".");
+
+    if let Some(tail) = &case.expect_tail {
+        let got = engine.suggest(&case.line, cwd);
+        if got.as_deref() != Some(tail.as_str()) {
+            return Err(format!(
+                "expect_tail={tail:?} got={got:?} for line={:?}",
+                case.line
+            ));
+        }
+    }
+
+    if case.expect_none == Some(true) {
+        let got = engine.suggest(&case.line, cwd);
+        if got.is_some() {
+            return Err(format!(
+                "expect_none=true got={got:?} for line={:?}",
+                case.line
+            ));
+        }
+    }
+
+    if case.expect_top_name.is_some()
+        || case.expect_contains_name.is_some()
+        || case.expect_blob_min.is_some()
+    {
+        let blob = engine.suggest_blob(&case.line, cwd);
+
+        if let Some(top) = &case.expect_top_name {
+            match blob.first() {
+                Some(s) if s.name == *top => {}
+                Some(s) => {
+                    return Err(format!(
+                        "expect_top_name={top:?} got top={:?} for line={:?}",
+                        s.name, case.line
+                    ))
+                }
+                None => {
+                    return Err(format!(
+                        "expect_top_name={top:?} got empty blob for line={:?}",
+                        case.line
+                    ))
+                }
+            }
+        }
+
+        if let Some(needed) = &case.expect_contains_name {
+            let names: std::collections::HashSet<&str> =
+                blob.iter().map(|s| s.name.as_str()).collect();
+            let missing: Vec<&str> = needed
+                .iter()
+                .map(|s| s.as_str())
+                .filter(|n| !names.contains(n))
+                .collect();
+            if !missing.is_empty() {
+                return Err(format!(
+                    "expect_contains_name missing {missing:?} for line={:?} (blob len {})",
+                    case.line,
+                    blob.len()
+                ));
+            }
+        }
+
+        if let Some(min) = case.expect_blob_min {
+            if blob.len() < min {
+                return Err(format!(
+                    "expect_blob_min={min} got blob len {} for line={:?}",
+                    blob.len(),
+                    case.line
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn load_corpus() -> Vec<CorpusCase> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("parity-corpus.jsonl");
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+    text.lines()
+        .enumerate()
+        .filter(|(_, l)| !l.trim().is_empty() && !l.starts_with("//"))
+        .map(|(i, l)| {
+            serde_json::from_str::<CorpusCase>(l)
+                .unwrap_or_else(|e| panic!("corpus line {}: {e}\n  {l}", i + 1))
+        })
+        .collect()
+}
+
+#[test]
+fn corpus_drives_parity_above_threshold() {
+    const THRESHOLD_PCT: f64 = 95.0;
+    let cases = load_corpus();
+    let total = cases.len();
+    let mut passed = 0usize;
+    let mut failures: Vec<(String, String)> = Vec::new();
+
+    for case in &cases {
+        match run_case(case) {
+            Ok(()) => passed += 1,
+            Err(e) => failures.push((case.line.clone(), e)),
+        }
+    }
+
+    let pct = (passed as f64) / (total as f64) * 100.0;
+    println!("\n=== parity corpus ===");
+    println!("  {passed}/{total} cases pass ({pct:.1}%)");
+    println!("  threshold: {THRESHOLD_PCT}%");
+    if !failures.is_empty() {
+        println!("  failures:");
+        for (line, err) in &failures {
+            println!("    {line:?}: {err}");
+        }
+    }
+
+    assert!(
+        pct >= THRESHOLD_PCT,
+        "parity {pct:.1}% below threshold {THRESHOLD_PCT}% ({passed}/{total})"
+    );
 }
 
 #[test]

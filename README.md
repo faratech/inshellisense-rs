@@ -159,8 +159,9 @@ in phase 5.
 | 3 | Extractor tool + spec loader + 715+ spec coverage | ✅ done |
 | 4 | `PostProcessKind` DSL + lazy `LoadSpec` + extractor isolation | ✅ done |
 | 4.5 | Extractor identifier + property-access resolution | ✅ done |
-| 5 | Parity corpus + CI gate vs inshellisense | pending |
-| ~~6~~ | ~~`rquickjs` JS runtime for opaque closures~~ | dropped — pure Rust path covers 94.6% |
+| 4.6 | Static factory evaluator + template folding → 97.1% coverage | ✅ done |
+| 5 | 82-case parity corpus + GitHub Actions CI gate | ✅ done |
+| ~~6~~ | ~~`rquickjs` JS runtime for opaque closures~~ | dropped — pure Rust path covers 97.1% |
 
 ## Credits
 

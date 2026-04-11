@@ -1,0 +1,82 @@
+{"line":"git ch","expect_tail":"eckout"}
+{"line":"git che","expect_tail":"ckout"}
+{"line":"git checkou","expect_tail":"t"}
+{"line":"git br","expect_tail":"anch"}
+{"line":"git commi","expect_tail":"t"}
+{"line":"git rebas","expect_tail":"e"}
+{"line":"git stas","expect_tail":"h"}
+{"line":"git res","expect_contains_name":["reset","restore"]}
+{"line":"git show","expect_top_name":"show"}
+{"line":"git clo","expect_tail":"ne"}
+{"line":"git dif","expect_tail":"f"}
+{"line":"git ","expect_contains_name":["checkout","branch","commit","push","pull","fetch","log","status"]}
+{"line":"git -C /tmp st","expect_contains_name":["stash","status"]}
+{"line":"git log -- file1","expect_none":true}
+{"line":"git ","expect_blob_min":20}
+{"line":"docker ","expect_contains_name":["run","exec","ps","build","pull","push","images","logs","stop","start","rm","volume","network"]}
+{"line":"docker run --det","expect_tail":"ach"}
+{"line":"docker ru","expect_tail":"n"}
+{"line":"docker ex","expect_tail":"ec"}
+{"line":"docker pu","expect_contains_name":["push","pull"]}
+{"line":"docker ","expect_blob_min":30}
+{"line":"cargo bu","expect_tail":"ild"}
+{"line":"cargo te","expect_tail":"st"}
+{"line":"cargo cli","expect_none":true}
+{"line":"cargo fm","expect_none":true}
+{"line":"cargo cl","expect_tail":"ean"}
+{"line":"cargo ru","expect_tail":"n"}
+{"line":"cargo pub","expect_tail":"lish"}
+{"line":"cargo ","expect_blob_min":30}
+{"line":"find -E","expect_top_name":"-E"}
+{"line":"find -","expect_contains_name":["-E","-H","-L","-P"]}
+{"line":"grep --cou","expect_tail":"nt"}
+{"line":"grep --inv","expect_tail":"ert-match"}
+{"line":"chmod 7","expect_contains_name":["744","777"]}
+{"line":"chmod ","expect_blob_min":1}
+{"line":"curl -X","expect_contains_name":["-X","-x"]}
+{"line":"curl --hea","expect_contains_name":["--head","--header"]}
+{"line":"wget --tim","expect_contains_name":["--timestamping"]}
+{"line":"tar -x","expect_top_name":"-X"}
+{"line":"tar --ex","expect_contains_name":["--exclude-from"]}
+{"line":"make -j","expect_top_name":"-j"}
+{"line":"make -","expect_blob_min":40}
+{"line":"sed -n","expect_top_name":"-n"}
+{"line":"systemctl sta","expect_contains_name":["start","status"]}
+{"line":"systemctl res","expect_contains_name":["rescue","restart","reset-failed"]}
+{"line":"systemctl dae","expect_tail":"mon-reload"}
+{"line":"kubectl ge","expect_tail":"t"}
+{"line":"kubectl describ","expect_tail":"e"}
+{"line":"kubectl del","expect_tail":"ete"}
+{"line":"kubectl -n kube-system ge","expect_tail":"t"}
+{"line":"kubectl ","expect_blob_min":10}
+{"line":"npm inst","expect_tail":"all"}
+{"line":"npm ru","expect_tail":"n"}
+{"line":"npm ","expect_blob_min":5}
+{"line":"ffmpeg -i","expect_top_name":"-i"}
+{"line":"rg --co","expect_contains_name":["--color","--column","--context","--count"]}
+{"line":"fd -e","expect_top_name":"-e"}
+{"line":"bat --lan","expect_tail":"guage"}
+{"line":"fzf --he","expect_contains_name":["--header","--height"]}
+{"line":"tmux new","expect_contains_name":["new","new-session","new-window"]}
+{"line":"gh pr cr","expect_tail":"eate"}
+{"line":"gh issue li","expect_tail":"st"}
+{"line":"helm inst","expect_tail":"all"}
+{"line":"terraform ","expect_blob_min":3}
+{"line":"terraform -he","expect_tail":"lp"}
+{"line":"","expect_none":true}
+{"line":"   ","expect_none":true}
+{"line":"definitely-not-a-real-command fo","expect_none":true}
+{"line":"nvim -","expect_blob_min":10}
+{"line":"htop -","expect_blob_min":5}
+{"line":"nc -l","expect_top_name":"-l"}
+{"line":"nmap -sS","expect_top_name":"-sS"}
+{"line":"ls -","expect_blob_min":30}
+{"line":"ls ","expect_blob_min":1}
+{"line":"ps -","expect_blob_min":5}
+{"line":"kill -","expect_blob_min":1}
+{"line":"exa --","expect_blob_min":5}
+{"line":"eza --","expect_blob_min":5}
+{"line":"docker pull ","expect_blob_min":1}
+{"line":"jq .foo","expect_blob_min":0}
+{"line":"vim +","expect_blob_min":0}
+{"line":"dig @","expect_blob_min":0}

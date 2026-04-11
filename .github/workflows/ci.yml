@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    name: Build + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Run unit + parity tests
+        run: cargo test --release --locked -- --nocapture
+
+      - name: Check release binary size
+        run: |
+          size=$(stat -c '%s' target/release/insh)
+          mb=$((size / 1024 / 1024))
+          echo "Release binary: ${size} bytes (${mb} MB)"
+          if [ $mb -gt 6 ]; then
+            echo "::error::Binary exceeded 6 MB ceiling"
+            exit 1
+          fi
+
+      - name: rustfmt check
+        run: cargo fmt --all -- --check
+        continue-on-error: true
+
+      - name: clippy
+        run: cargo clippy --release --all-targets -- -D warnings
+        continue-on-error: true
+
+      - name: Smoke test binary
+        run: |
+          ./target/release/insh --version
+          ./target/release/insh doctor
+          ./target/release/insh list-specs | head -20
+          ./target/release/insh complete "git ch"
+          ./target/release/insh complete "docker ru"
+
+      - name: Report parity coverage
+        run: |
+          cargo test --release --locked corpus_drives_parity_above_threshold -- --nocapture 2>&1 \
+            | grep -E "parity corpus|cases pass|threshold" || true
+
+  extractor-regression:
+    name: Extractor regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install extractor deps
+        working-directory: tools/extractor
+        run: npm install
+
+      - name: Run extractor against latest @withfig/autocomplete
+        run: |
+          if [ ! -d /tmp/withfig-autocomplete ]; then
+            git clone --depth 1 https://github.com/withfig/autocomplete.git /tmp/withfig-autocomplete
+          fi
+          cd tools/extractor
+          SRC=/tmp/withfig-autocomplete/src OUT=/tmp/specs-data-ci npm run extract
+
+      - name: Verify extraction ratio
+        run: |
+          pure=$(python3 -c "import json; print(json.load(open('/tmp/specs-data-ci/index.json'))['stats']['pure'])")
+          total=$(python3 -c "import json; print(json.load(open('/tmp/specs-data-ci/index.json'))['stats']['total'])")
+          pct=$(python3 -c "print(f'{$pure/$total*100:.1f}')")
+          echo "Pure extract: ${pure}/${total} (${pct}%)"
+          min_pct=95.0
+          below=$(python3 -c "print(int(${pct} < ${min_pct}))")
+          if [ "$below" = "1" ]; then
+            echo "::error::Coverage ${pct}% below ${min_pct}% threshold"
+            exit 1
+          fi

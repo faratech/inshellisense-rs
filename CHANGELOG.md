@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 5 — Parity corpus + CI gate
+
+- **Added** `tests/parity-corpus.jsonl` — **82 hand-crafted parity
+  cases** covering git, docker, cargo, kubectl, npm, ssh, systemctl,
+  find, grep, chmod, curl, wget, tar, make, sed, ffmpeg, rg, fd, bat,
+  fzf, tmux, gh, helm, terraform, ls, ps, kill, nvim, htop, nc, nmap,
+  exa, eza, and edge cases (empty line, unknown command, `--` marker,
+  option-value binding). Each case uses a subset of assertion keys:
+  * `expect_tail` — the exact ghost-text tail from `engine.suggest()`
+  * `expect_top_name` — the top blob entry name after sorting
+  * `expect_contains_name` — a list of names that must appear in the blob
+  * `expect_blob_min` — minimum blob size
+  * `expect_none` — engine must return None
+- **Added** `corpus_drives_parity_above_threshold` test — loads the
+  JSONL at runtime, runs every case, prints a pass-rate summary, fails
+  if below 95% (currently: **82/82 = 100%**).
+- **Added** `.github/workflows/ci.yml` — GitHub Actions workflow ready
+  for when the repo goes public:
+  * Builds the release binary and runs all tests
+  * Fails if the release binary exceeds 6 MB (early warning for bloat)
+  * Runs `cargo fmt --check` and `cargo clippy -D warnings` (both
+    non-blocking initially, will tighten after cleanup)
+  * Smoke-tests the binary against the 5 most common command fragments
+  * Reports the parity coverage percentage
+  * Separate `extractor-regression` job clones upstream
+    @withfig/autocomplete, runs the extractor, and fails if pure
+    extraction drops below 95%
+
+Validation: **31 tests pass** total (14 unit + 17 parity including
+the 82-case corpus at 100%). CI workflow file is ready to fire on the
+first push to a GitHub remote.
+
 ### Phase 4.6 — 97.1% coverage via A1-A4 and static factory evaluator
 
 Pushed pure-extract coverage from 94.6% → **97.1% (1429/1471)** through
