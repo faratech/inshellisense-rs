@@ -140,15 +140,15 @@ pub fn main() -> Result<()> {
     match cli.command.unwrap_or(Cmd::Start { ui: None }) {
         Cmd::Start { ui } => {
             let _ = resources::unpack();
-            let cfg = insh_rs::config::load();
-            let effective_ui = ui.unwrap_or(cfg.ui);
             let shell = cli.shell.unwrap_or_else(insh_rs::shell::detect);
             if cli.verbose {
+                let cfg = insh_rs::config::load();
+                let effective_ui = ui.unwrap_or(cfg.ui);
                 eprintln!("insh-rs: ui = {}", effective_ui.as_str());
                 eprintln!("insh-rs: shell = {}", shell.as_str());
                 eprintln!("insh-rs: login = {}", cli.login);
             }
-            pty::run_wrapped(shell, cli.login)
+            pty::run_wrapped(shell, cli.login, ui)
         }
         Cmd::Init { shell, install_rc } => {
             let target = shell.unwrap_or(Shell::Bash);

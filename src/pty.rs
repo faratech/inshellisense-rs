@@ -3,6 +3,7 @@
 //! ghost text after each refresh.
 
 use crate::ansi;
+use crate::config::UiMode;
 use crate::history;
 use crate::paths;
 use crate::render::Renderer;
@@ -19,10 +20,14 @@ use std::thread;
 use std::time::Duration;
 
 pub fn run_wrapped_shell() -> Result<()> {
-    run_wrapped(Shell::Bash, false)
+    run_wrapped(Shell::Bash, false, None)
 }
 
-pub fn run_wrapped(shell: Shell, login: bool) -> Result<()> {
+/// Spawn a wrapped shell.
+///
+/// `ui_override` takes precedence over the `ui` field in the loaded
+/// config. This is how `insh start --ui popup` reaches the renderer.
+pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Result<()> {
     // Make sure the vendored shell integration scripts are on disk.
     let _ = crate::resources::unpack();
 
@@ -121,14 +126,12 @@ pub fn run_wrapped(shell: Shell, login: bool) -> Result<()> {
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
     let mut tracker = TermTracker::new(rows, cols);
-    // Popup / ghost dispatch is driven by the loaded config. Since the
-    // wrapper is invoked from `Cmd::Start` which resolves the UI mode
-    // upstream of this call, we simply re-load the config here (fast —
-    // no I/O if the file is absent) so we don't have to thread a Config
-    // argument through a public API that exists before the config
-    // system did.
+    // Popup / ghost dispatch: CLI --ui flag (ui_override) beats config
+    // file, which beats the built-in default (Ghost). max_suggestions
+    // always comes from config since there's no CLI flag for it yet.
     let cfg = crate::config::load();
-    let mut renderer = Renderer::new(std::io::stdout(), cfg.ui, cfg.max_suggestions);
+    let effective_ui = ui_override.unwrap_or(cfg.ui);
+    let mut renderer = Renderer::new(std::io::stdout(), effective_ui, cfg.max_suggestions);
     let mut pending_suggestion: Option<String> = None;
     let mut last_blob: Vec<crate::spec::model::Suggestion> = Vec::new();
 
