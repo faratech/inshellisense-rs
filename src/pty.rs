@@ -124,7 +124,7 @@ pub fn run_wrapped_shell() -> Result<()> {
             // the current suggestion by injecting its bytes into bash
             // before forwarding the keypress.
             let accept_keys: &[&[u8]] = &[b"\x1b[C", b"\x1b[F", b"\x05"];
-            let is_accept = accept_keys.iter().any(|k| bytes.as_slice() == *k);
+            let is_accept = accept_keys.contains(&bytes.as_slice());
             if is_accept {
                 if let Some(tail) = pending_suggestion.take() {
                     renderer.clear().ok();

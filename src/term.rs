@@ -108,16 +108,16 @@ impl TermTracker {
         let row = cursor_row as usize;
         let mut cmd = String::new();
         if row == pr {
-            let line = row_text(&screen, row, pc, cursor_col as usize);
+            let line = row_text(screen, row, pc, cursor_col as usize);
             cmd.push_str(&line);
         } else if row > pr {
             // multi-line wrap — concatenate from pr..=row
-            let first = row_text(&screen, pr, pc, self.cols as usize);
+            let first = row_text(screen, pr, pc, self.cols as usize);
             cmd.push_str(&first);
             for r in (pr + 1)..row {
-                cmd.push_str(&row_text(&screen, r, 0, self.cols as usize));
+                cmd.push_str(&row_text(screen, r, 0, self.cols as usize));
             }
-            cmd.push_str(&row_text(&screen, row, 0, cursor_col as usize));
+            cmd.push_str(&row_text(screen, row, 0, cursor_col as usize));
         }
         // Trim trailing whitespace but keep leading so we know if user is
         // still in the middle of a word.
@@ -135,7 +135,7 @@ fn row_text(screen: &vt100::Screen, row: usize, start_col: usize, end_col: usize
             if contents.is_empty() {
                 s.push(' ');
             } else {
-                s.push_str(&contents);
+                s.push_str(contents);
             }
         } else {
             s.push(' ');

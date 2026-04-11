@@ -150,6 +150,10 @@ impl Registry {
         self.specs.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.specs.is_empty()
+    }
+
     fn load_toml_dir(&mut self) {
         let Some(base) = dirs::config_dir() else {
             return;

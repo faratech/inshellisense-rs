@@ -137,7 +137,7 @@ const NODE_CLIS: &[&str] = &[
 ];
 
 fn is_known_node_cli(name: &str) -> bool {
-    NODE_CLIS.iter().any(|&c| c == name)
+    NODE_CLIS.contains(&name)
 }
 
 fn project_file_suggestions(reader: ProjectFileReader, cwd: &str) -> Vec<Suggestion> {
