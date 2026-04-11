@@ -101,7 +101,7 @@ fn check_shell_plugins() -> i32 {
             eprintln!("  {RED_DASH} {}", s.as_str());
         }
         eprintln!(
-            "{YELLOW}  run \x1b[4m\x1b[36minsh init --install-rc --shell <shell>{RESET}{YELLOW} or ignore if you prefer manual startup{RESET}"
+            "{YELLOW}  run \x1b[4m\x1b[36minsh init <shell> --install-rc{RESET}{YELLOW} or ignore if you prefer manual startup{RESET}"
         );
         failed = 1;
     }

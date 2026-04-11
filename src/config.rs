@@ -51,7 +51,7 @@ impl Default for Config {
             use_aliases: false,
             use_nerd_font: false,
             max_suggestions: 5,
-            ui: UiMode::Ghost,
+            ui: UiMode::Hybrid,
         }
     }
 }
@@ -98,6 +98,41 @@ impl KeyBinding {
             control: false,
         }
     }
+
+    /// Does a raw stdin chunk match this binding?
+    ///
+    /// Terminal input is byte-oriented: plain keys map to one byte
+    /// (`\t`, `\r`, `\x7f`), CSI sequences map to a 3+ byte escape
+    /// burst (`\x1b[A` etc.). We do a straight byte-string compare
+    /// against whichever sequence(s) the symbolic name represents.
+    ///
+    /// Lone-escape caveat: an `Esc` key press is delivered as a single
+    /// `\x1b` byte, but CSI sequences also start with `\x1b`. Real
+    /// terminals deliver the full CSI burst in one write(2), so we
+    /// only treat a chunk as "escape" when it is *exactly* `\x1b`.
+    pub fn matches(&self, bytes: &[u8]) -> bool {
+        match self.key.as_str() {
+            "up" => bytes == b"\x1b[A" || bytes == b"\x1bOA",
+            "down" => bytes == b"\x1b[B" || bytes == b"\x1bOB",
+            "right" => bytes == b"\x1b[C" || bytes == b"\x1bOC",
+            "left" => bytes == b"\x1b[D" || bytes == b"\x1bOD",
+            "home" => bytes == b"\x1b[H" || bytes == b"\x1b[1~",
+            "end" => bytes == b"\x1b[F" || bytes == b"\x1b[4~",
+            "tab" => bytes == b"\t",
+            "escape" | "esc" => bytes == b"\x1b",
+            "return" | "enter" => bytes == b"\r" || bytes == b"\n",
+            "backspace" => bytes == b"\x7f" || bytes == b"\x08",
+            "space" => bytes == b" ",
+            other => {
+                // Single-char literal binding like "a" or "?".
+                let mut chars = other.chars();
+                match (chars.next(), chars.next()) {
+                    (Some(_), None) => bytes == other.as_bytes(),
+                    _ => false,
+                }
+            }
+        }
+    }
 }
 
 impl Default for KeyBinding {
@@ -110,9 +145,15 @@ impl Default for KeyBinding {
 #[serde(rename_all = "snake_case")]
 #[value(rename_all = "lowercase")]
 pub enum UiMode {
-    #[default]
+    /// Grey ghost text inline after the cursor — PSReadLine style.
     Ghost,
+    /// Interactive popup below/above the prompt with navigation.
     Popup,
+    /// Both at once: grey ghost text for the top suggestion plus a
+    /// navigable popup for the alternatives. Warp / fish / atuin style.
+    /// This is the default when no `ui` is set.
+    #[default]
+    Hybrid,
 }
 
 impl UiMode {
@@ -120,6 +161,7 @@ impl UiMode {
         match self {
             UiMode::Ghost => "ghost",
             UiMode::Popup => "popup",
+            UiMode::Hybrid => "hybrid",
         }
     }
 }
@@ -220,9 +262,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_has_ghost_ui() {
+    fn default_has_hybrid_ui() {
         let c = Config::default();
-        assert_eq!(c.ui, UiMode::Ghost);
+        assert_eq!(c.ui, UiMode::Hybrid);
         assert_eq!(c.max_suggestions, 5);
         assert_eq!(c.bindings.accept_suggestion.key, "tab");
     }
@@ -249,6 +291,22 @@ path = ["/tmp/extra"]
         assert_eq!(c.ui, UiMode::Popup);
         assert_eq!(c.bindings.accept_suggestion.key, "right");
         assert_eq!(c.specs.path, vec!["/tmp/extra".to_string()]);
+    }
+
+    #[test]
+    fn key_binding_matches_common_keys() {
+        assert!(KeyBinding::new("up").matches(b"\x1b[A"));
+        assert!(KeyBinding::new("down").matches(b"\x1b[B"));
+        assert!(KeyBinding::new("right").matches(b"\x1b[C"));
+        assert!(KeyBinding::new("left").matches(b"\x1b[D"));
+        assert!(KeyBinding::new("tab").matches(b"\t"));
+        assert!(KeyBinding::new("escape").matches(b"\x1b"));
+        assert!(!KeyBinding::new("escape").matches(b"\x1b[A"));
+        assert!(KeyBinding::new("return").matches(b"\r"));
+        assert!(KeyBinding::new("return").matches(b"\n"));
+        assert!(KeyBinding::new("backspace").matches(b"\x7f"));
+        assert!(KeyBinding::new("backspace").matches(b"\x08"));
+        assert!(!KeyBinding::new("down").matches(b"\x1b[A"));
     }
 
     #[test]

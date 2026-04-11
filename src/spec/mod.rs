@@ -45,9 +45,49 @@ impl Registry {
     }
 
     fn load_embedded_essentials(&mut self) {
-        use include_dir::{include_dir, Dir};
-        static EMBED: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/specs-data/embed");
-        Self::walk_embedded(&EMBED, self);
+        // The full 1470-spec corpus (extractor output + curated
+        // essentials, 78MB raw JSON) is bundled into one JSON object
+        // at build time and zstd-compressed to ~3.8MB. We decode it
+        // on first launch via ruzstd (pure Rust) and parse it into
+        // the registry. This keeps the binary at ~8MB total — vs
+        // upstream's 132MB SEA — while still matching them on
+        // suggestion coverage.
+        const BUNDLE_ZST: &[u8] =
+            include_bytes!("../../specs-data/bundle.json.zst");
+        use std::io::Read;
+        let mut decoder = match ruzstd::decoding::StreamingDecoder::new(BUNDLE_ZST) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("insh-rs: failed to start zstd decoder: {}", e);
+                return;
+            }
+        };
+        let mut decoded = String::new();
+        if let Err(e) = decoder.read_to_string(&mut decoded) {
+            eprintln!("insh-rs: failed to decode spec bundle: {}", e);
+            return;
+        }
+        // The bundle is a flat map { "<key>": <Subcommand>, ... }
+        // where nested keys like "aws/ec2" come from subdirectories.
+        let map: BTreeMap<String, serde_json::Value> =
+            match serde_json::from_str(&decoded) {
+                Ok(m) => m,
+                Err(e) => {
+                    eprintln!("insh-rs: failed to parse spec bundle: {}", e);
+                    return;
+                }
+            };
+        for (key, value) in map {
+            let spec: Subcommand = match serde_json::from_value(value) {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+            if key.contains('/') {
+                self.specs.insert(key, spec);
+            } else {
+                self.insert(spec);
+            }
+        }
         // Also load runtime extras if INSH_RS_SPECS_DIR is set.
         if let Ok(extras) = std::env::var("INSH_RS_SPECS_DIR") {
             self.load_disk_specs(std::path::Path::new(&extras));
@@ -85,46 +125,6 @@ impl Registry {
                     }
                 }
                 reg.insert(spec);
-            }
-        }
-    }
-
-    fn walk_embedded(dir: &include_dir::Dir<'_>, reg: &mut Registry) {
-        for entry in dir.entries() {
-            match entry {
-                include_dir::DirEntry::Dir(d) => Self::walk_embedded(d, reg),
-                include_dir::DirEntry::File(f) => {
-                    if f.path().extension().and_then(|e| e.to_str()) != Some("json") {
-                        continue;
-                    }
-                    let Some(bytes) = f.contents_utf8() else { continue };
-                    // Derive the registry key from the path relative to the
-                    // essentials root: `aws/ec2.json` → `aws/ec2`.
-                    let rel_path = f.path();
-                    let rel_key = rel_path
-                        .with_extension("")
-                        .to_string_lossy()
-                        .to_string();
-                    match serde_json::from_str::<Subcommand>(bytes) {
-                        Ok(mut spec) => {
-                            // For nested paths, the primary name comes from
-                            // the spec itself but we also want it reachable
-                            // under the path key for LoadSpec::SpecPath.
-                            if rel_key.contains('/') {
-                                reg.specs.insert(rel_key, spec);
-                            } else {
-                                // Normal top-level spec — keyed by its own name.
-                                // Strip the redundant primary-name check; `insert`
-                                // already does it.
-                                let _ = rel_key;
-                                reg.insert(std::mem::take(&mut spec));
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!("insh-rs: skipped {}: {}", rel_path.display(), e);
-                        }
-                    }
-                }
             }
         }
     }

@@ -54,6 +54,18 @@ impl Engine {
             return Vec::new();
         }
         let cmd = &tokens[0].token;
+
+        // If the user is typing the command name itself (exactly one
+        // token, no trailing space, not a registered command), scan
+        // the registry for command names whose prefix matches. This
+        // is what upstream does for first-word completion — the popup
+        // shows e.g. `uname` when the user types `una`, even though
+        // `una` isn't yet a resolved command.
+        let trailing_space = line.ends_with(char::is_whitespace);
+        if tokens.len() == 1 && !trailing_space && self.registry.get(cmd).is_none() {
+            return self.top_level_name_matches(cmd);
+        }
+
         let Some(root) = self.registry.get(cmd) else {
             return Vec::new();
         };
@@ -144,6 +156,50 @@ impl Engine {
         });
 
         dedup_by_name(candidates)
+    }
+
+    /// Top-level command-name completion — returns every registered
+    /// command whose primary name starts with `partial`. Used when
+    /// the user is typing the first word of a command line and hasn't
+    /// finished the command name yet.
+    fn top_level_name_matches(&self, partial: &str) -> Vec<Suggestion> {
+        if partial.is_empty() {
+            return Vec::new();
+        }
+        let partial_lc = partial.to_lowercase();
+        let mut out: Vec<Suggestion> = Vec::new();
+        for name in self.registry.names() {
+            // Skip nested path-keys like `aws/ec2` — those are
+            // sub-spec load targets, not top-level executables.
+            if name.contains('/') {
+                continue;
+            }
+            if !name.to_lowercase().starts_with(&partial_lc) {
+                continue;
+            }
+            let spec = match self.registry.get(name) {
+                Some(s) => s,
+                None => continue,
+            };
+            out.push(Suggestion {
+                name: name.to_string(),
+                description: spec.description.clone(),
+                suggestion_type: SuggestionType::Subcommand,
+                priority: Some(spec.priority.unwrap_or(50)),
+                icon: spec.icon.clone(),
+                ..Default::default()
+            });
+        }
+        // Sort alphabetically — upstream shows suggestions in
+        // registry-insertion order which is effectively alpha because
+        // @withfig/autocomplete names specs alphabetically. Matching
+        // this order keeps the popup pixel-identical to upstream for
+        // top-level command completion.
+        out.sort_by(|a, b| a.name.cmp(&b.name));
+        // Cap to a reasonable number so a one-letter query doesn't
+        // return hundreds.
+        out.truncate(32);
+        out
     }
 }
 

@@ -9,7 +9,6 @@ use crate::ansi::IsEvent;
 
 pub struct TermTracker {
     parser: vt100::Parser,
-    #[allow(dead_code)]
     rows: u16,
     cols: u16,
     cwd: String,
@@ -47,6 +46,30 @@ impl TermTracker {
 
     pub fn state(&self) -> &CmdState {
         &self.state
+    }
+
+    pub fn rows(&self) -> u16 {
+        self.rows
+    }
+
+    pub fn cols(&self) -> u16 {
+        self.cols
+    }
+
+    /// Rows below the current cursor row, exclusive of the cursor row
+    /// itself. Used to decide whether the popup should render below the
+    /// prompt (enough room) or flip above it.
+    pub fn remaining_lines(&self) -> u16 {
+        self.rows
+            .saturating_sub(self.state.cursor_row.saturating_add(1))
+    }
+
+    /// Called on SIGWINCH — tell the headless vt parser about the new
+    /// geometry so cursor tracking stays consistent with the real tty.
+    pub fn resize(&mut self, rows: u16, cols: u16) {
+        self.parser.screen_mut().set_size(rows, cols);
+        self.rows = rows;
+        self.cols = cols;
     }
 
     /// Feed cleaned bytes (no OSC 6973) into the parser and refresh cmd state.
@@ -97,21 +120,44 @@ impl TermTracker {
         self.state.cursor_col = cursor_col;
 
         let (Some(pr), Some(pc)) = (self.state.prompt_end_row, self.state.prompt_end_col) else {
+            // No anchor — nothing to extract. Keep command empty so
+            // renderers don't draw anything.
+            self.state.command.clear();
             return;
         };
 
-        // Extract text from the prompt-end anchor out to the cursor. We only
-        // support single-line commands in the MVP — wrapped multi-line input
-        // still works for the visible row but suggestion will be based on the
-        // current row only.
-        let screen = self.parser.screen();
         let row = cursor_row as usize;
+
+        // Anchor-staleness check. The anchor is set by the shell
+        // integration script's PromptEnd OSC marker; if the user spawns
+        // a nested shell (e.g. `sudo su root`) that doesn't source our
+        // integration, no new PromptStart/End will fire, and the anchor
+        // will stay frozen at the outer shell's last prompt position.
+        // Meanwhile the cursor walks down the screen as the nested
+        // shell emits its own output + prompts, and extracting
+        // "command" from the old anchor to the new cursor would read
+        // arbitrary lines of prior output and feed them to the
+        // suggestion engine.
+        //
+        // Typing a real multi-line command via wrap is rare and almost
+        // never exceeds 2 wrapped rows; any larger gap is far more
+        // likely to be stale-anchor drift. Clear the anchor in that
+        // case and wait for a fresh PromptEnd.
+        if row > pr + 2 || (row < pr) {
+            self.state.prompt_end_row = None;
+            self.state.prompt_end_col = None;
+            self.state.command.clear();
+            return;
+        }
+
+        // Extract text from the prompt-end anchor out to the cursor.
+        let screen = self.parser.screen();
         let mut cmd = String::new();
         if row == pr {
             let line = row_text(screen, row, pc, cursor_col as usize);
             cmd.push_str(&line);
-        } else if row > pr {
-            // multi-line wrap — concatenate from pr..=row
+        } else {
+            // 1- or 2-row wrap.
             let first = row_text(screen, pr, pc, self.cols as usize);
             cmd.push_str(&first);
             for r in (pr + 1)..row {

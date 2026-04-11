@@ -19,7 +19,9 @@ pub mod popup;
 
 use crate::config::UiMode;
 use crate::spec::model::Suggestion;
-use std::io::{self, Write};
+use std::io;
+
+pub use popup::Direction;
 
 /// Pick the top-suggestion tail for ghost rendering and popup accept.
 /// Assumes the Vec is sorted (priority DESC, type precedence, name len ASC).
@@ -31,16 +33,27 @@ pub fn pick_top(suggestions: &[Suggestion], partial: &str) -> Option<String> {
     Some(top.name[partial.len()..].to_string())
 }
 
-pub enum Renderer<W: Write> {
-    Ghost(ghost::GhostRenderer<W>),
-    Popup(popup::PopupRenderer<W>),
+pub enum Renderer {
+    Ghost(ghost::GhostRenderer<std::io::Stdout>),
+    Popup(popup::PopupRenderer<std::io::Stdout>),
+    Hybrid {
+        ghost: ghost::GhostRenderer<std::io::Stdout>,
+        popup: popup::PopupRenderer<std::io::Stdout>,
+    },
 }
 
-impl<W: Write> Renderer<W> {
-    pub fn new(out: W, mode: UiMode, max_suggestions: u8) -> Self {
+impl Renderer {
+    pub fn new(_out: std::io::Stdout, mode: UiMode, max_suggestions: u8) -> Self {
         match mode {
-            UiMode::Ghost => Renderer::Ghost(ghost::GhostRenderer::new(out)),
-            UiMode::Popup => Renderer::Popup(popup::PopupRenderer::new(out, max_suggestions)),
+            UiMode::Ghost => Renderer::Ghost(ghost::GhostRenderer::new(std::io::stdout())),
+            UiMode::Popup => Renderer::Popup(popup::PopupRenderer::new(
+                std::io::stdout(),
+                max_suggestions,
+            )),
+            UiMode::Hybrid => Renderer::Hybrid {
+                ghost: ghost::GhostRenderer::new(std::io::stdout()),
+                popup: popup::PopupRenderer::new(std::io::stdout(), max_suggestions),
+            },
         }
     }
 
@@ -54,6 +67,38 @@ impl<W: Write> Renderer<W> {
         match self {
             Renderer::Ghost(g) => g.draw(tail),
             Renderer::Popup(p) => p.draw(tail, all),
+            Renderer::Hybrid { ghost, popup } => {
+                ghost.draw(tail)?;
+                popup.draw(tail, all)
+            }
+        }
+    }
+
+    /// Popup-interactive draw with cursor + direction. In Ghost mode,
+    /// falls back to a regular ghost draw (popup state is irrelevant).
+    /// In Hybrid mode, draws the ghost tail *and* the popup so both are
+    /// visible at once.
+    ///
+    /// `cursor_col` and `term_cols` drive upstream-style cursor-aware
+    /// padding so the popup's left edge aligns under the partial token
+    /// the user is typing.
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_popup_interactive(
+        &mut self,
+        tail: Option<&str>,
+        all: &[Suggestion],
+        cursor: usize,
+        direction: Direction,
+        cursor_col: u16,
+        term_cols: u16,
+    ) -> io::Result<()> {
+        match self {
+            Renderer::Ghost(g) => g.draw(tail),
+            Renderer::Popup(p) => p.draw_full(all, cursor, direction, cursor_col, term_cols),
+            Renderer::Hybrid { ghost, popup } => {
+                ghost.draw(tail)?;
+                popup.draw_full(all, cursor, direction, cursor_col, term_cols)
+            }
         }
     }
 
@@ -61,6 +106,10 @@ impl<W: Write> Renderer<W> {
         match self {
             Renderer::Ghost(g) => g.clear(),
             Renderer::Popup(p) => p.clear(),
+            Renderer::Hybrid { ghost, popup } => {
+                ghost.clear()?;
+                popup.clear()
+            }
         }
     }
 }
