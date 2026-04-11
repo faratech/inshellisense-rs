@@ -862,6 +862,101 @@ function clamp0_100(n: number): number {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 6.1: createVersionedSpec handler
+// ---------------------------------------------------------------------------
+
+/// Pick the highest semver version from a list of "X.Y.Z" strings.
+/// Falls back to lexicographic comparison if a string isn't valid semver.
+function pickHighestVersion(versions: string[]): string | null {
+  if (versions.length === 0) return null;
+  const parsed = versions.map((v) => {
+    const m = v.match(/^(\d+)\.(\d+)\.(\d+)/);
+    if (m) {
+      return {
+        v,
+        nums: [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)],
+      };
+    }
+    return { v, nums: null };
+  });
+  // If all parsed: numeric sort.
+  if (parsed.every((p) => p.nums !== null)) {
+    parsed.sort((a, b) => {
+      for (let i = 0; i < 3; i++) {
+        if (a.nums![i] !== b.nums![i]) return a.nums![i] - b.nums![i];
+      }
+      return 0;
+    });
+  } else {
+    parsed.sort((a, b) => a.v.localeCompare(b.v));
+  }
+  return parsed[parsed.length - 1].v;
+}
+
+/// Detect `createVersionedSpec(name, versions)` and recursively extract
+/// from the highest-version sibling file. Returns true if handled.
+function tryHandleCreateVersionedSpec(
+  project: Project,
+  call: Node,
+  filePath: string,
+  relName: string
+): boolean {
+  if (!Node.isCallExpression(call)) return false;
+  const callee = call.getExpression();
+  if (!Node.isIdentifier(callee)) return false;
+  if (callee.getText() !== "createVersionedSpec") return false;
+
+  const args = call.getArguments();
+  if (args.length < 2) return false;
+
+  // Both args must fold to literals.
+  const ctxTmp: ExtractCtx = {
+    has_functions: false,
+    file: filePath,
+    post_process_in_progress: false,
+  };
+  const nameArg = extractValue(args[0], ctxTmp);
+  const versionsArg = extractValue(args[1], ctxTmp);
+  if (typeof nameArg !== "string") return false;
+  if (!Array.isArray(versionsArg)) return false;
+  const versions: string[] = versionsArg.filter((v) => typeof v === "string");
+  if (versions.length === 0) return false;
+
+  const latest = pickHighestVersion(versions);
+  if (!latest) return false;
+
+  // Sibling path: e.g. /tmp/withfig-autocomplete/src/heroku/8.6.0.ts
+  // The current file is e.g. /tmp/withfig-autocomplete/src/heroku/index.ts
+  const targetDir = path.dirname(filePath);
+  const targetPath = path.join(targetDir, `${latest}.ts`);
+  if (!fs.existsSync(targetPath)) {
+    if (process.env.DEBUG_A3) {
+      console.error(
+        `createVersionedSpec target missing: ${targetPath} from ${filePath}`
+      );
+    }
+    return false;
+  }
+
+  // The original relName for an index file is e.g. "heroku/index". We
+  // want the emitted spec keyed under the parent dir name ("heroku") so
+  // that `insh complete "heroku ..."` finds it via the top-level lookup.
+  // If the relName ends with "/index", strip the suffix.
+  let emitName = relName;
+  if (emitName.endsWith("/index")) {
+    emitName = emitName.slice(0, -"/index".length);
+  }
+
+  if (process.env.DEBUG_VERSIONED) {
+    console.error(
+      `createVersionedSpec ${nameArg} → ${latest} (${path.basename(targetPath)}) for ${relName} → emit as ${emitName}`
+    );
+  }
+  extractFileAs(project, targetPath, emitName);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Per-file extraction
 // ---------------------------------------------------------------------------
 
@@ -927,6 +1022,16 @@ function extractFileAs(project: Project, filePath: string, relName: string): voi
         break;
       }
       if (Node.isCallExpression(expr)) {
+        // Phase 6.1: `export default createVersionedSpec(name, versions)`.
+        // Detect this BEFORE the generic factory evaluator because the
+        // factory body returns a closure (not a Fig.Spec), so the
+        // generic path would fail. We instead pick the highest semver
+        // version, compute the sibling spec path, and recursively
+        // extract that file under the index's relative name.
+        if (tryHandleCreateVersionedSpec(project, expr, filePath, relName)) {
+          sourceFile.forget();
+          return;
+        }
         // A3: `export default completionSpec()`.
         const ctxTmp: ExtractCtx = {
           has_functions: false,
@@ -942,6 +1047,28 @@ function extractFileAs(project: Project, filePath: string, relName: string): voi
       if (Node.isIdentifier(expr)) {
         const symbol = expr.getSymbol();
         if (symbol) {
+          // Phase 6.1b: `import spec from "./other"; export default spec`
+          // — follow the default import to its source file and extract
+          // from there with the current relName.
+          for (const d of symbol.getDeclarations()) {
+            if (Node.isImportClause(d)) {
+              const importDecl = d.getParent();
+              if (importDecl && Node.isImportDeclaration(importDecl)) {
+                const moduleSpec = importDecl.getModuleSpecifierValue();
+                if (moduleSpec && (moduleSpec.startsWith("./") || moduleSpec.startsWith("../"))) {
+                  const targetPath = path.resolve(
+                    path.dirname(filePath),
+                    `${moduleSpec}.ts`
+                  );
+                  if (fs.existsSync(targetPath)) {
+                    sourceFile.forget();
+                    extractFileAs(project, targetPath, relName);
+                    return;
+                  }
+                }
+              }
+            }
+          }
           for (const d of symbol.getDeclarations()) {
             if (Node.isVariableDeclaration(d)) {
               const init = d.getInitializer();
@@ -1063,6 +1190,10 @@ function walkSpecs(dir: string, prefix: string = ""): Array<{ path: string; rel:
       if (entry.name.endsWith(".d.ts")) continue;
       if (entry.name === "shared.ts") continue;
       if (entry.name === "generators.ts") continue;
+      // Phase 6.1: aws/regions.ts is `export default <string[]>` — a data
+      // helper imported by other specs, not a Fig.Spec. Filter it out so
+      // it doesn't show up as a non-spec error in the corpus.
+      if (prefix === "aws" && entry.name === "regions.ts") continue;
       const base = entry.name.slice(0, -3);
       const rel = prefix ? `${prefix}/${base}` : base;
       out.push({ path: full, rel });

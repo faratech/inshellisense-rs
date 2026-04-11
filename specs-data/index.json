@@ -1,10 +1,10 @@
 {
   "version": "upstream-unknown",
   "stats": {
-    "total": 1471,
-    "pure": 1429,
+    "total": 1470,
+    "pure": 1435,
     "partial": 35,
-    "js_only": 7,
+    "js_only": 0,
     "error": 0,
     "essentials_extracted": 46,
     "function_skips": 35
@@ -2159,12 +2159,6 @@
       "has_functions": false
     },
     {
-      "name": "aws/regions",
-      "file": "aws/regions.ts",
-      "kind": "js_only",
-      "has_functions": true
-    },
-    {
       "name": "aws/rekognition",
       "file": "aws/rekognition.ts",
       "kind": "pure",
@@ -4121,10 +4115,10 @@
       "has_functions": false
     },
     {
-      "name": "az/index",
-      "file": "az/index.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "name": "az",
+      "file": "az.ts",
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "babel",
@@ -4411,8 +4405,8 @@
     {
       "name": "cl",
       "file": "cl.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "clang",
@@ -5261,10 +5255,10 @@
       "has_functions": false
     },
     {
-      "name": "fig/index",
-      "file": "fig/index.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "name": "fig",
+      "file": "fig.ts",
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "figterm",
@@ -6035,10 +6029,10 @@
       "has_functions": false
     },
     {
-      "name": "heroku/index",
-      "file": "heroku/index.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "name": "heroku",
+      "file": "heroku.ts",
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "hexo",
@@ -6173,10 +6167,10 @@
       "has_functions": false
     },
     {
-      "name": "infracost/index",
-      "file": "infracost/index.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "name": "infracost",
+      "file": "infracost.ts",
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "install",
@@ -7751,10 +7745,10 @@
       "has_functions": false
     },
     {
-      "name": "shopify/index",
-      "file": "shopify/index.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "name": "shopify",
+      "file": "shopify.ts",
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "shortcuts",
