@@ -7,6 +7,7 @@
 pub mod ansi;
 pub mod commands;
 pub mod curated;
+pub mod doctor;
 pub mod env;
 pub mod generator;
 pub mod history;
