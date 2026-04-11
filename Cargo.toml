@@ -1,0 +1,38 @@
+[package]
+name = "insh-rs"
+version = "0.1.0"
+edition = "2021"
+description = "Rust port of inshellisense: IDE-style autocomplete as ghost text for your shell"
+license = "MIT"
+
+[[bin]]
+name = "insh"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+portable-pty = "0.9"
+vt100 = { package = "vt100-ctt", version = "0.17" }
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+once_cell = "1"
+dirs = "5"
+crossterm = "0.28"
+signal-hook = "0.3"
+libc = "0.2"
+bytes = "1"
+
+[dependencies.boa_engine]
+version = "0.20"
+optional = true
+
+[features]
+default = []
+js = ["boa_engine"]
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

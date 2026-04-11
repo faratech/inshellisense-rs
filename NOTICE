@@ -1,0 +1,62 @@
+insh-rs — IDE-style shell autocomplete in Rust
+Copyright (c) 2026 Michael Fara
+Licensed under the MIT License (see LICENSE).
+
+This product includes software derived from and built upon the following
+projects, all of which are MIT licensed. Their full license texts are in
+the LICENSES/ directory; attribution summaries follow.
+
+─────────────────────────────────────────────────────────────────────────────
+
+inshellisense
+  Copyright (c) Microsoft Corporation
+  https://github.com/microsoft/inshellisense
+  License: MIT (see LICENSES/inshellisense-MIT.txt)
+
+  insh-rs is a Rust port of inshellisense. The following components are
+  derivative works:
+    * src/spec/parser.rs        — port of src/runtime/parser.ts (lex state machine)
+    * src/spec/resolver.rs      — port of src/runtime/runtime.ts (runSubcommand / runArg / runOption)
+    * src/spec/model.rs         — Rust mirror of the Fig.Spec schema consumed by inshellisense
+    * shell/shellIntegration.bash  — vendored verbatim, Microsoft copyright header preserved
+
+─────────────────────────────────────────────────────────────────────────────
+
+@withfig/autocomplete
+  Copyright (c) 2021 Hercules Labs Inc. (Fig)
+  https://github.com/withfig/autocomplete
+  License: MIT (see LICENSES/withfig-autocomplete-MIT.txt)
+
+  insh-rs consumes the ~715 TypeScript completion specs in this library
+  via a build-time extractor (phase 3+). Any spec data derived from
+  upstream retains its original attribution.
+
+─────────────────────────────────────────────────────────────────────────────
+
+bash-preexec
+  Copyright (c) 2015 Ryan Caloras
+  https://github.com/rcaloras/bash-preexec
+  License: MIT (see LICENSES/bash-preexec-MIT.txt)
+
+  shell/bash-preexec.sh — vendored verbatim for use by the shell
+  integration script.
+
+─────────────────────────────────────────────────────────────────────────────
+
+Cargo dependencies (transitive, loaded at build time): see Cargo.lock for
+the full list and `cargo license` for individual license details. Notable
+runtime dependencies:
+
+  * portable-pty        (MIT)       — https://github.com/wez/wezterm
+  * vt100-ctt           (MIT)       — https://github.com/cowoder/vt100-ctt
+  * clap                (MIT/Apache-2.0)
+  * crossterm           (MIT)
+  * serde, serde_json   (MIT/Apache-2.0)
+  * toml                (MIT/Apache-2.0)
+  * once_cell           (MIT/Apache-2.0)
+  * dirs                (MIT/Apache-2.0)
+  * anyhow              (MIT/Apache-2.0)
+
+insh-rs is not affiliated with, endorsed by, or sponsored by Microsoft,
+Amazon, Fig, or Hercules Labs Inc. "inshellisense" is a trademark of
+Microsoft Corporation.
