@@ -8,8 +8,8 @@
 //! scoped threads. One-or-zero generator still takes the fast path.
 
 use crate::spec::model::{
-    Arg, CacheSpec, Generator, PostProcess, PostProcessKind, ScriptInput, Suggestion,
-    SuggestionType, Template,
+    Arg, CacheSpec, Generator, PostProcess, PostProcessKind, ProjectFileReader, ScriptInput,
+    Subcommand, Suggestion, SuggestionType, Template,
 };
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -79,7 +79,187 @@ fn run_generator(g: &Generator, cwd: &str, prefix: &str) -> Vec<Suggestion> {
         Generator::Template { template } => template_suggestions(*template, cwd, prefix),
         Generator::Glob { pattern } => glob_paths(pattern, cwd),
         Generator::Custom { .. } => Vec::new(), // always empty without JS
+        Generator::ProjectFile { reader } => project_file_suggestions(*reader, cwd),
+        Generator::FileExistsThen {
+            path,
+            content_contains,
+            subcommand,
+        } => file_exists_then(path, content_contains.as_deref(), subcommand, cwd),
     }
+}
+
+fn file_exists_then(
+    rel_path: &str,
+    content_contains: Option<&str>,
+    sub: &Subcommand,
+    cwd: &str,
+) -> Vec<Suggestion> {
+    let cwd_path = if cwd.is_empty() { "." } else { cwd };
+    let target = std::path::Path::new(cwd_path).join(rel_path);
+    if !target.exists() {
+        return Vec::new();
+    }
+    if let Some(needle) = content_contains {
+        let Ok(contents) = std::fs::read_to_string(&target) else {
+            return Vec::new();
+        };
+        if !contents.contains(needle) {
+            return Vec::new();
+        }
+    }
+    sub.names
+        .iter()
+        .map(|n| Suggestion {
+            name: n.clone(),
+            description: sub.description.clone(),
+            suggestion_type: SuggestionType::Subcommand,
+            priority: Some(60),
+            ..Default::default()
+        })
+        .collect()
+}
+
+/// Hardcoded set of node CLIs that are interesting as `pnpm/yarn/bun`
+/// subcommands. Filtered against package.json deps or node_modules/.bin
+/// entries to surface useful loadable specs.
+const NODE_CLIS: &[&str] = &[
+    "vite", "vitest", "jest", "mocha", "ava", "tap", "eslint", "prettier",
+    "tsc", "tslint", "webpack", "rollup", "parcel", "esbuild", "swc",
+    "next", "nuxt", "remix", "astro", "gatsby", "vue-cli-service", "nx",
+    "playwright", "cypress", "storybook", "babel", "babel-node", "ts-node",
+    "tsx", "tap-spec", "nyc", "lerna", "rush", "pnpm", "yarn", "bun",
+    "node", "nodemon", "concurrently", "husky", "lint-staged", "rimraf",
+    "cross-env", "del-cli", "serve", "http-server", "browser-sync",
+    "stylelint", "postcss", "sass", "less", "tailwindcss", "fastify",
+    "nest", "hardhat", "truffle", "ganache", "fauna-shell", "wrangler",
+    "vercel", "netlify", "supabase", "amplify", "firebase", "convex",
+    "drizzle-kit", "prisma", "knex", "sequelize", "mongoose",
+];
+
+fn is_known_node_cli(name: &str) -> bool {
+    NODE_CLIS.iter().any(|&c| c == name)
+}
+
+fn project_file_suggestions(reader: ProjectFileReader, cwd: &str) -> Vec<Suggestion> {
+    match reader {
+        ProjectFileReader::PackageJsonScripts => package_json_scripts(cwd),
+        ProjectFileReader::PackageJsonNodeClis => package_json_node_clis(cwd),
+        ProjectFileReader::NodeModulesBinaries => node_modules_binaries(cwd),
+        ProjectFileReader::CargoWorkspaceMembers => cargo_workspace_members(cwd),
+    }
+}
+
+fn package_json_scripts(cwd: &str) -> Vec<Suggestion> {
+    let pkg_path = std::path::Path::new(if cwd.is_empty() { "." } else { cwd })
+        .join("package.json");
+    let Ok(text) = std::fs::read_to_string(&pkg_path) else {
+        return Vec::new();
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return Vec::new();
+    };
+    let Some(scripts) = value.get("scripts").and_then(|v| v.as_object()) else {
+        return Vec::new();
+    };
+    scripts
+        .iter()
+        .map(|(name, body)| Suggestion {
+            name: name.clone(),
+            description: body.as_str().map(|s| s.to_string()),
+            suggestion_type: SuggestionType::Arg,
+            priority: Some(70),
+            ..Default::default()
+        })
+        .collect()
+}
+
+fn package_json_node_clis(cwd: &str) -> Vec<Suggestion> {
+    let pkg_path = std::path::Path::new(if cwd.is_empty() { "." } else { cwd })
+        .join("package.json");
+    let Ok(text) = std::fs::read_to_string(&pkg_path) else {
+        return Vec::new();
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return Vec::new();
+    };
+    let mut names: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for key in ["dependencies", "devDependencies", "peerDependencies"] {
+        if let Some(deps) = value.get(key).and_then(|v| v.as_object()) {
+            for dep_name in deps.keys() {
+                if is_known_node_cli(dep_name) {
+                    names.insert(dep_name.clone());
+                }
+            }
+        }
+    }
+    names
+        .into_iter()
+        .map(|name| Suggestion {
+            name: name.clone(),
+            description: Some(format!("Run {} via the package manager", name)),
+            suggestion_type: SuggestionType::Subcommand,
+            priority: Some(65),
+            ..Default::default()
+        })
+        .collect()
+}
+
+fn node_modules_binaries(cwd: &str) -> Vec<Suggestion> {
+    let mut dir = std::path::PathBuf::from(if cwd.is_empty() { "." } else { cwd });
+    if let Ok(canon) = dir.canonicalize() {
+        dir = canon;
+    }
+    loop {
+        let candidate = dir.join("node_modules").join(".bin");
+        if candidate.is_dir() {
+            let Ok(entries) = std::fs::read_dir(&candidate) else {
+                return Vec::new();
+            };
+            return entries
+                .flatten()
+                .filter_map(|e| e.file_name().into_string().ok())
+                .filter(|n| is_known_node_cli(n))
+                .map(|name| Suggestion {
+                    name: name.clone(),
+                    description: Some(format!("Run {} from node_modules", name)),
+                    suggestion_type: SuggestionType::Subcommand,
+                    priority: Some(65),
+                    ..Default::default()
+                })
+                .collect();
+        }
+        if !dir.pop() {
+            return Vec::new();
+        }
+    }
+}
+
+fn cargo_workspace_members(cwd: &str) -> Vec<Suggestion> {
+    let path = std::path::Path::new(if cwd.is_empty() { "." } else { cwd })
+        .join("Cargo.toml");
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Vec::new();
+    };
+    let Ok(value) = toml::from_str::<toml::Value>(&text) else {
+        return Vec::new();
+    };
+    let Some(members) = value
+        .get("workspace")
+        .and_then(|w| w.get("members"))
+        .and_then(|m| m.as_array())
+    else {
+        return Vec::new();
+    };
+    members
+        .iter()
+        .filter_map(|m| m.as_str().map(String::from))
+        .map(|name| Suggestion {
+            name: name.clone(),
+            suggestion_type: SuggestionType::Arg,
+            priority: Some(60),
+            ..Default::default()
+        })
+        .collect()
 }
 
 fn template_suggestions(tpl: Template, cwd: &str, prefix: &str) -> Vec<Suggestion> {

@@ -376,6 +376,9 @@ function classifyJsonParsePostProcess(
 }
 
 function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
+  if (process.env.DEBUG_AWS_VAULT && ctx.file && ctx.file.endsWith("aws-vault.ts") && node) {
+    console.error(`extractValue: ${node.getKindName()} :: ${node.getText().slice(0, 50).replace(/\n/g, " ")}`);
+  }
   if (!node) return null;
 
   if (Node.isStringLiteral(node) || Node.isNoSubstitutionTemplateLiteral(node)) {
@@ -570,6 +573,24 @@ const TOLERANT_LIST_FIELDS = new Set([
   "suggestions",
 ]);
 
+/// Fields where the WHOLE field can be dropped silently if it contains
+/// functions, without flagging the entire spec as partial. Used for
+/// `generateSpec`/`getVersionCommand`/`onlyShowAt` and similar runtime
+/// hooks that have no static representation but whose absence does not
+/// invalidate the spec. We replace them with null in the output.
+const TOLERANT_SCALAR_FIELDS = new Set([
+  "generateSpec",
+  "getVersionCommand",
+  // `loadSpec` as a function (not a string) is JS-only — drop silently.
+  // If it's a string, the existing toRustSubcommand path handles it.
+  "loadSpec",
+  // Various rare runtime hooks.
+  "isCommand",
+  "filterTerm",
+  "getQueryTerm",
+  "shouldRedraw",
+]);
+
 /// Extract a value with an "isolation barrier" — if anything in its
 /// subtree sets has_functions, the flag is reset and the function returns
 /// null instead of polluting the outer ctx.
@@ -584,8 +605,14 @@ function extractValueIsolated(node: Node | undefined, ctx: ExtractCtx): any {
 }
 
 function extractObject(obj: ObjectLiteralExpression, ctx: ExtractCtx): any {
+  if (process.env.DEBUG_AWS_VAULT && ctx.file && ctx.file.endsWith("aws-vault.ts")) {
+    console.error(`extractObject @ ${obj.getStartLineNumber()}: ${obj.getText().slice(0, 80).replace(/\n/g, " ")}`);
+  }
   const out: Record<string, any> = {};
   for (const prop of obj.getProperties()) {
+    if (process.env.DEBUG_AWS_VAULT && ctx.file && ctx.file.endsWith("aws-vault.ts")) {
+      console.error(`  prop kind=${prop.getKindName()} text=${prop.getText().slice(0, 60).replace(/\n/g, " ")}`);
+    }
     if (Node.isPropertyAssignment(prop)) {
       const pa = prop as PropertyAssignment;
       const name = pa.getName();
@@ -611,6 +638,15 @@ function extractObject(obj: ObjectLiteralExpression, ctx: ExtractCtx): any {
             out[name] = v;
           }
         }
+      } else if (TOLERANT_SCALAR_FIELDS.has(name)) {
+        // Phase 6.2: drop these fields entirely if impure, but don't
+        // taint the surrounding spec. They have no static representation
+        // (they're runtime hooks) and their absence doesn't break
+        // anything — Rust just won't run them.
+        const v = extractValueIsolated(pa.getInitializer(), ctx);
+        if (v !== null && v !== undefined) {
+          out[name] = v;
+        }
       } else {
         const value = extractValue(pa.getInitializer(), ctx);
         if (value !== undefined) {
@@ -621,12 +657,39 @@ function extractObject(obj: ObjectLiteralExpression, ctx: ExtractCtx): any {
       if (isPostProcess) ctx.post_process_in_progress = savedFlag;
     } else if (Node.isShorthandPropertyAssignment(prop)) {
       // `{ name }` is sugar for `{ name: name }` — resolve the
-      // identifier to its value (usually a factory parameter).
-      const name = prop.getName();
-      const ident = prop.getNameNode();
-      const v = extractValue(ident, ctx);
-      if (v !== undefined && v !== null) {
-        out[name] = v;
+      // identifier to its value. ts-morph: getNameNode().getSymbol()
+      // returns the property's own symbol, not the resolved variable;
+      // we need getValueSymbol() to follow to the actual definition.
+      const propName = prop.getName();
+      // Param substitution: if we're inside a factory body and the
+      // shorthand name matches a bound parameter, return the value.
+      if (ctx.param_subs && ctx.param_subs.has(propName)) {
+        const v = ctx.param_subs.get(propName);
+        if (v !== undefined && v !== null) {
+          out[propName] = v;
+        }
+        continue;
+      }
+      const valueSym = prop.getValueSymbol();
+      if (valueSym) {
+        const target = valueSym.getAliasedSymbol?.() ?? valueSym;
+        let resolved: any = null;
+        for (const decl of target.getDeclarations()) {
+          if (Node.isVariableDeclaration(decl)) {
+            const init = decl.getInitializer();
+            if (init) {
+              resolved = extractValue(init, ctx);
+              break;
+            }
+          }
+        }
+        if (resolved !== null && resolved !== undefined) {
+          out[propName] = resolved;
+        } else {
+          ctx.has_functions = true;
+        }
+      } else {
+        ctx.has_functions = true;
       }
     } else if (Node.isSpreadAssignment(prop)) {
       // A4: `{ ...commonFields, name: "foo" }` — resolve the spread's
@@ -638,7 +701,32 @@ function extractObject(obj: ObjectLiteralExpression, ctx: ExtractCtx): any {
         ctx.has_functions = true;
       }
     } else if (Node.isMethodDeclaration(prop)) {
-      ctx.has_functions = true;
+      // Method shorthand: `postProcess(out) { return ...; }`. ts-morph's
+      // MethodDeclaration has getBody/getParameters that match the
+      // FunctionExpression/ArrowFunction shape, so we can run the
+      // postProcess classifier directly via duck-typing.
+      const name = prop.getName();
+      const isPostProcess = name === "postProcess";
+      if (process.env.DEBUG_METHOD) {
+        console.error(`method shorthand: ${name} in ${ctx.file}`);
+      }
+      let classified: any = null;
+      if (isPostProcess) {
+        classified =
+          classifyPostProcess(prop as any) ??
+          classifyJsonParsePostProcess(prop as any);
+        if (process.env.DEBUG_METHOD) {
+          console.error(`  classified: ${classified ? JSON.stringify(classified) : "null"}`);
+        }
+      }
+      if (classified) {
+        out[name] = { __post_process_kind: classified };
+      } else {
+        // Method shorthand we can't classify → impure for this field.
+        // Tolerant-list isolation in the parent generator will drop
+        // the surrounding object.
+        ctx.has_functions = true;
+      }
     }
   }
   return out;
@@ -859,6 +947,169 @@ function mapTemplate(t: string): string | null {
 
 function clamp0_100(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+// ---------------------------------------------------------------------------
+// Phase 6.2: post-extraction idiom injections
+// ---------------------------------------------------------------------------
+//
+// For specs whose generateSpec/custom/postProcess functions match known
+// idioms that we re-implement in Rust, inject the corresponding new
+// Generator variants into the extracted Rust shape after conversion.
+// This is a deliberate "by spec name" hardcoding — much safer than
+// trying to AST-pattern-match the bodies of arbitrarily-shaped factory
+// functions.
+
+type Injection = (rust: any) => void;
+
+const INJECTIONS: Record<string, Injection> = {
+  // pnpm/yarn/bun all share the "list installed CLI tools as
+  // subcommands" idiom. Add a top-level args generator that reads
+  // package.json scripts (so `pnpm <TAB>` shows scripts) AND a
+  // synthetic loadable subcommand for each known node CLI found in
+  // package.json deps.
+  pnpm: injectPackageJsonRunner,
+  yarn: injectPackageJsonRunner,
+  bun: injectPackageJsonRunner,
+
+  // python detects Django via `manage.py` containing "django".
+  python: (rust) => {
+    addFileExistsSubcommand(rust, {
+      path: "manage.py",
+      content_contains: "django",
+      subcommand: {
+        names: ["manage.py"],
+        description: "Django manage.py — load django-admin spec",
+      },
+    });
+  },
+  python3: (rust) => {
+    addFileExistsSubcommand(rust, {
+      path: "manage.py",
+      content_contains: "django",
+      subcommand: {
+        names: ["manage.py"],
+        description: "Django manage.py — load django-admin spec",
+      },
+    });
+  },
+
+  // node detects AdonisJS via the marker file. The upstream spec
+  // returns a 400-line embedded spec for ace; we provide a placeholder
+  // subcommand that loads adonis if present.
+  node: (rust) => {
+    addFileExistsSubcommand(rust, {
+      path: "ace",
+      subcommand: {
+        names: ["ace"],
+        description: "AdonisJS ace command (detected via ./ace)",
+      },
+    });
+  },
+
+  // php detects laravel/symfony/please via marker files.
+  php: (rust) => {
+    addFileExistsSubcommand(rust, {
+      path: "artisan",
+      subcommand: {
+        names: ["artisan"],
+        description: "Laravel artisan",
+      },
+    });
+    addFileExistsSubcommand(rust, {
+      path: "please",
+      subcommand: {
+        names: ["please"],
+        description: "Laravel please",
+      },
+    });
+    addFileExistsSubcommand(rust, {
+      path: "bin/console",
+      subcommand: {
+        names: ["bin/console"],
+        description: "Symfony bin/console",
+      },
+    });
+  },
+};
+
+function injectPackageJsonRunner(rust: any): void {
+  // Top-level args: read package.json scripts.
+  if (!Array.isArray(rust.args)) rust.args = [];
+  const argEntry: any = {
+    name: "script",
+    description: "package.json script",
+    is_optional: true,
+    is_variadic: true,
+    generators: [
+      { kind: "project_file", reader: "package_json_scripts" },
+    ],
+  };
+  // Avoid double-injecting if a previous run added it.
+  const already = rust.args.some(
+    (a: any) =>
+      Array.isArray(a.generators) &&
+      a.generators.some(
+        (g: any) =>
+          g.kind === "project_file" && g.reader === "package_json_scripts"
+      )
+  );
+  if (!already) {
+    rust.args.unshift(argEntry);
+  }
+
+  // Add a synthetic top-level args generator for node CLIs.
+  if (!already) {
+    argEntry.generators.push({
+      kind: "project_file",
+      reader: "package_json_node_clis",
+    });
+    argEntry.generators.push({
+      kind: "project_file",
+      reader: "node_modules_binaries",
+    });
+  }
+}
+
+function addFileExistsSubcommand(
+  rust: any,
+  cfg: { path: string; content_contains?: string; subcommand: any }
+): void {
+  if (!Array.isArray(rust.args)) rust.args = [];
+  // Mount the FileExistsThen as a top-level arg generator so that the
+  // bare command (e.g. `python <TAB>`) surfaces the marker subcommand.
+  let argEntry = rust.args.find((a: any) => a && Array.isArray(a.generators));
+  if (!argEntry) {
+    argEntry = {
+      name: "context",
+      is_optional: true,
+      generators: [],
+    };
+    rust.args.unshift(argEntry);
+  }
+  const gen: any = {
+    kind: "file_exists_then",
+    path: cfg.path,
+    subcommand: cfg.subcommand,
+  };
+  if (cfg.content_contains) gen.content_contains = cfg.content_contains;
+  // Avoid double-injecting on re-runs.
+  const already = argEntry.generators.some(
+    (g: any) => g.kind === "file_exists_then" && g.path === cfg.path
+  );
+  if (!already) argEntry.generators.push(gen);
+}
+
+function applyPostExtractInjection(rust: any): void {
+  if (!rust || !Array.isArray(rust.names)) return;
+  const primary = rust.names[0];
+  const inject = INJECTIONS[primary];
+  if (inject) {
+    inject(rust);
+    if (process.env.DEBUG_INJECT) {
+      console.error(`injected idiom for ${primary}`);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1126,6 +1377,9 @@ function extractFileAs(project: Project, filePath: string, relName: string): voi
   if (ctx.has_functions) {
     stats.function_skips++;
     stats.partial++;
+    if (process.env.DEBUG_PARTIAL) {
+      console.error(`partial: ${rel}`);
+    }
     manifest.push({
       name: rel,
       file: `${rel}.ts`,
@@ -1141,6 +1395,11 @@ function extractFileAs(project: Project, filePath: string, relName: string): voi
     console.error(`empty/missing names after conversion: ${filePath}`);
     return;
   }
+
+  // Phase 6.2: post-extraction injections for known idioms. Add
+  // ProjectFile / FileExistsThen generators to specs whose generateSpec
+  // we can replicate in Rust at completion time.
+  applyPostExtractInjection(rust);
   // A2: when we recurse from a re-export, rewrite the primary name so
   // the emitted spec is keyed under the file that aliased it (e.g.
   // hub.json carries `names: ["hub"]`, not `["git"]`).

@@ -1,0 +1,139 @@
+{
+  "names": [
+    "node"
+  ],
+  "description": "Run the node interpreter",
+  "options": [
+    {
+      "names": [
+        "-e",
+        "--eval=..."
+      ],
+      "description": "Evaluate script",
+      "args": [
+        {}
+      ]
+    },
+    {
+      "names": [
+        "--watch"
+      ],
+      "description": "Watch input files"
+    },
+    {
+      "names": [
+        "--watch-path"
+      ],
+      "description": "Specify a watch directory or file",
+      "is_repeatable": true,
+      "args": [
+        {
+          "name": "path",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--watch-preserve-output"
+      ],
+      "description": "Disable the clearing of the console when watch mode restarts the process",
+      "depends_on": [
+        "--watch",
+        "--watch-path"
+      ]
+    },
+    {
+      "names": [
+        "--env-file"
+      ],
+      "description": "Specify a file containing environment variables",
+      "is_repeatable": true,
+      "args": [
+        {
+          "name": "path",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-p",
+        "--print"
+      ],
+      "description": "Evaluate script and print result"
+    },
+    {
+      "names": [
+        "-c",
+        "--check"
+      ],
+      "description": "Syntax check script without executing"
+    },
+    {
+      "names": [
+        "-v",
+        "--version"
+      ],
+      "description": "Print Node.js version"
+    },
+    {
+      "names": [
+        "-i",
+        "--interactive"
+      ],
+      "description": "Always enter the REPL even if stdin does not appear to be a terminal"
+    },
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Print node command line options (currently set)"
+    },
+    {
+      "names": [
+        "--inspect"
+      ],
+      "description": "Activate inspector on host:port (default: 127.0.0.1:9229)",
+      "args": [
+        {
+          "name": "[host:]port",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "--preserve-symlinks"
+      ],
+      "description": "Follows symlinks to directories when examining source code and templates for translation strings"
+    }
+  ],
+  "args": [
+    {
+      "name": "node script",
+      "is_script": true,
+      "generators": [
+        {
+          "kind": "template",
+          "template": "filepaths"
+        },
+        {
+          "kind": "file_exists_then",
+          "path": "ace",
+          "subcommand": {
+            "names": [
+              "ace"
+            ],
+            "description": "AdonisJS ace command (detected via ./ace)"
+          }
+        }
+      ]
+    }
+  ]
+}

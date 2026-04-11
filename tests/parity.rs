@@ -84,8 +84,9 @@ fn docker_run_has_detach() {
 #[test]
 fn option_value_binding_skips_path_arg() {
     // `git -C /tmp st` — the `/tmp` is consumed as the arg to `-C`, then
-    // we're back at git level and "st" matches "stash" (or "status" or
-    // "start" — whichever is shortest).
+    // we're back at git level and "st" matches a `st*` subcommand.
+    // The extracted git spec has stage, stash, status — any of those
+    // proves option-value binding worked.
     let top = top_suggestion("git -C /tmp st");
     assert!(
         top.is_some(),
@@ -93,8 +94,8 @@ fn option_value_binding_skips_path_arg() {
     );
     let t = top.unwrap();
     assert!(
-        ["ash", "atus"].contains(&t.as_str()),
-        "expected 'stash' or 'status' tail, got {t:?}"
+        ["age", "ash", "atus"].contains(&t.as_str()),
+        "expected stage/stash/status tail, got {t:?}"
     );
 }
 

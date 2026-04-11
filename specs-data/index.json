@@ -2,12 +2,12 @@
   "version": "upstream-unknown",
   "stats": {
     "total": 1470,
-    "pure": 1435,
-    "partial": 35,
+    "pure": 1468,
+    "partial": 2,
     "js_only": 0,
     "error": 0,
-    "essentials_extracted": 46,
-    "function_skips": 35
+    "essentials_extracted": 52,
+    "function_skips": 2
   },
   "entries": [
     {
@@ -127,8 +127,8 @@
     {
       "name": "appwrite",
       "file": "appwrite.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "apt",
@@ -229,8 +229,8 @@
     {
       "name": "aws-vault",
       "file": "aws-vault.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws/accessanalyzer",
@@ -4249,8 +4249,8 @@
     {
       "name": "bun",
       "file": "bun.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "bundle",
@@ -4501,8 +4501,8 @@
     {
       "name": "composer",
       "file": "composer.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "conda",
@@ -4825,8 +4825,8 @@
     {
       "name": "dog",
       "file": "dog.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "doggo",
@@ -5005,8 +5005,8 @@
     {
       "name": "drush",
       "file": "drush.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dscacheutil",
@@ -5143,8 +5143,8 @@
     {
       "name": "esbuild",
       "file": "esbuild.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "eslint",
@@ -5275,8 +5275,8 @@
     {
       "name": "fin",
       "file": "fin.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "find",
@@ -5839,8 +5839,8 @@
     {
       "name": "git",
       "file": "git.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "git-cliff",
@@ -6085,8 +6085,8 @@
     {
       "name": "hub",
       "file": "hub.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "hugo",
@@ -6277,8 +6277,8 @@
     {
       "name": "kamal",
       "file": "kamal.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "kdoctor",
@@ -6493,8 +6493,8 @@
     {
       "name": "magento",
       "file": "magento.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "maigret",
@@ -6535,8 +6535,8 @@
     {
       "name": "mask",
       "file": "mask.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mdfind",
@@ -6841,8 +6841,8 @@
     {
       "name": "node",
       "file": "node.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "noglob",
@@ -6925,8 +6925,8 @@
     {
       "name": "nx",
       "file": "nx.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "nylas",
@@ -6985,8 +6985,8 @@
     {
       "name": "op",
       "file": "op.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "opa",
@@ -7093,26 +7093,26 @@
     {
       "name": "php",
       "file": "php.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "php/artisan",
       "file": "php/artisan.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "php/bin-console",
       "file": "php/bin-console.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "php/please",
       "file": "php/please.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "phpstorm",
@@ -7369,8 +7369,8 @@
     {
       "name": "python",
       "file": "python.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "python/http.server",
@@ -7381,8 +7381,8 @@
     {
       "name": "python3",
       "file": "python3.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "q",
@@ -7417,8 +7417,8 @@
     {
       "name": "rails",
       "file": "rails.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "railway",
@@ -7573,8 +7573,8 @@
     {
       "name": "rugby",
       "file": "rugby.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rush",
@@ -7603,8 +7603,8 @@
     {
       "name": "rustup",
       "file": "rustup.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rvm",
@@ -7615,8 +7615,8 @@
     {
       "name": "sake",
       "file": "sake.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "sam",
@@ -7687,8 +7687,8 @@
     {
       "name": "serverless",
       "file": "serverless.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "sfdx",
@@ -7789,8 +7789,8 @@
     {
       "name": "sls",
       "file": "sls.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "snaplet",
@@ -8113,8 +8113,8 @@
     {
       "name": "task",
       "file": "task.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "task/go-task",
@@ -8419,8 +8419,8 @@
     {
       "name": "uv",
       "file": "uv.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "v",
@@ -8683,8 +8683,8 @@
     {
       "name": "xc",
       "file": "xc.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "xcode-select",
@@ -8755,8 +8755,8 @@
     {
       "name": "yarn",
       "file": "yarn.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ykman",
@@ -8785,8 +8785,8 @@
     {
       "name": "z",
       "file": "z.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "zapier",

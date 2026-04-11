@@ -104,12 +104,40 @@ pub enum Generator {
         #[serde(default)]
         cache: Option<CacheSpec>,
     },
-    /// Opaque JS generator; resolved via the js_bridge in phase 6.
+    /// Opaque JS generator (no-op without a JS runtime).
     Custom { fn_id: u32 },
     /// A built-in template (filepaths, folders, history, help).
     Template { template: Template },
     /// Shell glob expansion.
     Glob { pattern: String },
+    /// Phase 6.2: read a project file at completion time and derive
+    /// suggestions from one of its well-known fields. The reader
+    /// dictates which file is read and how its contents are mapped.
+    ProjectFile { reader: ProjectFileReader },
+    /// Phase 6.2: if a file exists at the relative path (and optionally
+    /// contains a substring), emit the given subcommand. Static
+    /// alternative to many `generateSpec: async` idioms.
+    FileExistsThen {
+        path: String,
+        #[serde(default)]
+        content_contains: Option<String>,
+        subcommand: Box<Subcommand>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectFileReader {
+    /// `package.json` → keys of `scripts` → suggestion per key.
+    PackageJsonScripts,
+    /// `package.json` → dependencies + devDependencies, filtered by the
+    /// hardcoded NODE_CLIS set, → loadable subcommand suggestions.
+    PackageJsonNodeClis,
+    /// Walk up from cwd until `node_modules/.bin/` is found, list its
+    /// entries filtered by NODE_CLIS, → loadable subcommand suggestions.
+    NodeModulesBinaries,
+    /// `Cargo.toml` → `[workspace.members]` → suggestion per member.
+    CargoWorkspaceMembers,
 }
 
 #[derive(Debug, Clone, Deserialize)]
