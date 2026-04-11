@@ -139,16 +139,16 @@ pub fn main() -> Result<()> {
 
     match cli.command.unwrap_or(Cmd::Start { ui: None }) {
         Cmd::Start { ui } => {
-            // Eagerly unpack resources so the wrapped shell can find its
-            // integration scripts under ~/.insh-rs/. Cheap: the unpacker
-            // is version-gated and no-ops on second run.
             let _ = resources::unpack();
             let cfg = insh_rs::config::load();
             let effective_ui = ui.unwrap_or(cfg.ui);
+            let shell = cli.shell.unwrap_or_else(insh_rs::shell::detect);
             if cli.verbose {
-                eprintln!("insh-rs: ui mode = {}", effective_ui.as_str());
+                eprintln!("insh-rs: ui = {}", effective_ui.as_str());
+                eprintln!("insh-rs: shell = {}", shell.as_str());
+                eprintln!("insh-rs: login = {}", cli.login);
             }
-            pty::run_wrapped_shell()
+            pty::run_wrapped(shell, cli.login)
         }
         Cmd::Init { shell, install_rc } => {
             let target = shell.unwrap_or(Shell::Bash);

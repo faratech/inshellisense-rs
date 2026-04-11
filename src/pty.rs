@@ -4,7 +4,9 @@
 
 use crate::ansi;
 use crate::history;
+use crate::paths;
 use crate::render::Renderer;
+use crate::shell::Shell;
 use crate::spec::Registry;
 use crate::suggest::Engine;
 use crate::term::TermTracker;
@@ -17,8 +19,18 @@ use std::thread;
 use std::time::Duration;
 
 pub fn run_wrapped_shell() -> Result<()> {
-    let shell_path = find_bash()?;
-    let init_path = materialize_shell_integration()?;
+    run_wrapped(Shell::Bash, false)
+}
+
+pub fn run_wrapped(shell: Shell, login: bool) -> Result<()> {
+    // Make sure the vendored shell integration scripts are on disk.
+    let _ = crate::resources::unpack();
+
+    let shell_path = find_on_path(shell.as_str())
+        .with_context(|| format!("shell not found on PATH: {}", shell.as_str()))?;
+    let shell_dir = paths::shell_dir().context("no HOME directory")?;
+    let zsh_dotdir = paths::zsh_dotdir().context("no HOME directory")?;
+    let target = shell.spawn_target(&shell_dir, &zsh_dotdir, login);
 
     let (cols, rows) = terminal::size()
         .ok()
@@ -35,9 +47,21 @@ pub fn run_wrapped_shell() -> Result<()> {
         .context("openpty failed")?;
 
     let mut cmd = CommandBuilder::new(&shell_path);
-    cmd.args(["--init-file", init_path.to_str().unwrap()]);
+    for arg in &target.args {
+        cmd.arg(arg);
+    }
+    // Dual-guard: both ISTERM and INSH_RS are set so this coexists with
+    // upstream inshellisense's shell integration.
+    cmd.env("ISTERM", "1");
     cmd.env("INSH_RS", "1");
+    if login {
+        cmd.env("ISTERM_LOGIN", "1");
+        cmd.env("INSH_RS_LOGIN", "1");
+    }
     cmd.env("TERM", "xterm-256color");
+    for (k, v) in &target.env {
+        cmd.env(k, v);
+    }
     if let Ok(home) = std::env::var("HOME") {
         cmd.env("HOME", home);
     }
@@ -165,26 +189,13 @@ pub fn run_wrapped_shell() -> Result<()> {
     Ok(())
 }
 
-fn find_bash() -> Result<String> {
+fn find_on_path(binary: &str) -> Result<String> {
     let path = std::env::var("PATH").unwrap_or_default();
     for dir in path.split(':') {
-        let candidate = std::path::Path::new(dir).join("bash");
+        let candidate = std::path::Path::new(dir).join(binary);
         if candidate.exists() {
             return Ok(candidate.to_string_lossy().into_owned());
         }
     }
-    anyhow::bail!("bash not found on PATH")
-}
-
-fn materialize_shell_integration() -> Result<std::path::PathBuf> {
-    // Write the vendored shellIntegration.bash to a deterministic path so a
-    // fresh PTY can --init-file it.
-    let dir = dirs::cache_dir()
-        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
-        .join("insh-rs");
-    std::fs::create_dir_all(&dir).ok();
-    let path = dir.join("shellIntegration.bash");
-    let contents = include_str!("../shell/shellIntegration.bash");
-    std::fs::write(&path, contents)?;
-    Ok(path)
+    anyhow::bail!("not found on PATH: {}", binary)
 }

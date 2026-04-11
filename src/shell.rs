@@ -24,6 +24,19 @@ pub enum Shell {
     Nu,
 }
 
+/// Complete spawn descriptor for `pty::run_wrapped_shell`. Computed from
+/// a `Shell` value via `Shell::spawn_target`. Port of
+/// `/tmp/inshellisense/src/isterm/pty.ts:377-429` (`convertToPtyTarget`).
+pub struct SpawnTarget {
+    /// The shell binary name or absolute path (passed to portable-pty).
+    pub binary: String,
+    /// Arguments to pass to the shell.
+    pub args: Vec<String>,
+    /// Extra env vars to set on the child process (on top of the parent's env
+    /// + the dual-guard ISTERM/INSH_RS markers).
+    pub env: Vec<(String, String)>,
+}
+
 impl Shell {
     pub fn as_str(self) -> &'static str {
         match self {
@@ -35,6 +48,92 @@ impl Shell {
             Shell::Xonsh => "xonsh",
             Shell::Nu => "nu",
         }
+    }
+
+    /// Compute the binary, argv, and env overrides needed to spawn this
+    /// shell under a PTY with our integration script sourced at startup.
+    ///
+    /// `shell_dir` is the path to `~/.insh-rs/shell/` (absolute). If the
+    /// directory doesn't exist yet, callers should run
+    /// `crate::resources::unpack()` first.
+    pub fn spawn_target(
+        self,
+        shell_dir: &std::path::Path,
+        zsh_dotdir: &std::path::Path,
+        login: bool,
+    ) -> SpawnTarget {
+        let path_of = |name: &str| shell_dir.join(name).display().to_string();
+        let mut args: Vec<String> = Vec::new();
+        let mut env: Vec<(String, String)> = Vec::new();
+        let binary = self.as_str().to_string();
+
+        match self {
+            Shell::Bash => {
+                args.push("--init-file".into());
+                args.push(path_of("shellIntegration.bash"));
+            }
+            Shell::Zsh => {
+                // Preserve the user's original ZDOTDIR (so their .zshrc etc.
+                // can still be sourced from the wrapper scripts) and point
+                // zsh at our isolated dotdir.
+                if let Ok(user_zdotdir) = std::env::var("ZDOTDIR") {
+                    env.push(("USER_ZDOTDIR".into(), user_zdotdir));
+                } else if let Some(home) = std::env::var_os("HOME") {
+                    env.push((
+                        "USER_ZDOTDIR".into(),
+                        home.to_string_lossy().into_owned(),
+                    ));
+                }
+                env.push(("ZDOTDIR".into(), zsh_dotdir.display().to_string()));
+            }
+            Shell::Fish => {
+                args.push("--init-command".into());
+                args.push(format!("source {}", path_of("shellIntegration.fish")));
+            }
+            Shell::Pwsh | Shell::Powershell => {
+                args.push("-NoExit".into());
+                args.push("-Command".into());
+                args.push(format!(
+                    "try {{ . \"{}\" }} catch {{}}",
+                    path_of("shellIntegration.ps1")
+                ));
+            }
+            Shell::Xonsh => {
+                // Include existing user configs so our wrapper doesn't
+                // shadow them — matches upstream's ordering.
+                args.push("--rc".into());
+                if let Some(home) = dirs::home_dir() {
+                    let candidates = [
+                        home.join(".xonshrc"),
+                        home.join(".config/xonsh/rc.xsh"),
+                    ];
+                    for c in &candidates {
+                        if c.exists() {
+                            args.push(c.display().to_string());
+                        }
+                    }
+                }
+                args.push(path_of("shellIntegration.xsh"));
+            }
+            Shell::Nu => {
+                args.push("--execute".into());
+                args.push(format!("source `{}`", path_of("shellIntegration.nu")));
+            }
+        }
+
+        if login {
+            match self {
+                Shell::Bash => args.insert(0, "--login".into()),
+                Shell::Zsh | Shell::Fish | Shell::Xonsh | Shell::Nu => {
+                    args.insert(0, "--login".into())
+                }
+                Shell::Pwsh | Shell::Powershell => {
+                    args.insert(0, "-Login".into())
+                }
+            }
+        }
+
+        SpawnTarget { binary, args, env }
     }
 
     /// Filename for the generated init file in ~/.insh-rs/init/<shell>/<file>.
