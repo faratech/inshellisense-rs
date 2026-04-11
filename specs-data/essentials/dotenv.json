@@ -1,0 +1,74 @@
+{
+  "names": [
+    "dotenv"
+  ],
+  "description": "Loads environment variables from .env",
+  "options": [
+    {
+      "names": [
+        "-f"
+      ],
+      "description": "List of env files to parse",
+      "exclusive_on": [
+        "-h",
+        "-v",
+        "-t"
+      ],
+      "args": [
+        {
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Display help",
+      "exclusive_on": [
+        "-f",
+        "-v",
+        "-t"
+      ]
+    },
+    {
+      "names": [
+        "-v",
+        "--version"
+      ],
+      "description": "Show version",
+      "exclusive_on": [
+        "-f",
+        "-h",
+        "-t"
+      ]
+    },
+    {
+      "names": [
+        "-t",
+        "--template"
+      ],
+      "description": "Create a template env file",
+      "exclusive_on": [
+        "-f",
+        "-h",
+        "-v"
+      ],
+      "args": [
+        {
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    }
+  ],
+  "args": [
+    {
+      "is_command": true
+    }
+  ]
+}

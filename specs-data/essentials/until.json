@@ -1,0 +1,11 @@
+{
+  "names": [
+    "until"
+  ],
+  "description": "Repeat a command until this is true",
+  "args": [
+    {
+      "is_command": true
+    }
+  ]
+}

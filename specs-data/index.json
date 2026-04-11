@@ -1,0 +1,4304 @@
+{
+  "version": "upstream-unknown",
+  "stats": {
+    "total": 715,
+    "pure": 321,
+    "partial": 377,
+    "js_only": 17,
+    "error": 0,
+    "essentials_extracted": 26,
+    "function_skips": 377
+  },
+  "entries": [
+    {
+      "name": "-",
+      "file": "-.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "act",
+      "file": "act.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "adb",
+      "file": "adb.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "adr",
+      "file": "adr.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "afplay",
+      "file": "afplay.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aftman",
+      "file": "aftman.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ag",
+      "file": "ag.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "agrippa",
+      "file": "agrippa.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "airflow",
+      "file": "airflow.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aliases",
+      "file": "aliases.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "amplify",
+      "file": "amplify.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ampx",
+      "file": "ampx.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ansible-config",
+      "file": "ansible-config.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ansible-doc",
+      "file": "ansible-doc.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ansible-galaxy",
+      "file": "ansible-galaxy.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ansible-lint",
+      "file": "ansible-lint.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ansible-playbook",
+      "file": "ansible-playbook.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ansible",
+      "file": "ansible.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ant",
+      "file": "ant.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "appwrite",
+      "file": "appwrite.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "apt",
+      "file": "apt.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "arch",
+      "file": "arch.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "arduino-cli",
+      "file": "arduino-cli.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "argo",
+      "file": "argo.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "asar",
+      "file": "asar.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "asciinema",
+      "file": "asciinema.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "asdf",
+      "file": "asdf.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "asr",
+      "file": "asr.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "assimp",
+      "file": "assimp.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "astro",
+      "file": "astro.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "atlas",
+      "file": "atlas.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "atuin",
+      "file": "atuin.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "authchanger",
+      "file": "authchanger.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "autocannon",
+      "file": "autocannon.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "autojump",
+      "file": "autojump.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws-vault",
+      "file": "aws-vault.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws",
+      "file": "aws.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "awsume",
+      "file": "awsume.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "babel",
+      "file": "babel.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "banner",
+      "file": "banner.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "barnard59",
+      "file": "barnard59.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "base32",
+      "file": "base32.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "base64",
+      "file": "base64.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "basename",
+      "file": "basename.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "basenc",
+      "file": "basenc.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "bat",
+      "file": "bat.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "bazel",
+      "file": "bazel.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "bc",
+      "file": "bc.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "bcd",
+      "file": "bcd.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "bit",
+      "file": "bit.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "black",
+      "file": "black.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "blitz",
+      "file": "blitz.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "bosh",
+      "file": "bosh.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "br",
+      "file": "br.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "brew",
+      "file": "brew.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "broot",
+      "file": "broot.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "browser-sync",
+      "file": "browser-sync.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "btop",
+      "file": "btop.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "build-storybook",
+      "file": "build-storybook.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "bun",
+      "file": "bun.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "bundle",
+      "file": "bundle.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "bunx",
+      "file": "bunx.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "bw",
+      "file": "bw.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "bwdc",
+      "file": "bwdc.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "bws",
+      "file": "bws.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "c++",
+      "file": "c++.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "caffeinate",
+      "file": "caffeinate.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "cal",
+      "file": "cal.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "cap",
+      "file": "cap.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "capacitor",
+      "file": "capacitor.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "cargo",
+      "file": "cargo.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "cat",
+      "file": "cat.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "cci",
+      "file": "cci.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "cd",
+      "file": "cd.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "cdk",
+      "file": "cdk.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "cdk8s",
+      "file": "cdk8s.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "cf",
+      "file": "cf.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "charm",
+      "file": "charm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "checkov",
+      "file": "checkov.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "chezmoi",
+      "file": "chezmoi.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "chmod",
+      "file": "chmod.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "chown",
+      "file": "chown.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "chsh",
+      "file": "chsh.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "cicada",
+      "file": "cicada.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "circleci",
+      "file": "circleci.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "cl",
+      "file": "cl.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "clang++",
+      "file": "clang++.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "clang",
+      "file": "clang.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "clear",
+      "file": "clear.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "cliff-jumper",
+      "file": "cliff-jumper.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "clilol",
+      "file": "clilol.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "clion",
+      "file": "clion.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "clojure",
+      "file": "clojure.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "cloudflared",
+      "file": "cloudflared.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "cmake",
+      "file": "cmake.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "coda",
+      "file": "coda.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "code-insiders",
+      "file": "code-insiders.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "code",
+      "file": "code.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "codesign",
+      "file": "codesign.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "command",
+      "file": "command.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "commercelayer",
+      "file": "commercelayer.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "composer",
+      "file": "composer.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "conda",
+      "file": "conda.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "copilot",
+      "file": "copilot.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "copyfile",
+      "file": "copyfile.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "copypath",
+      "file": "copypath.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "cordova",
+      "file": "cordova.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "cosign",
+      "file": "cosign.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "cot",
+      "file": "cot.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "cp",
+      "file": "cp.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "create-completion-spec",
+      "file": "create-completion-spec.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "create-next-app",
+      "file": "create-next-app.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "create-nx-workspace",
+      "file": "create-nx-workspace.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "create-react-app",
+      "file": "create-react-app.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "create-react-native-app",
+      "file": "create-react-native-app.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "create-redwood-app",
+      "file": "create-redwood-app.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "create-remix",
+      "file": "create-remix.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "create-t3-app",
+      "file": "create-t3-app.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "create-video",
+      "file": "create-video.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "create-vite",
+      "file": "create-vite.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "create-web3-frontend",
+      "file": "create-web3-frontend.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "croc",
+      "file": "croc.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "crontab",
+      "file": "crontab.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "csdx",
+      "file": "csdx.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "curl",
+      "file": "curl.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "cut",
+      "file": "cut.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "cw",
+      "file": "cw.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "dapr",
+      "file": "dapr.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dart",
+      "file": "dart.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "date",
+      "file": "date.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "dateseq",
+      "file": "dateseq.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "datree",
+      "file": "datree.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dbt",
+      "file": "dbt.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "dcli",
+      "file": "dcli.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dd",
+      "file": "dd.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ddev",
+      "file": "ddev.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ddosify",
+      "file": "ddosify.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "defaultbrowser",
+      "file": "defaultbrowser.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "defaults",
+      "file": "defaults.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "degit",
+      "file": "degit.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "deno",
+      "file": "deno.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "deployctl",
+      "file": "deployctl.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "deta",
+      "file": "deta.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "df",
+      "file": "df.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "diff",
+      "file": "diff.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dig",
+      "file": "dig.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "direnv",
+      "file": "direnv.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dirname",
+      "file": "dirname.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ditto",
+      "file": "ditto.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "django-admin",
+      "file": "django-admin.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "do-release-upgrade",
+      "file": "do-release-upgrade.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "do",
+      "file": "do.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "docker-compose",
+      "file": "docker-compose.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "docker",
+      "file": "docker.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "doctl",
+      "file": "doctl.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "dog",
+      "file": "dog.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "doggo",
+      "file": "doggo.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "doppler",
+      "file": "doppler.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dos2unix",
+      "file": "dos2unix.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "dotenv-vault",
+      "file": "dotenv-vault.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotenv",
+      "file": "dotenv.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "dotnet",
+      "file": "dotnet.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotslash",
+      "file": "dotslash.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "dpkg",
+      "file": "dpkg.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "dprint",
+      "file": "dprint.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "drush",
+      "file": "drush.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dscacheutil",
+      "file": "dscacheutil.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dscl",
+      "file": "dscl.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dtm",
+      "file": "dtm.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "du",
+      "file": "du.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "dust",
+      "file": "dust.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "eas",
+      "file": "eas.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "eb",
+      "file": "eb.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "echo",
+      "file": "echo.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "electron",
+      "file": "electron.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "eleventy",
+      "file": "eleventy.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "elif",
+      "file": "elif.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "elixir",
+      "file": "elixir.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "elm-format",
+      "file": "elm-format.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "elm-json",
+      "file": "elm-json.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "elm-review",
+      "file": "elm-review.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "elm",
+      "file": "elm.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "else",
+      "file": "else.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "emacs",
+      "file": "emacs.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "enapter",
+      "file": "enapter.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "encore",
+      "file": "encore.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "env",
+      "file": "env.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "envchain",
+      "file": "envchain.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "esbuild",
+      "file": "esbuild.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "eslint",
+      "file": "eslint.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "exa",
+      "file": "exa.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "exec",
+      "file": "exec.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "exercism",
+      "file": "exercism.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "expo-cli",
+      "file": "expo-cli.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "expo",
+      "file": "expo.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "export",
+      "file": "export.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "expressots",
+      "file": "expressots.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "eza",
+      "file": "eza.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "fastlane",
+      "file": "fastlane.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "fastly",
+      "file": "fastly.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "fd",
+      "file": "fd.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "fdisk",
+      "file": "fdisk.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ffmpeg",
+      "file": "ffmpeg.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "figterm",
+      "file": "figterm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "file",
+      "file": "file.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "fin",
+      "file": "fin.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "find",
+      "file": "find.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "firebase",
+      "file": "firebase.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "firefox",
+      "file": "firefox.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "fisher",
+      "file": "fisher.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "flutter",
+      "file": "flutter.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "fly",
+      "file": "fly.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "flyctl",
+      "file": "flyctl.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "fmt",
+      "file": "fmt.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "fnm",
+      "file": "fnm.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "fold",
+      "file": "fold.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "for",
+      "file": "for.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "forc",
+      "file": "forc.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "forge",
+      "file": "forge.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "fvm",
+      "file": "fvm.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "fzf-tmux",
+      "file": "fzf-tmux.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "fzf",
+      "file": "fzf.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "g++",
+      "file": "g++.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ganache-cli",
+      "file": "ganache-cli.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gatsby",
+      "file": "gatsby.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "gcc",
+      "file": "gcc.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "gcloud",
+      "file": "gcloud.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gem",
+      "file": "gem.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "gh",
+      "file": "gh.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ghq",
+      "file": "ghq.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gibo",
+      "file": "gibo.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "git-cliff",
+      "file": "git-cliff.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "git-flow",
+      "file": "git-flow.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "git-profile",
+      "file": "git-profile.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "git-quick-stats",
+      "file": "git-quick-stats.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "git",
+      "file": "git.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "github",
+      "file": "github.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "glow",
+      "file": "glow.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "gltfjsx",
+      "file": "gltfjsx.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "go",
+      "file": "go.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "goctl",
+      "file": "goctl.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "goland",
+      "file": "goland.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "googler",
+      "file": "googler.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "goreleaser",
+      "file": "goreleaser.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "goto",
+      "file": "goto.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "gource",
+      "file": "gource.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "gpg",
+      "file": "gpg.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "gradle",
+      "file": "gradle.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "graphcdn",
+      "file": "graphcdn.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "grep",
+      "file": "grep.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "grex",
+      "file": "grex.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gron",
+      "file": "gron.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gt",
+      "file": "gt.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "gum",
+      "file": "gum.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "hardhat",
+      "file": "hardhat.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "hasura",
+      "file": "hasura.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "hb-service",
+      "file": "hb-service.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "head",
+      "file": "head.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "helm",
+      "file": "helm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "helmfile",
+      "file": "helmfile.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "herd",
+      "file": "herd.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "hexo",
+      "file": "hexo.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "homey",
+      "file": "homey.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "hop",
+      "file": "hop.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "hostname",
+      "file": "hostname.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "htop",
+      "file": "htop.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "http",
+      "file": "http.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "https",
+      "file": "https.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "httpy",
+      "file": "httpy.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "hub",
+      "file": "hub.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "hugo",
+      "file": "hugo.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "hx",
+      "file": "hx.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "hyper",
+      "file": "hyper.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "hyperfine",
+      "file": "hyperfine.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ibus",
+      "file": "ibus.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "iconv",
+      "file": "iconv.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "id",
+      "file": "id.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "idea",
+      "file": "idea.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "iex",
+      "file": "iex.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "if",
+      "file": "if.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ignite-cli",
+      "file": "ignite-cli.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "install",
+      "file": "install.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ionic",
+      "file": "ionic.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ipatool",
+      "file": "ipatool.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "j",
+      "file": "j.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "java",
+      "file": "java.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "jenv",
+      "file": "jenv.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "jest",
+      "file": "jest.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "jmeter",
+      "file": "jmeter.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "join",
+      "file": "join.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "jq",
+      "file": "jq.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "julia",
+      "file": "julia.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "jupyter",
+      "file": "jupyter.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "just",
+      "file": "just.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "k3d",
+      "file": "k3d.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "k6",
+      "file": "k6.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "k9s",
+      "file": "k9s.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "kafkactl",
+      "file": "kafkactl.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "kamal",
+      "file": "kamal.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "kdoctor",
+      "file": "kdoctor.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "keytool",
+      "file": "keytool.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "kill",
+      "file": "kill.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "killall",
+      "file": "killall.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "kind",
+      "file": "kind.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "kitty",
+      "file": "kitty.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "klist",
+      "file": "klist.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "knex",
+      "file": "knex.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "kool",
+      "file": "kool.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "kotlinc",
+      "file": "kotlinc.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "kubecolor",
+      "file": "kubecolor.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "kubectl",
+      "file": "kubectl.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "kubectx",
+      "file": "kubectx.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "kubens",
+      "file": "kubens.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "laravel",
+      "file": "laravel.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "launchctl",
+      "file": "launchctl.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ldd",
+      "file": "ldd.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "leaf",
+      "file": "leaf.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "lerna",
+      "file": "lerna.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "less",
+      "file": "less.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "lima",
+      "file": "lima.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "limactl",
+      "file": "limactl.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ln",
+      "file": "ln.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "locust",
+      "file": "locust.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "login",
+      "file": "login.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "lp",
+      "file": "lp.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "lpass",
+      "file": "lpass.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ls",
+      "file": "ls.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "lsblk",
+      "file": "lsblk.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "lsd",
+      "file": "lsd.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "lsof",
+      "file": "lsof.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "luz",
+      "file": "luz.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "lvim",
+      "file": "lvim.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "m",
+      "file": "m.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mackup",
+      "file": "mackup.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "magento",
+      "file": "magento.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "maigret",
+      "file": "maigret.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "mailsy",
+      "file": "mailsy.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "make",
+      "file": "make.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mamba",
+      "file": "mamba.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "man",
+      "file": "man.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mas",
+      "file": "mas.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "mask",
+      "file": "mask.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mdfind",
+      "file": "mdfind.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mdls",
+      "file": "mdls.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "meroxa",
+      "file": "meroxa.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "meteor",
+      "file": "meteor.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mgnl",
+      "file": "mgnl.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "micro",
+      "file": "micro.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mikro-orm",
+      "file": "mikro-orm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "minectl",
+      "file": "minectl.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "minikube",
+      "file": "minikube.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mix",
+      "file": "mix.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mkdir",
+      "file": "mkdir.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "mkdocs",
+      "file": "mkdocs.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mkfifo",
+      "file": "mkfifo.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "mkinitcpio",
+      "file": "mkinitcpio.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mknod",
+      "file": "mknod.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "mob",
+      "file": "mob.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "molecule",
+      "file": "molecule.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mongocli",
+      "file": "mongocli.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "mongoimport",
+      "file": "mongoimport.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mongosh",
+      "file": "mongosh.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "more",
+      "file": "more.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "mosh",
+      "file": "mosh.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mount",
+      "file": "mount.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "multipass",
+      "file": "multipass.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "mv",
+      "file": "mv.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "mvn",
+      "file": "mvn.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "mypy",
+      "file": "mypy.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "mysql",
+      "file": "mysql.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "n",
+      "file": "n.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "nano",
+      "file": "nano.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "nativescript",
+      "file": "nativescript.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "nc",
+      "file": "nc.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ncal",
+      "file": "ncal.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ncu",
+      "file": "ncu.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "neofetch",
+      "file": "neofetch.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "nest",
+      "file": "nest.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "netlify",
+      "file": "netlify.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "networkQuality",
+      "file": "networkQuality.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "networksetup",
+      "file": "networksetup.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "newman",
+      "file": "newman.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "next",
+      "file": "next.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "nextflow",
+      "file": "nextflow.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ng",
+      "file": "ng.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "nginx",
+      "file": "nginx.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ngrok",
+      "file": "ngrok.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "nhost",
+      "file": "nhost.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ni",
+      "file": "ni.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "nl",
+      "file": "nl.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "nmap",
+      "file": "nmap.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "nocorrect",
+      "file": "nocorrect.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "node",
+      "file": "node.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "noglob",
+      "file": "noglob.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "northflank",
+      "file": "northflank.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "np",
+      "file": "np.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "npm",
+      "file": "npm.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "npx",
+      "file": "npx.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "nr",
+      "file": "nr.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "nrm",
+      "file": "nrm.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ns",
+      "file": "ns.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "nu",
+      "file": "nu.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "nuxi",
+      "file": "nuxi.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "nuxt",
+      "file": "nuxt.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "nvim",
+      "file": "nvim.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "nvm",
+      "file": "nvm.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "nx",
+      "file": "nx.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "nylas",
+      "file": "nylas.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "oci",
+      "file": "oci.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "od",
+      "file": "od.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "oh-my-posh",
+      "file": "oh-my-posh.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "okta",
+      "file": "okta.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "okteto",
+      "file": "okteto.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ollama",
+      "file": "ollama.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "omz",
+      "file": "omz.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "onboardbase",
+      "file": "onboardbase.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "op",
+      "file": "op.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "opa",
+      "file": "opa.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "open",
+      "file": "open.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "osascript",
+      "file": "osascript.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "osqueryi",
+      "file": "osqueryi.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "oxlint",
+      "file": "oxlint.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pac",
+      "file": "pac.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pageres",
+      "file": "pageres.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "palera1n",
+      "file": "palera1n.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pandoc",
+      "file": "pandoc.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "paper",
+      "file": "paper.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pass",
+      "file": "pass.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "passwd",
+      "file": "passwd.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "paste",
+      "file": "paste.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pathchk",
+      "file": "pathchk.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pdfunite",
+      "file": "pdfunite.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pg_dump",
+      "file": "pg_dump.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pgcli",
+      "file": "pgcli.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "php",
+      "file": "php.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "phpstorm",
+      "file": "phpstorm.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "phpunit-watcher",
+      "file": "phpunit-watcher.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "phpunit",
+      "file": "phpunit.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pijul",
+      "file": "pijul.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ping",
+      "file": "ping.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pip",
+      "file": "pip.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pip3",
+      "file": "pip3.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pipenv",
+      "file": "pipenv.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pipx",
+      "file": "pipx.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pkg-config",
+      "file": "pkg-config.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pkgutil",
+      "file": "pkgutil.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pkill",
+      "file": "pkill.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "planter",
+      "file": "planter.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "playwright",
+      "file": "playwright.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "plutil",
+      "file": "plutil.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pm2",
+      "file": "pm2.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pmset",
+      "file": "pmset.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pnpm",
+      "file": "pnpm.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pnpx",
+      "file": "pnpx.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pocketbase",
+      "file": "pocketbase.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pod",
+      "file": "pod.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "podman",
+      "file": "podman.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "poetry",
+      "file": "poetry.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pre-commit",
+      "file": "pre-commit.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "premake",
+      "file": "premake.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "preset",
+      "file": "preset.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "prettier",
+      "file": "prettier.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "prisma",
+      "file": "prisma.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pro",
+      "file": "pro.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "progressline",
+      "file": "progressline.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "projj",
+      "file": "projj.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pry",
+      "file": "pry.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "ps",
+      "file": "ps.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pscale",
+      "file": "pscale.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "psql",
+      "file": "psql.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "publish",
+      "file": "publish.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pulumi",
+      "file": "pulumi.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pushd",
+      "file": "pushd.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pwd",
+      "file": "pwd.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "pycharm",
+      "file": "pycharm.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "pyenv",
+      "file": "pyenv.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "pytest",
+      "file": "pytest.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "python",
+      "file": "python.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "python3",
+      "file": "python3.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "q",
+      "file": "q.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "qodana",
+      "file": "qodana.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "quasar",
+      "file": "quasar.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "quickmail",
+      "file": "quickmail.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "r",
+      "file": "r.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rails",
+      "file": "rails.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "railway",
+      "file": "railway.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "rake",
+      "file": "rake.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rancher",
+      "file": "rancher.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rbenv",
+      "file": "rbenv.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rclone",
+      "file": "rclone.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "react-native",
+      "file": "react-native.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "readlink",
+      "file": "readlink.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "redwood",
+      "file": "redwood.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "remix",
+      "file": "remix.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "remotion",
+      "file": "remotion.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "repeat",
+      "file": "repeat.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "rg",
+      "file": "rg.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rich",
+      "file": "rich.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rm",
+      "file": "rm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "rmdir",
+      "file": "rmdir.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "robot",
+      "file": "robot.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rojo",
+      "file": "rojo.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rollup",
+      "file": "rollup.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rome",
+      "file": "rome.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "rscript",
+      "file": "rscript.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rsync",
+      "file": "rsync.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rubocop",
+      "file": "rubocop.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ruby",
+      "file": "ruby.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "rubymine",
+      "file": "rubymine.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "ruff",
+      "file": "ruff.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rugby",
+      "file": "rugby.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rush",
+      "file": "rush.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rushx",
+      "file": "rushx.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rustc",
+      "file": "rustc.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "rustrover",
+      "file": "rustrover.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "rustup",
+      "file": "rustup.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "rvm",
+      "file": "rvm.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "sake",
+      "file": "sake.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "sam",
+      "file": "sam.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "sanity",
+      "file": "sanity.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "sapphire",
+      "file": "sapphire.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "scarb",
+      "file": "scarb.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "scc",
+      "file": "scc.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "scp",
+      "file": "scp.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "screen",
+      "file": "screen.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "sed",
+      "file": "sed.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "seq",
+      "file": "seq.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "sequelize",
+      "file": "sequelize.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "serve",
+      "file": "serve.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "serverless",
+      "file": "serverless.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "sfdx",
+      "file": "sfdx.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "sftp",
+      "file": "sftp.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "sha1sum",
+      "file": "sha1sum.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "shadcn-ui",
+      "file": "shadcn-ui.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "shasum",
+      "file": "shasum.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "shell-config",
+      "file": "shell-config.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "shelve",
+      "file": "shelve.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "shortcuts",
+      "file": "shortcuts.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "shred",
+      "file": "shred.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "sidekiq",
+      "file": "sidekiq.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "simctl",
+      "file": "simctl.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "sips",
+      "file": "sips.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "sl",
+      "file": "sl.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "sls",
+      "file": "sls.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "snaplet",
+      "file": "snaplet.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "softwareupdate",
+      "file": "softwareupdate.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "sort",
+      "file": "sort.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "source",
+      "file": "source.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "space",
+      "file": "space.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "speedtest-cli",
+      "file": "speedtest-cli.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "speedtest",
+      "file": "speedtest.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "splash",
+      "file": "splash.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "split",
+      "file": "split.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "spotify",
+      "file": "spotify.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "spring",
+      "file": "spring.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "sqlfluff",
+      "file": "sqlfluff.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "sqlite3",
+      "file": "sqlite3.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "sqlmesh",
+      "file": "sqlmesh.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "src",
+      "file": "src.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ssh-keygen",
+      "file": "ssh-keygen.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ssh",
+      "file": "ssh.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "st2",
+      "file": "st2.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "sta",
+      "file": "sta.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "stack",
+      "file": "stack.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "starkli",
+      "file": "starkli.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "start-storybook",
+      "file": "start-storybook.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "stat",
+      "file": "stat.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "steadybit",
+      "file": "steadybit.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "stencil",
+      "file": "stencil.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "stepzen",
+      "file": "stepzen.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "stow",
+      "file": "stow.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "streamlit",
+      "file": "streamlit.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "stripe",
+      "file": "stripe.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "su",
+      "file": "su.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "subl",
+      "file": "subl.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "sudo",
+      "file": "sudo.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "suitecloud",
+      "file": "suitecloud.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "supabase",
+      "file": "supabase.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "surreal",
+      "file": "surreal.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "svn",
+      "file": "svn.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "svokit",
+      "file": "svokit.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "svtplay-dl",
+      "file": "svtplay-dl.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "sw_vers",
+      "file": "sw_vers.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "swagger-typescript-api",
+      "file": "swagger-typescript-api.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "swc",
+      "file": "swc.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "swift",
+      "file": "swift.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "symfony",
+      "file": "symfony.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "sysctl",
+      "file": "sysctl.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "systemctl",
+      "file": "systemctl.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tac",
+      "file": "tac.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "tail",
+      "file": "tail.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "tailcall",
+      "file": "tailcall.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "tailscale",
+      "file": "tailscale.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tailwindcss",
+      "file": "tailwindcss.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tangram",
+      "file": "tangram.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "taplo",
+      "file": "taplo.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tar",
+      "file": "tar.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "task",
+      "file": "task.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tb",
+      "file": "tb.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "tccutil",
+      "file": "tccutil.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tee",
+      "file": "tee.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "terraform",
+      "file": "terraform.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "terragrunt",
+      "file": "terragrunt.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tfenv",
+      "file": "tfenv.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tfsec",
+      "file": "tfsec.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "then",
+      "file": "then.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "time",
+      "file": "time.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "tkn",
+      "file": "tkn.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "tldr",
+      "file": "tldr.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tmutil",
+      "file": "tmutil.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "tmux",
+      "file": "tmux.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tmuxinator",
+      "file": "tmuxinator.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tns",
+      "file": "tns.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "tokei",
+      "file": "tokei.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "top",
+      "file": "top.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "touch",
+      "file": "touch.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "tr",
+      "file": "tr.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "traceroute",
+      "file": "traceroute.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "trap",
+      "file": "trap.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "trash",
+      "file": "trash.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "tree",
+      "file": "tree.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "trex",
+      "file": "trex.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "trivy",
+      "file": "trivy.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "truffle",
+      "file": "truffle.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "truncate",
+      "file": "truncate.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "trunk",
+      "file": "trunk.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ts-node",
+      "file": "ts-node.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tsc",
+      "file": "tsc.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tsh",
+      "file": "tsh.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tsuru",
+      "file": "tsuru.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tsx",
+      "file": "tsx.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "tuist",
+      "file": "tuist.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "turbo",
+      "file": "turbo.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "twiggy",
+      "file": "twiggy.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "twilio",
+      "file": "twilio.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "typeorm",
+      "file": "typeorm.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "typos",
+      "file": "typos.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "typst",
+      "file": "typst.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ua",
+      "file": "ua.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ubuntu-advantage",
+      "file": "ubuntu-advantage.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "uname",
+      "file": "uname.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "uniq",
+      "file": "uniq.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "unix2dos",
+      "file": "unix2dos.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "unset",
+      "file": "unset.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "until",
+      "file": "until.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "unzip",
+      "file": "unzip.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "uv",
+      "file": "uv.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "v",
+      "file": "v.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "vale",
+      "file": "vale.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "valet",
+      "file": "valet.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "vapor",
+      "file": "vapor.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "vault",
+      "file": "vault.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "vela",
+      "file": "vela.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "vercel",
+      "file": "vercel.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "vi",
+      "file": "vi.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "vim",
+      "file": "vim.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "vimr",
+      "file": "vimr.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "visudo",
+      "file": "visudo.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "vite",
+      "file": "vite.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "volta",
+      "file": "volta.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "vr",
+      "file": "vr.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "vsce",
+      "file": "vsce.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "vtex",
+      "file": "vtex.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "vue",
+      "file": "vue.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "vultr-cli",
+      "file": "vultr-cli.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "w",
+      "file": "w.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "wasm-bindgen",
+      "file": "wasm-bindgen.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "wasm-pack",
+      "file": "wasm-pack.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "watchman",
+      "file": "watchman.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "watson",
+      "file": "watson.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "wc",
+      "file": "wc.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "wd",
+      "file": "wd.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "webpack",
+      "file": "webpack.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "webstorm",
+      "file": "webstorm.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "wezterm",
+      "file": "wezterm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "wget",
+      "file": "wget.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "whence",
+      "file": "whence.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "where",
+      "file": "where.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "whereis",
+      "file": "whereis.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "which",
+      "file": "which.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "while",
+      "file": "while.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "who",
+      "file": "who.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "whois",
+      "file": "whois.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "wifi-password",
+      "file": "wifi-password.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "wing",
+      "file": "wing.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "wp",
+      "file": "wp.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "wrangler",
+      "file": "wrangler.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "wrk",
+      "file": "wrk.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "wscat",
+      "file": "wscat.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "xargs",
+      "file": "xargs.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "xc",
+      "file": "xc.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "xcode-select",
+      "file": "xcode-select.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "xcodebuild",
+      "file": "xcodebuild.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "xcodeproj",
+      "file": "xcodeproj.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "xcodes",
+      "file": "xcodes.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "xcrun",
+      "file": "xcrun.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "xdg-mime",
+      "file": "xdg-mime.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "xdg-open",
+      "file": "xdg-open.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "xed",
+      "file": "xed.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "xxd",
+      "file": "xxd.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "yalc",
+      "file": "yalc.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "yank",
+      "file": "yank.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "yarn",
+      "file": "yarn.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "ykman",
+      "file": "ykman.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "yo",
+      "file": "yo.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "yomo",
+      "file": "yomo.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "youtube-dl",
+      "file": "youtube-dl.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "z",
+      "file": "z.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "zapier",
+      "file": "zapier.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "zed",
+      "file": "zed.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "zellij",
+      "file": "zellij.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "zig",
+      "file": "zig.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "zip",
+      "file": "zip.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "zipcloak",
+      "file": "zipcloak.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "zoxide",
+      "file": "zoxide.ts",
+      "kind": "pure",
+      "has_functions": false
+    }
+  ]
+}

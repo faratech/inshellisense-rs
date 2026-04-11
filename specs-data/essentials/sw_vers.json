@@ -1,0 +1,26 @@
+{
+  "names": [
+    "sw_vers"
+  ],
+  "description": "Print macOS version information",
+  "options": [
+    {
+      "names": [
+        "-productName"
+      ],
+      "description": "Print product name"
+    },
+    {
+      "names": [
+        "-productVersion"
+      ],
+      "description": "Print product version"
+    },
+    {
+      "names": [
+        "-buildVersion"
+      ],
+      "description": "Print build version"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "names": [
+    "for"
+  ],
+  "description": "Perform a set of commands multiple times",
+  "args": [
+    {
+      "name": "var"
+    },
+    {
+      "suggestions": [
+        {
+          "name": "in"
+        }
+      ]
+    },
+    {
+      "name": "values",
+      "is_variadic": true
+    }
+  ]
+}

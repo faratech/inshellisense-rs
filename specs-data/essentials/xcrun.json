@@ -1,0 +1,216 @@
+{
+  "names": [
+    "xcrun"
+  ],
+  "description": "Find and execute the named command line tool from the active xCode developer directory",
+  "subcommands": [
+    {
+      "names": [
+        "scntool"
+      ],
+      "description": "SceneKit CLI utilities",
+      "options": [
+        {
+          "names": [
+            "--convert"
+          ],
+          "description": "File to convert",
+          "args": [
+            {
+              "name": "file",
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--format"
+          ],
+          "description": "Format to convert to",
+          "args": [
+            {
+              "name": "format",
+              "suggestions": [
+                {
+                  "name": "scn"
+                },
+                {
+                  "name": "dae"
+                },
+                {
+                  "name": "c3d"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "description": "Path to the output file",
+          "args": [
+            {
+              "name": "file",
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--force-y-up"
+          ],
+          "description": "Convert objects to use y axis up"
+        },
+        {
+          "names": [
+            "--force-interleaved"
+          ],
+          "description": "Interleave the vertex data for multiple semantics in the same array to achieve better rendering performance"
+        },
+        {
+          "names": [
+            "--prefer-compressed-textures"
+          ],
+          "description": "Use .ktx, .astc and .pvrtc files for textures if available in the asset catalog"
+        },
+        {
+          "names": [
+            "--verbose"
+          ],
+          "description": "Get pretty error message"
+        }
+      ]
+    },
+    {
+      "names": [
+        "xcodebuild"
+      ],
+      "load_spec": {
+        "kind": "spec_path",
+        "name": "xcodebuild"
+      }
+    },
+    {
+      "names": [
+        "simctl"
+      ],
+      "load_spec": {
+        "kind": "spec_path",
+        "name": "simctl"
+      }
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Help message"
+    },
+    {
+      "names": [
+        "--version"
+      ],
+      "description": "Show the xcrun version"
+    },
+    {
+      "names": [
+        "-v",
+        "--verbose"
+      ],
+      "description": "Show verbose logging output"
+    },
+    {
+      "names": [
+        "--sdk"
+      ],
+      "description": "Find the tool for the given SDK name",
+      "args": [
+        {
+          "name": "sdk name"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--toolchain"
+      ],
+      "description": "Find the tool for the given toolchain",
+      "args": [
+        {
+          "name": "name"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-l",
+        "--log"
+      ],
+      "description": "Show command path to be executed (and --run)"
+    },
+    {
+      "names": [
+        "-f",
+        "--find"
+      ],
+      "description": "Find and print the tool path"
+    },
+    {
+      "names": [
+        "--run"
+      ],
+      "description": "(Default) find and execute the tool"
+    },
+    {
+      "names": [
+        "-n",
+        "--no-cache"
+      ],
+      "description": "Do not use the lookup cache"
+    },
+    {
+      "names": [
+        "-k",
+        "--kill-cache"
+      ],
+      "description": "Invalidate all existing cache entries"
+    },
+    {
+      "names": [
+        "--show-sdk-path"
+      ],
+      "description": "Show selected SDK install path"
+    },
+    {
+      "names": [
+        "--show-sdk-version"
+      ],
+      "description": "Show selected SDK version"
+    },
+    {
+      "names": [
+        "--show-sdk-build-version"
+      ],
+      "description": "Show selected SDK build version"
+    },
+    {
+      "names": [
+        "--show-sdk-platform-path"
+      ],
+      "description": "Show selected SDK platform path"
+    },
+    {
+      "names": [
+        "--show-sdk-platform-version"
+      ],
+      "description": "Show selected SDK platform version"
+    }
+  ]
+}

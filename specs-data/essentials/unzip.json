@@ -1,0 +1,73 @@
+{
+  "names": [
+    "unzip"
+  ],
+  "description": "Extract compressed files in a ZIP archive",
+  "options": [
+    {
+      "names": [
+        "-l"
+      ],
+      "description": "List the contents of a zip file without extracting",
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-c"
+      ],
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-0"
+      ],
+      "description": "Extract a zip file created in windows, containing files with non-ascii (chinese) filenames",
+      "args": [
+        {
+          "name": "gbk"
+        },
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-d"
+      ],
+      "args": [
+        {
+          "name": "destination",
+          "templates": [
+            "folders"
+          ]
+        }
+      ]
+    }
+  ],
+  "args": [
+    {
+      "name": "file",
+      "templates": [
+        "filepaths"
+      ]
+    }
+  ]
+}

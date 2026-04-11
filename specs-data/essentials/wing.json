@@ -1,0 +1,108 @@
+{
+  "names": [
+    "wing"
+  ],
+  "subcommands": [
+    {
+      "names": [
+        "run"
+      ],
+      "description": "Runs a Wing executable in the Wing Console",
+      "options": [
+        {
+          "names": [
+            "-h",
+            "--help"
+          ],
+          "description": "Display help for command",
+          "priority": 49
+        }
+      ],
+      "args": [
+        {
+          "name": "executable",
+          "description": "Executable .wx file"
+        }
+      ]
+    },
+    {
+      "names": [
+        "compile"
+      ],
+      "description": "Compiles a Wing program",
+      "options": [
+        {
+          "names": [
+            "-o",
+            "--out-dir"
+          ],
+          "description": "Output directory",
+          "args": [
+            {
+              "name": "out-dir"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t",
+            "--target"
+          ],
+          "description": "Target platform (options: 'tf-aws', 'sim')",
+          "args": [
+            {
+              "name": "target",
+              "default": "tf-aws"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-h",
+            "--help"
+          ],
+          "description": "Display help for command",
+          "priority": 49
+        }
+      ],
+      "args": [
+        {
+          "name": "entrypoint",
+          "description": "Program .w entrypoint"
+        }
+      ]
+    },
+    {
+      "names": [
+        "upgrade"
+      ],
+      "description": "Upgrades the Wing toolchain to the latest version",
+      "options": [
+        {
+          "names": [
+            "-h",
+            "--help"
+          ],
+          "description": "Display help for command",
+          "priority": 49
+        }
+      ]
+    },
+    {
+      "names": [
+        "help"
+      ],
+      "description": "Display help for command",
+      "priority": 49,
+      "args": [
+        {
+          "name": "command",
+          "is_optional": true,
+          "templates": [
+            "help"
+          ]
+        }
+      ]
+    }
+  ]
+}

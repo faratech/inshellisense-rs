@@ -1,0 +1,168 @@
+{
+  "names": [
+    "du"
+  ],
+  "description": "Display disk usage statistics",
+  "options": [
+    {
+      "names": [
+        "-a"
+      ],
+      "description": "Display an entry for each file in a file hierarchy",
+      "exclusive_on": [
+        "-s",
+        "-d"
+      ]
+    },
+    {
+      "names": [
+        "-c"
+      ],
+      "description": "Display a grand total"
+    },
+    {
+      "names": [
+        "-H"
+      ],
+      "description": "Symbolic links on the command line are followed, symbolic links in file hierarchies are not followed",
+      "exclusive_on": [
+        "-L",
+        "-P"
+      ]
+    },
+    {
+      "names": [
+        "-h"
+      ],
+      "description": "\"Human-readable\" output.  Use unit suffixes: Byte, Kilobyte, Megabyte, Gigabyte, Terabyte and Petabyte",
+      "exclusive_on": [
+        "-k",
+        "-m",
+        "-g"
+      ]
+    },
+    {
+      "names": [
+        "-g"
+      ],
+      "description": "Display block counts in 1073741824-byte (1-Gbyte) blocks",
+      "exclusive_on": [
+        "-k",
+        "-m",
+        "-h"
+      ]
+    },
+    {
+      "names": [
+        "-k"
+      ],
+      "description": "Display block counts in 1024-byte (1-Kbyte) blocks",
+      "exclusive_on": [
+        "-g",
+        "-m",
+        "-h"
+      ]
+    },
+    {
+      "names": [
+        "-m"
+      ],
+      "description": "Display block counts in 1048576-byte (1-Mbyte) blocks",
+      "exclusive_on": [
+        "-g",
+        "-k",
+        "-h"
+      ]
+    },
+    {
+      "names": [
+        "-I"
+      ],
+      "description": "Ignore files and directories matching the specified mask",
+      "args": [
+        {
+          "name": "mask"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-L"
+      ],
+      "description": "Symbolic links on the command line and in file hierarchies are followed",
+      "exclusive_on": [
+        "-H",
+        "-P"
+      ]
+    },
+    {
+      "names": [
+        "-r"
+      ],
+      "description": "Generate messages about directories that cannot be read, files that cannot be opened, and so on.  This is the default case.  This option exists solely for conformance with X/Open Portability Guide Issue 4 (``XPG4'')"
+    },
+    {
+      "names": [
+        "-P"
+      ],
+      "description": "No symbolic links are followed.  This is the default",
+      "exclusive_on": [
+        "-H",
+        "-L"
+      ]
+    },
+    {
+      "names": [
+        "-d"
+      ],
+      "description": "Display an entry for all files and directories depth directories deep",
+      "exclusive_on": [
+        "-a",
+        "-s"
+      ],
+      "args": [
+        {
+          "name": "depth",
+          "suggestions": [
+            {
+              "name": "0"
+            },
+            {
+              "name": "1"
+            },
+            {
+              "name": "2"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-s"
+      ],
+      "description": "Display an entry for each specified file.  (Equivalent to -d 0)",
+      "exclusive_on": [
+        "-a",
+        "-d"
+      ]
+    },
+    {
+      "names": [
+        "-x"
+      ],
+      "description": "Display an entry for each specified file.  (Equivalent to -d 0)"
+    }
+  ],
+  "args": [
+    {
+      "name": "files",
+      "is_optional": true,
+      "is_variadic": true,
+      "templates": [
+        "filepaths",
+        "folders"
+      ]
+    }
+  ]
+}

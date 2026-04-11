@@ -1,0 +1,157 @@
+{
+  "names": [
+    "omz"
+  ],
+  "description": "Oh My Zsh",
+  "subcommands": [
+    {
+      "names": [
+        "help"
+      ],
+      "description": "Print the help message"
+    },
+    {
+      "names": [
+        "changelog"
+      ],
+      "description": "Print the changelog"
+    },
+    {
+      "names": [
+        "plugin"
+      ],
+      "description": "Manage plugins",
+      "subcommands": [
+        {
+          "names": [
+            "disable"
+          ],
+          "description": "Disable plugin(s)",
+          "args": [
+            {
+              "name": "plugin"
+            }
+          ]
+        },
+        {
+          "names": [
+            "enable"
+          ],
+          "description": "Enable plugin(s)",
+          "args": [
+            {
+              "name": "plugin"
+            }
+          ]
+        },
+        {
+          "names": [
+            "info"
+          ],
+          "description": "Get information of a plugin",
+          "args": [
+            {
+              "name": "plugin"
+            }
+          ]
+        },
+        {
+          "names": [
+            "list"
+          ],
+          "description": "List all available Oh My Zsh plugins"
+        },
+        {
+          "names": [
+            "load"
+          ],
+          "description": "Load plugin(s)",
+          "args": [
+            {
+              "name": "plugin"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "pr"
+      ],
+      "description": "Manage Oh My Zsh Pull Requests",
+      "subcommands": [
+        {
+          "names": [
+            "clean"
+          ],
+          "description": "Delete all PR branches (ohmyzsh/pull-*)"
+        },
+        {
+          "names": [
+            "test"
+          ],
+          "description": "Fetch PR #NUMBER and rebase against master",
+          "args": [
+            {
+              "name": "PR_number_or_URL"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "reload"
+      ],
+      "description": "Reload the current zsh session"
+    },
+    {
+      "names": [
+        "theme"
+      ],
+      "description": "Manage themes",
+      "subcommands": [
+        {
+          "names": [
+            "list"
+          ],
+          "description": "List all available Oh My Zsh themes"
+        },
+        {
+          "names": [
+            "set"
+          ],
+          "description": "Set a theme in your .zshrc file",
+          "args": [
+            {
+              "name": "theme"
+            }
+          ]
+        },
+        {
+          "names": [
+            "use"
+          ],
+          "description": "Load a theme",
+          "args": [
+            {
+              "name": "theme"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "update"
+      ],
+      "description": "Update Oh My Zsh"
+    },
+    {
+      "names": [
+        "version"
+      ],
+      "description": "Show the version"
+    }
+  ]
+}

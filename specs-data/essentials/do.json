@@ -1,0 +1,11 @@
+{
+  "names": [
+    "do"
+  ],
+  "description": "Do the command",
+  "args": [
+    {
+      "is_command": true
+    }
+  ]
+}

@@ -23,6 +23,7 @@ crossterm = "0.28"
 signal-hook = "0.3"
 libc = "0.2"
 bytes = "1"
+include_dir = "0.7"
 
 [dependencies.boa_engine]
 version = "0.20"

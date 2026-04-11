@@ -1,0 +1,346 @@
+{
+  "names": [
+    "sort"
+  ],
+  "description": "Sort or merge records (lines) of text and binary files",
+  "options": [
+    {
+      "names": [
+        "--help"
+      ],
+      "description": "Shows help message"
+    },
+    {
+      "names": [
+        "--version"
+      ],
+      "description": "Displays the current version of sort"
+    },
+    {
+      "names": [
+        "-c",
+        "--check",
+        "-C"
+      ],
+      "description": "Check that the single input file is sorted",
+      "args": [
+        {
+          "name": "output",
+          "description": "Suppress errors on false check",
+          "is_optional": true,
+          "suggestions": [
+            {
+              "name": "silent"
+            },
+            {
+              "name": "quiet"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-m",
+        "--merge"
+      ],
+      "description": "Merge only.  The input files are assumed to be pre-sorted.  If they are not sorted the output order is undefined"
+    },
+    {
+      "names": [
+        "-o",
+        "--output"
+      ],
+      "description": "Print the output to the output file instead of the standard output",
+      "args": [
+        {
+          "name": "output"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-S",
+        "--buffer-size"
+      ],
+      "description": "Use size for the maximum size of the memory buffer",
+      "args": [
+        {
+          "name": "size"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-T",
+        "--temporary-directory"
+      ],
+      "description": "Store temporary files in the directory dir",
+      "args": [
+        {
+          "name": "dir",
+          "templates": [
+            "folders"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-u",
+        "--unique"
+      ],
+      "description": "Unique keys. Suppress all lines that have a key that is equal to an already processed one"
+    },
+    {
+      "names": [
+        "-s"
+      ],
+      "description": "Stable sort. This option maintains the original record order of records that have an equal key"
+    },
+    {
+      "names": [
+        "-b",
+        "--ignore-leading-blanks"
+      ],
+      "description": "Ignore leading blank characters when comparing lines"
+    },
+    {
+      "names": [
+        "-d",
+        "--dictionary-order"
+      ],
+      "description": "Consider only blank spaces and alphanumeric characters in comparisons"
+    },
+    {
+      "names": [
+        "-f",
+        "--ignore-case"
+      ],
+      "description": "Convert all lowercase characters to their upper case equivalent before comparison"
+    },
+    {
+      "names": [
+        "-g",
+        "--general-numeric-sort"
+      ],
+      "description": "Sort by general numerical value"
+    },
+    {
+      "names": [
+        "-h",
+        "--human-numeric-sort"
+      ],
+      "description": "Sort by numerical value, but take into account the SI suffix, if present"
+    },
+    {
+      "names": [
+        "-i",
+        "--ignore-nonprinting"
+      ],
+      "description": "Ignore all non-printable characters"
+    },
+    {
+      "names": [
+        "-M",
+        "--month-sort"
+      ],
+      "description": "Sort by month abbreviations.  Unknown strings are considered smaller than the month names"
+    },
+    {
+      "names": [
+        "-n",
+        "--numeric-sort"
+      ],
+      "description": "Sort fields numerically by arithmetic value"
+    },
+    {
+      "names": [
+        "-R",
+        "--random-sort"
+      ],
+      "description": "Sort by a random order"
+    },
+    {
+      "names": [
+        "-r",
+        "--reverse"
+      ],
+      "description": "Sort in reverse order"
+    },
+    {
+      "names": [
+        "-V",
+        "--version-sort"
+      ],
+      "description": "Sort version numbers"
+    },
+    {
+      "names": [
+        "-k",
+        "--key"
+      ],
+      "description": "Define a restricted sort key that has the starting position field1, and optional ending position field2",
+      "args": [
+        {
+          "name": "field1"
+        },
+        {
+          "name": "field2",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "-t",
+        "--field-separator"
+      ],
+      "description": "Use char as a field separator character",
+      "args": [
+        {
+          "name": "char"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-z",
+        "--zero-terminated"
+      ],
+      "description": "Use NUL as record separator"
+    },
+    {
+      "names": [
+        "--batch-size"
+      ],
+      "description": "Specify maximum number of files that can be opened by sort at once",
+      "args": [
+        {
+          "name": "num"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--compress-program"
+      ],
+      "description": "Use PROGRAM to compress temporary files (eg. bzip2)",
+      "args": [
+        {
+          "name": "PROGRAM",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--random-source"
+      ],
+      "description": "In random sort, the file content is used as the source of the 'seed' data for the hash function choice",
+      "args": [
+        {
+          "name": "filename",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--debug"
+      ],
+      "description": "Print some extra information about the sorting process to the standard output"
+    },
+    {
+      "names": [
+        "--parallel"
+      ],
+      "description": "Set the maximum number of execution threads.  Default number equals to the number of CPUs"
+    },
+    {
+      "names": [
+        "--files0-from"
+      ],
+      "description": "Take the input file list from the file filename",
+      "args": [
+        {
+          "name": "filename",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--radixsort"
+      ],
+      "description": "Try to use radix sort, if the sort specifications allow"
+    },
+    {
+      "names": [
+        "--mergesort"
+      ],
+      "description": "Use mergesort.  This is a universal algorithm that can always be used, but it is not always the fastest"
+    },
+    {
+      "names": [
+        "--qsort"
+      ],
+      "description": "Try to use quick sort, if the sort specifications allow.  This sort algorithm cannot be used with -u and -s"
+    },
+    {
+      "names": [
+        "--heapsort"
+      ],
+      "description": "Try to use heap sort, if the sort specifications allow.  This sort algorithm cannot be used with -u and -s"
+    },
+    {
+      "names": [
+        "--mmap"
+      ],
+      "description": "Try to use file memory mapping system call.  It may increase speed in some cases"
+    },
+    {
+      "names": [
+        "--sort"
+      ],
+      "description": "Select how to sort values",
+      "args": [
+        {
+          "name": "type",
+          "suggestions": [
+            {
+              "name": "general-numeric"
+            },
+            {
+              "name": "human-numeric"
+            },
+            {
+              "name": "month"
+            },
+            {
+              "name": "numeric"
+            },
+            {
+              "name": "random"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "args": [
+    {
+      "name": "file",
+      "is_variadic": true,
+      "templates": [
+        "filepaths"
+      ]
+    }
+  ]
+}

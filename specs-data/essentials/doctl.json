@@ -1,0 +1,756 @@
+{
+  "names": [
+    "doctl"
+  ],
+  "description": "The official DigitalOcean command line interface (CLI)",
+  "subcommands": [
+    {
+      "names": [
+        "completion"
+      ],
+      "description": "Configure your terminal's shell so that doctl commands autocomplete when you press the TAB key",
+      "args": [
+        {
+          "name": "shell",
+          "suggestions": [
+            {
+              "name": "bash"
+            },
+            {
+              "name": "zsh"
+            },
+            {
+              "name": "fish"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "help"
+      ],
+      "description": "Display help about commands",
+      "args": [
+        {
+          "name": "command"
+        }
+      ]
+    },
+    {
+      "names": [
+        "1-click"
+      ],
+      "description": "The commands under `doctl 1-click` are for interacting with DigitalOcean 1-Click applications",
+      "subcommands": [
+        {
+          "names": [
+            "list"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "account"
+      ],
+      "description": "The subcommands of `doctl account` retrieve information about DigitalOcean accounts",
+      "subcommands": [
+        {
+          "names": [
+            "get"
+          ],
+          "description": "Retrieve account profile details"
+        },
+        {
+          "names": [
+            "ratelimit"
+          ],
+          "description": "Retrieve your API usage and the remaining quota"
+        }
+      ]
+    },
+    {
+      "names": [
+        "apps"
+      ],
+      "description": "Display commands for working with apps",
+      "subcommands": [
+        {
+          "names": [
+            "create"
+          ],
+          "description": "Create an app"
+        },
+        {
+          "names": [
+            "create-deployment"
+          ],
+          "description": "Create a deployment"
+        },
+        {
+          "names": [
+            "delete"
+          ],
+          "description": "Deletes an app"
+        },
+        {
+          "names": [
+            "get"
+          ],
+          "description": "Get an app"
+        },
+        {
+          "names": [
+            "get-deployment"
+          ],
+          "description": "Get a deployment"
+        },
+        {
+          "names": [
+            "list"
+          ],
+          "description": "List all apps"
+        },
+        {
+          "names": [
+            "list-alerts"
+          ],
+          "description": "List alerts on an app"
+        },
+        {
+          "names": [
+            "list-deployments"
+          ],
+          "description": "List all deployments"
+        },
+        {
+          "names": [
+            "list-regions"
+          ],
+          "description": "List App Platform regions"
+        },
+        {
+          "names": [
+            "logs"
+          ],
+          "description": "Get logs"
+        },
+        {
+          "names": [
+            "propose"
+          ],
+          "description": "Propose an app spec"
+        },
+        {
+          "names": [
+            "spec"
+          ],
+          "description": "Display commands for working with app specs"
+        },
+        {
+          "names": [
+            "tier"
+          ],
+          "description": "Display commands for working with app tiers"
+        },
+        {
+          "names": [
+            "update"
+          ],
+          "description": "Update an app"
+        },
+        {
+          "names": [
+            "update-alert-destinations"
+          ],
+          "description": "Update alert destinations"
+        }
+      ]
+    },
+    {
+      "names": [
+        "auth"
+      ],
+      "description": "Display commands for authenticating doctl with an account",
+      "subcommands": [
+        {
+          "names": [
+            "init"
+          ],
+          "description": "Initialize doctl to use a specific account"
+        },
+        {
+          "names": [
+            "list"
+          ],
+          "description": "List available authentication contexts"
+        },
+        {
+          "names": [
+            "remove"
+          ],
+          "description": "Remove authentication contexts"
+        },
+        {
+          "names": [
+            "switch"
+          ],
+          "description": "Switches between authentication contexts"
+        }
+      ]
+    },
+    {
+      "names": [
+        "balance"
+      ],
+      "description": "Display commands for retrieving your account balance",
+      "subcommands": [
+        {
+          "names": [
+            "get"
+          ],
+          "description": "Retrieve your account balance"
+        }
+      ]
+    },
+    {
+      "names": [
+        "billing-history"
+      ],
+      "description": "Display commands for retrieving your billing history",
+      "subcommands": [
+        {
+          "names": [
+            "list"
+          ],
+          "description": "Retrieve a paginated billing history for a user"
+        }
+      ]
+    },
+    {
+      "names": [
+        "compute"
+      ],
+      "description": "Display commands that manage infrastructure",
+      "subcommands": [
+        {
+          "names": [
+            "action"
+          ],
+          "description": "Display commands for retrieving resource action history"
+        },
+        {
+          "names": [
+            "cdn"
+          ],
+          "description": "Display commands that manage CDNs"
+        },
+        {
+          "names": [
+            "certificate"
+          ],
+          "description": "Display commands that manage SSL certificates and private keys"
+        },
+        {
+          "names": [
+            "domain"
+          ],
+          "description": "Display commands that manage domains"
+        },
+        {
+          "names": [
+            "droplet"
+          ],
+          "description": "Manage virtual machines (Droplets)"
+        },
+        {
+          "names": [
+            "droplet-action"
+          ],
+          "description": "Display Droplet action commands"
+        },
+        {
+          "names": [
+            "firewall"
+          ],
+          "description": "Display commands to manage cloud firewalls"
+        },
+        {
+          "names": [
+            "floating-ip"
+          ],
+          "description": "Display commands to manage floating IP addresses"
+        },
+        {
+          "names": [
+            "floating-ip-action"
+          ],
+          "description": "Display commands to associate floating IP addresses with Droplets"
+        },
+        {
+          "names": [
+            "image"
+          ],
+          "description": "Display commands to manage images"
+        },
+        {
+          "names": [
+            "image-action"
+          ],
+          "description": "Display commands to perform actions on images"
+        },
+        {
+          "names": [
+            "load-balancer"
+          ],
+          "description": "Display commands to manage load balancers"
+        },
+        {
+          "names": [
+            "region"
+          ],
+          "description": "Display commands to list datacenter regions"
+        },
+        {
+          "names": [
+            "size"
+          ],
+          "description": "List available Droplet sizes"
+        },
+        {
+          "names": [
+            "snapshot"
+          ],
+          "description": "Access and manage snapshots"
+        },
+        {
+          "names": [
+            "ssh"
+          ],
+          "description": "Access a Droplet using SSH"
+        },
+        {
+          "names": [
+            "ssh-key"
+          ],
+          "description": "Display commands to manage SSH keys on your account"
+        },
+        {
+          "names": [
+            "tag"
+          ],
+          "description": "Display commands to manage tags"
+        },
+        {
+          "names": [
+            "volume"
+          ],
+          "description": "Display commands to manage block storage volumes"
+        },
+        {
+          "names": [
+            "volume-action"
+          ],
+          "description": "Display commands to perform actions on a volume"
+        }
+      ]
+    },
+    {
+      "names": [
+        "databases"
+      ],
+      "description": "Display commands that manage databases",
+      "subcommands": [
+        {
+          "names": [
+            "backups"
+          ],
+          "description": "List database cluster backups"
+        },
+        {
+          "names": [
+            "connection"
+          ],
+          "description": "Retrieve connection details for a database cluster"
+        },
+        {
+          "names": [
+            "create"
+          ],
+          "description": "Create a database cluster"
+        },
+        {
+          "names": [
+            "db"
+          ],
+          "description": "Display commands for managing individual databases within a cluster"
+        },
+        {
+          "names": [
+            "delete"
+          ],
+          "description": "Delete a database cluster"
+        },
+        {
+          "names": [
+            "firewalls"
+          ],
+          "description": "Display commands to manage firewall rules (called `trusted sources` in the control panel) for database clusters"
+        },
+        {
+          "names": [
+            "get"
+          ],
+          "description": "Get details for a database cluster"
+        },
+        {
+          "names": [
+            "list"
+          ],
+          "description": "List your database clusters"
+        },
+        {
+          "names": [
+            "maintenance-window"
+          ],
+          "description": "Display commands for scheduling automatic maintenance on your database cluster"
+        },
+        {
+          "names": [
+            "migrate"
+          ],
+          "description": "Migrate a database cluster to a new region"
+        },
+        {
+          "names": [
+            "pool"
+          ],
+          "description": "Display commands for managing connection pools"
+        },
+        {
+          "names": [
+            "replica"
+          ],
+          "description": "Display commands to manage read-only database replicas"
+        },
+        {
+          "names": [
+            "resize"
+          ],
+          "description": "Resize a database cluster"
+        },
+        {
+          "names": [
+            "sql-mode"
+          ],
+          "description": "Display commands to configure a MySQL database cluster's SQL modes"
+        },
+        {
+          "names": [
+            "user"
+          ],
+          "description": "Display commands for managing database users"
+        }
+      ]
+    },
+    {
+      "names": [
+        "invoice"
+      ],
+      "description": "Display commands for retrieving invoices for your account",
+      "subcommands": [
+        {
+          "names": [
+            "csv"
+          ],
+          "description": "Download a CSV file of an invoice"
+        },
+        {
+          "names": [
+            "get"
+          ],
+          "description": "Retrieve a list of all the items on an invoice"
+        },
+        {
+          "names": [
+            "list"
+          ],
+          "description": "List all of the invoices for your account"
+        },
+        {
+          "names": [
+            "pdf"
+          ],
+          "description": "Download a PDF file of an invoice"
+        },
+        {
+          "names": [
+            "summary"
+          ],
+          "description": "Get a summary of an invoice"
+        }
+      ]
+    },
+    {
+      "names": [
+        "kubernetes"
+      ],
+      "description": "Displays commands to manage Kubernetes clusters and configurations",
+      "subcommands": [
+        {
+          "names": [
+            "1-click"
+          ],
+          "description": "Display commands that pertain to kubernetes 1-click applications"
+        },
+        {
+          "names": [
+            "cluster"
+          ],
+          "description": "Display commands for managing Kubernetes clusters"
+        },
+        {
+          "names": [
+            "options"
+          ],
+          "description": "List possible option values for use inside Kubernetes commands"
+        }
+      ]
+    },
+    {
+      "names": [
+        "monitoring"
+      ],
+      "description": "[Beta] Display commands to manage monitoring",
+      "subcommands": [
+        {
+          "names": [
+            "alert"
+          ],
+          "description": "Display commands for managing alert policies"
+        }
+      ]
+    },
+    {
+      "names": [
+        "projects"
+      ],
+      "description": "Manage projects and assign resources to them",
+      "subcommands": [
+        {
+          "names": [
+            "create"
+          ],
+          "description": "Create a new project"
+        },
+        {
+          "names": [
+            "delete"
+          ],
+          "description": "Delete the specified project"
+        },
+        {
+          "names": [
+            "get"
+          ],
+          "description": "Retrieve details for a specific project"
+        },
+        {
+          "names": [
+            "list"
+          ],
+          "description": "List existing projects"
+        },
+        {
+          "names": [
+            "resources"
+          ],
+          "description": "Manage resources assigned to a project"
+        },
+        {
+          "names": [
+            "update"
+          ],
+          "description": "Update an existing project"
+        }
+      ]
+    },
+    {
+      "names": [
+        "registry"
+      ],
+      "description": "Display commands for working with container registries",
+      "subcommands": [
+        {
+          "names": [
+            "create"
+          ],
+          "description": "Create a private container registry"
+        },
+        {
+          "names": [
+            "delete"
+          ],
+          "description": "Delete a container registry"
+        },
+        {
+          "names": [
+            "docker-config"
+          ],
+          "description": "Generate a docker auth configuration for a registry"
+        },
+        {
+          "names": [
+            "garbage-collection"
+          ],
+          "description": "Display commands for garbage collection for a container registry"
+        },
+        {
+          "names": [
+            "get"
+          ],
+          "description": "Retrieve details about a container registry"
+        },
+        {
+          "names": [
+            "kubernetes-manifest"
+          ],
+          "description": "Generate a Kubernetes secret manifest for a registry"
+        },
+        {
+          "names": [
+            "login"
+          ],
+          "description": "Log in Docker to a container registry"
+        },
+        {
+          "names": [
+            "logout"
+          ],
+          "description": "Log out Docker from a container registry"
+        },
+        {
+          "names": [
+            "options"
+          ],
+          "description": "List available container registry options"
+        },
+        {
+          "names": [
+            "repository"
+          ],
+          "description": "Display commands for working with repositories in a container registry"
+        }
+      ]
+    },
+    {
+      "names": [
+        "vpcs"
+      ],
+      "description": "Display commands that manage VPCs",
+      "subcommands": [
+        {
+          "names": [
+            "create"
+          ],
+          "description": "Create a new VPC"
+        },
+        {
+          "names": [
+            "delete"
+          ],
+          "description": "Permanently delete a VPC"
+        },
+        {
+          "names": [
+            "get"
+          ],
+          "description": "Retrieve a VPC"
+        },
+        {
+          "names": [
+            "list"
+          ],
+          "description": "List VPCs"
+        },
+        {
+          "names": [
+            "update"
+          ],
+          "description": "Update a VPC's configuration"
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Help for doctl"
+    },
+    {
+      "names": [
+        "-v",
+        "--verbose"
+      ],
+      "description": "Enable verbose output"
+    },
+    {
+      "names": [
+        "-o",
+        "--output"
+      ],
+      "description": "Desired output format",
+      "args": [
+        {
+          "name": "format",
+          "default": "text",
+          "suggestions": [
+            {
+              "name": "text"
+            },
+            {
+              "name": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--trace"
+      ],
+      "description": "Show a log of network activity while performing a command"
+    },
+    {
+      "names": [
+        "-c",
+        "--config"
+      ],
+      "description": "Specify a custom config file (default \"$HOME/config.yaml\")"
+    },
+    {
+      "names": [
+        "-u",
+        "--api-url"
+      ],
+      "description": "Override default API endpoint"
+    },
+    {
+      "names": [
+        "-t",
+        "--access-token"
+      ],
+      "description": "API V2 access token"
+    },
+    {
+      "names": [
+        "version"
+      ],
+      "description": "Show the current version"
+    }
+  ]
+}

@@ -1,0 +1,261 @@
+{
+  "names": [
+    "planter"
+  ],
+  "subcommands": [
+    {
+      "names": [
+        "create"
+      ],
+      "description": "Create a new project using a planter or public repo",
+      "options": [
+        {
+          "names": [
+            "-f",
+            "--force"
+          ],
+          "description": "Force the created directory to overwrite an existing one"
+        },
+        {
+          "names": [
+            "-h",
+            "--help"
+          ],
+          "description": "Display help for command",
+          "priority": 49
+        }
+      ],
+      "args": [
+        {
+          "name": "source",
+          "description": "The name of a planter or a public repo",
+          "is_optional": true
+        },
+        {
+          "name": "dir",
+          "description": "Directory of the new project",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "list"
+      ],
+      "description": "List available planters",
+      "options": [
+        {
+          "names": [
+            "-a",
+            "--alphanumeric"
+          ],
+          "description": "Sorts list of planters alphanumerically"
+        },
+        {
+          "names": [
+            "-h",
+            "--help"
+          ],
+          "description": "Display help for command",
+          "priority": 49
+        }
+      ]
+    },
+    {
+      "names": [
+        "add"
+      ],
+      "description": "Add a planter to your list",
+      "options": [
+        {
+          "names": [
+            "-L",
+            "--local"
+          ],
+          "description": "Treat the location as a local repo instead of a remote repo"
+        },
+        {
+          "names": [
+            "-h",
+            "--help"
+          ],
+          "description": "Display help for command",
+          "priority": 49
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "description": "Name of the planter to use as a reference"
+        },
+        {
+          "name": "location",
+          "description": "The repo URL or name"
+        }
+      ]
+    },
+    {
+      "names": [
+        "edit"
+      ],
+      "description": "Edit a planter in your list",
+      "options": [
+        {
+          "names": [
+            "-n",
+            "--name"
+          ],
+          "description": "Edit the name of a planter",
+          "args": [
+            {
+              "name": "new-name"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-l",
+            "--location"
+          ],
+          "description": "Edit the location of a planter",
+          "args": [
+            {
+              "name": "location"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-d",
+            "--delete"
+          ],
+          "description": "Remove a planter from your list"
+        },
+        {
+          "names": [
+            "-f",
+            "--force"
+          ],
+          "description": "Edit something... dangerously. (Force the edit without any prompts.)"
+        },
+        {
+          "names": [
+            "-R",
+            "--remote"
+          ],
+          "description": "Set the location type to remote"
+        },
+        {
+          "names": [
+            "-L",
+            "--local"
+          ],
+          "description": "Set the location type to local"
+        },
+        {
+          "names": [
+            "-h",
+            "--help"
+          ],
+          "description": "Display help for command",
+          "priority": 49
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "description": "Name of the planter to edit"
+        }
+      ]
+    },
+    {
+      "names": [
+        "pin"
+      ],
+      "description": "Pins a planter to the top of your list",
+      "options": [
+        {
+          "names": [
+            "-u",
+            "--unpin"
+          ],
+          "description": "Removes position from the planter"
+        },
+        {
+          "names": [
+            "-h",
+            "--help"
+          ],
+          "description": "Display help for command",
+          "priority": 49
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "description": "Name of the planter to pin"
+        },
+        {
+          "name": "position",
+          "description": "Specific position to set the planter at. (1 being the top of the list.)",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "info"
+      ],
+      "description": "Prints all info about a planter in your list",
+      "options": [
+        {
+          "names": [
+            "-h",
+            "--help"
+          ],
+          "description": "Display help for command",
+          "priority": 49
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "description": "Name of the planter to show info for"
+        }
+      ]
+    },
+    {
+      "names": [
+        "help"
+      ],
+      "description": "Display help for command",
+      "priority": 49,
+      "args": [
+        {
+          "name": "command",
+          "is_optional": true,
+          "templates": [
+            "help"
+          ]
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "-V",
+        "--version"
+      ],
+      "description": "Output the version number"
+    },
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Display help for command",
+      "priority": 49
+    }
+  ]
+}

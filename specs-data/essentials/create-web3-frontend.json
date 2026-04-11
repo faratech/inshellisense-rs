@@ -1,0 +1,43 @@
+{
+  "names": [
+    "create-web3-frontend"
+  ],
+  "description": "Quickly create a Next.js project with wagmi and TailwindCSS ready to go",
+  "options": [
+    {
+      "names": [
+        "--ts",
+        "--typescript"
+      ],
+      "description": "Initialize as a TypeScript project"
+    },
+    {
+      "names": [
+        "--use-npm"
+      ],
+      "description": "Explicitly tell the CLI to bootstrap the app using npm"
+    },
+    {
+      "names": [
+        "--use-pnpm"
+      ],
+      "description": "Explicitly tell the CLI to bootstrap the app using pnpm"
+    },
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Display help for command",
+      "priority": 49
+    }
+  ],
+  "args": [
+    {
+      "name": "project-directory",
+      "templates": [
+        "folders"
+      ]
+    }
+  ]
+}

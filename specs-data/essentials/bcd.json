@@ -1,0 +1,70 @@
+{
+  "names": [
+    "bcd"
+  ],
+  "description": "Bookmark directories and move to them",
+  "options": [
+    {
+      "names": [
+        "-s",
+        "--store"
+      ],
+      "description": "Store the current directory as a bookmark",
+      "is_repeatable": true,
+      "args": [
+        {
+          "name": "store",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "-r",
+        "--remove"
+      ],
+      "description": "Remove a specified bookmark",
+      "is_repeatable": true,
+      "args": [
+        {
+          "name": "remove",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "-i",
+        "--install"
+      ],
+      "description": "Setup the shell init script"
+    },
+    {
+      "names": [
+        "-l",
+        "--list"
+      ],
+      "description": "List the stored bookmarks"
+    },
+    {
+      "names": [
+        "-V",
+        "--version"
+      ],
+      "description": "Print version information"
+    },
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Print help information"
+    }
+  ],
+  "args": [
+    {
+      "name": "bookmark",
+      "is_optional": true
+    }
+  ]
+}

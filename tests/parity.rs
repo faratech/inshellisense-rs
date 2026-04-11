@@ -127,3 +127,38 @@ fn completion_with_trailing_space_offers_subcommands() {
         blob.len()
     );
 }
+
+// ---- phase 3: extractor-produced specs ----
+
+#[test]
+fn extracted_find_has_options() {
+    // find is an extracted pure-data spec — option -E should be discoverable.
+    let blob = {
+        let registry = Registry::new_with_defaults();
+        let engine = Engine::new(registry, Vec::new());
+        engine.suggest_blob("find -", ".")
+    };
+    assert!(
+        blob.iter().any(|s| s.name == "-E"),
+        "expected -E in find options, got {:?}",
+        blob.iter().take(10).map(|s| &s.name).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn extracted_grep_count_option() {
+    // grep is extracted; --count is one of its common options.
+    assert_eq!(top_suggestion("grep --cou"), Some("nt".to_string()));
+}
+
+#[test]
+fn loaded_spec_count_at_least_100() {
+    // Sanity check: the extractor + curated set should give us at least
+    // 100 commands. This is a floor that should grow as we close gaps.
+    let registry = Registry::new_with_defaults();
+    assert!(
+        registry.len() >= 100,
+        "expected ≥100 specs loaded, got {}",
+        registry.len()
+    );
+}

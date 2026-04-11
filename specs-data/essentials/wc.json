@@ -1,0 +1,43 @@
+{
+  "names": [
+    "wc"
+  ],
+  "description": "World, line, character, and byte count",
+  "options": [
+    {
+      "names": [
+        "-c"
+      ],
+      "description": "Output the number of bytes to the standard input"
+    },
+    {
+      "names": [
+        "-l"
+      ],
+      "description": "Output the number of lines to the standard input"
+    },
+    {
+      "names": [
+        "-m"
+      ],
+      "description": "Output the number of characters to the standard input"
+    },
+    {
+      "names": [
+        "-w"
+      ],
+      "description": "Output the number of words to the standard input"
+    }
+  ],
+  "args": [
+    {
+      "name": "file",
+      "description": "File to count in",
+      "is_optional": true,
+      "is_variadic": true,
+      "templates": [
+        "filepaths"
+      ]
+    }
+  ]
+}

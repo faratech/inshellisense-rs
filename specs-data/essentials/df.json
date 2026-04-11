@@ -1,0 +1,114 @@
+{
+  "names": [
+    "df"
+  ],
+  "description": "Display free disk space",
+  "options": [
+    {
+      "names": [
+        "-a"
+      ],
+      "description": "Show all mount points"
+    },
+    {
+      "names": [
+        "-b",
+        "-P"
+      ],
+      "description": "Use 512-byte blocks (default)",
+      "exclusive_on": [
+        "-g",
+        "-k",
+        "-m"
+      ]
+    },
+    {
+      "names": [
+        "-g"
+      ],
+      "description": "Use 1073741824-byte (1-Gbyte) blocks",
+      "exclusive_on": [
+        "-b",
+        "-P",
+        "-m",
+        "-k"
+      ]
+    },
+    {
+      "names": [
+        "-m"
+      ],
+      "description": "Use 1048576-byte (1-Mbyte) blocks",
+      "exclusive_on": [
+        "-b",
+        "-P",
+        "-g",
+        "-k"
+      ]
+    },
+    {
+      "names": [
+        "-k"
+      ],
+      "description": "Use 1024-byte (1-Kbyte) blocks",
+      "exclusive_on": [
+        "-b",
+        "-P",
+        "-g",
+        "-m"
+      ]
+    },
+    {
+      "names": [
+        "-H"
+      ],
+      "description": "\"Human-readable\" output, uses base 10 unit suffixes",
+      "exclusive_on": [
+        "-h"
+      ]
+    },
+    {
+      "names": [
+        "-h"
+      ],
+      "description": "\"Human-readable\" output, uses base 2 unit suffixes",
+      "exclusive_on": [
+        "-H"
+      ]
+    },
+    {
+      "names": [
+        "-i"
+      ],
+      "description": "Include the number of free inodes"
+    },
+    {
+      "names": [
+        "-l"
+      ],
+      "description": "Only display information about locally-mounted filesystems"
+    },
+    {
+      "names": [
+        "-n"
+      ],
+      "description": "Print out the previously obtained statistics"
+    },
+    {
+      "names": [
+        "-T"
+      ],
+      "description": "Only print out statistics for filesystems of the specified types (comma separated)",
+      "args": [
+        {
+          "name": "filesystem"
+        }
+      ]
+    }
+  ],
+  "args": [
+    {
+      "name": "file or filesystem"
+    }
+  ]
+}

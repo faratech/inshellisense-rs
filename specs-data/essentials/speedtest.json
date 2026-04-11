@@ -1,0 +1,10 @@
+{
+  "names": [
+    "speedtest"
+  ],
+  "description": "",
+  "load_spec": {
+    "kind": "spec_path",
+    "name": "speedtest-cli"
+  }
+}

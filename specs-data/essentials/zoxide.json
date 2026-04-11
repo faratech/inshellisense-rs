@@ -1,0 +1,320 @@
+{
+  "names": [
+    "zoxide"
+  ],
+  "description": "A smarter cd command for your terminal",
+  "subcommands": [
+    {
+      "names": [
+        "add"
+      ],
+      "description": "Add a new directory or increment its rank",
+      "options": [
+        {
+          "names": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help information"
+        },
+        {
+          "names": [
+            "-V",
+            "--version"
+          ],
+          "description": "Print version information"
+        }
+      ],
+      "args": [
+        {
+          "name": "paths",
+          "is_variadic": true,
+          "templates": [
+            "folders"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "import"
+      ],
+      "description": "Import entries from another application",
+      "options": [
+        {
+          "names": [
+            "--from"
+          ],
+          "description": "Application to import from",
+          "args": [
+            {
+              "name": "from",
+              "suggestions": [
+                {
+                  "name": "autojump"
+                },
+                {
+                  "name": "z"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--merge"
+          ],
+          "description": "Merge into existing database"
+        },
+        {
+          "names": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help information"
+        },
+        {
+          "names": [
+            "-V",
+            "--version"
+          ],
+          "description": "Print version information"
+        }
+      ],
+      "args": [
+        {
+          "name": "path",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "init"
+      ],
+      "description": "Generate shell configuration",
+      "options": [
+        {
+          "names": [
+            "--cmd"
+          ],
+          "description": "Changes the prefix of the `z` and `zi` commands",
+          "args": [
+            {
+              "name": "cmd",
+              "is_optional": true
+            }
+          ]
+        },
+        {
+          "names": [
+            "--hook"
+          ],
+          "description": "Changes how often zoxide increments a directory's score",
+          "args": [
+            {
+              "name": "hook",
+              "is_optional": true,
+              "suggestions": [
+                {
+                  "name": "none"
+                },
+                {
+                  "name": "prompt"
+                },
+                {
+                  "name": "pwd"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--no-cmd"
+          ],
+          "description": "Prevents zoxide from defining the `z` and `zi` commands"
+        },
+        {
+          "names": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help information"
+        },
+        {
+          "names": [
+            "-V",
+            "--version"
+          ],
+          "description": "Print version information"
+        }
+      ],
+      "args": [
+        {
+          "name": "shell",
+          "suggestions": [
+            {
+              "name": "bash"
+            },
+            {
+              "name": "elvish"
+            },
+            {
+              "name": "fish"
+            },
+            {
+              "name": "nushell"
+            },
+            {
+              "name": "posix"
+            },
+            {
+              "name": "powershell"
+            },
+            {
+              "name": "xonsh"
+            },
+            {
+              "name": "zsh"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "query"
+      ],
+      "description": "Search for a directory in the database",
+      "options": [
+        {
+          "names": [
+            "--exclude"
+          ],
+          "description": "Exclude a path from results",
+          "args": [
+            {
+              "name": "exclude",
+              "is_optional": true,
+              "templates": [
+                "folders"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--all"
+          ],
+          "description": "Show deleted directories"
+        },
+        {
+          "names": [
+            "-i",
+            "--interactive"
+          ],
+          "description": "Use interactive selection",
+          "exclusive_on": [
+            "-l",
+            "--list"
+          ]
+        },
+        {
+          "names": [
+            "-l",
+            "--list"
+          ],
+          "description": "List all matching directories",
+          "exclusive_on": [
+            "-i",
+            "--interactive"
+          ]
+        },
+        {
+          "names": [
+            "-s",
+            "--score"
+          ],
+          "description": "Print score with results"
+        },
+        {
+          "names": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help information"
+        },
+        {
+          "names": [
+            "-V",
+            "--version"
+          ],
+          "description": "Print version information"
+        }
+      ],
+      "args": [
+        {
+          "name": "keywords",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "remove"
+      ],
+      "description": "Remove a directory from the database",
+      "options": [
+        {
+          "names": [
+            "-i",
+            "--interactive"
+          ],
+          "description": "Use interactive selection"
+        },
+        {
+          "names": [
+            "-h",
+            "--help"
+          ],
+          "description": "Print help information"
+        },
+        {
+          "names": [
+            "-V",
+            "--version"
+          ],
+          "description": "Print version information"
+        }
+      ],
+      "args": [
+        {
+          "name": "paths",
+          "is_optional": true,
+          "templates": [
+            "folders"
+          ]
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Print help information"
+    },
+    {
+      "names": [
+        "-V",
+        "--version"
+      ],
+      "description": "Print version information"
+    }
+  ]
+}

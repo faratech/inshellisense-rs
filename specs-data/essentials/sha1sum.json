@@ -1,0 +1,100 @@
+{
+  "names": [
+    "sha1sum"
+  ],
+  "description": "Print or check SHA1 (160-bit) checksums",
+  "options": [
+    {
+      "names": [
+        "-b",
+        "--binary"
+      ],
+      "description": "Read in binary mode"
+    },
+    {
+      "names": [
+        "-c",
+        "--check"
+      ],
+      "description": "Read SHA1 sums from the FILEs and check them"
+    },
+    {
+      "names": [
+        "--tag"
+      ],
+      "description": "Create a BSD-style checksum"
+    },
+    {
+      "names": [
+        "-t",
+        "--text"
+      ],
+      "description": "Read in text mode (default)"
+    },
+    {
+      "names": [
+        "-z",
+        "--zero"
+      ],
+      "description": "End each output line with NUL, not newline, and disable file name escaping"
+    },
+    {
+      "names": [
+        "--ignore-missing"
+      ],
+      "description": "Don't fail or report status for missing files"
+    },
+    {
+      "names": [
+        "--quiet"
+      ],
+      "description": "Don't print OK for each successfully verified file"
+    },
+    {
+      "names": [
+        "--status"
+      ],
+      "description": "Don't output anything, status code shows success"
+    },
+    {
+      "names": [
+        "--strict"
+      ],
+      "description": "Exit non-zero for improperly formatted checksum lines"
+    },
+    {
+      "names": [
+        "-w",
+        "--warn"
+      ],
+      "description": "Warn about improperly formatted checksum lines"
+    },
+    {
+      "names": [
+        "--help"
+      ],
+      "description": "Output help message and exit"
+    },
+    {
+      "names": [
+        "--version"
+      ],
+      "description": "Output version information and exit"
+    }
+  ],
+  "args": [
+    {
+      "name": "file",
+      "description": "With no FILE, or when FILE is -, read standard input",
+      "is_optional": true,
+      "templates": [
+        "filepaths"
+      ],
+      "suggestions": [
+        {
+          "name": "-"
+        }
+      ]
+    }
+  ]
+}

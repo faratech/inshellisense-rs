@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 3 — @withfig/autocomplete extractor + 321 specs vendored
+
+- **Added** `tools/extractor/` — Node + TypeScript extractor using
+  `ts-morph`. Walks `@withfig/autocomplete/src/**/*.ts`, locates each
+  file's default-exported Fig.Spec object literal, and converts the
+  pure-data subset into insh-rs's Rust JSON schema. Specs containing
+  any inline function (arrow, function expression, method) anywhere
+  in their tree are classified as `partial` or `js_only` in the
+  manifest and not extracted (phase 6 handles those via rquickjs).
+  ~570 lines of TypeScript.
+- **Added** `specs-data/essentials/` — **321 extracted pure-data specs**
+  checked into the repo (7.4 MB JSON). Covers find, grep, tar, chmod,
+  curl, wget, ssh, rsync, make, sed, awk, jq, ffmpeg, yt-dlp, and 300+
+  other commands that don't need JS runtime support. Rerun the
+  extractor with `cd tools/extractor && npm run extract` to refresh
+  when upstream releases.
+- **Added** `specs-data/index.json` — manifest with extraction stats
+  (total, pure, partial, js_only) and per-spec kind classification.
+- **Added** `include_dir` dependency; `Registry::load_embedded_essentials`
+  embeds the entire `specs-data/essentials/` tree into the binary at
+  build time and deserializes each spec lazily via `serde_json`.
+- **Added** extractor-spec parity tests: `extracted_find_has_options`,
+  `extracted_grep_count_option`, `loaded_spec_count_at_least_100`.
+- **Changed** `Registry::new_with_defaults` load order: extracted specs
+  first, then curated hand-ported specs only for names not already
+  loaded, then user TOML overrides. This means `git`/`docker`/`cargo`/
+  `systemctl`/`ssh` still come from the curated set (they have
+  function-containing specs that the extractor couldn't pure-extract),
+  but everything else is now extractor-driven.
+- **Changed** `Repeatable` enum redesigned to `{ Bool(bool), N(u16) }`
+  untagged so serde round-trips upstream's `isRepeatable: true | number`
+  variant cleanly. Fixed extractor to emit the boolean/number directly
+  instead of a stringified `"true"`.
+- **Fixed** dead-code warnings (`sub` helper in curated.rs removed,
+  `from_variadic` underscored).
+
+Validation: `cargo test` passes **29 tests** (14 unit + 15 parity
+including 3 new extractor-driven cases). 321 of 715 upstream specs
+successfully extracted (44.9% — the declarative subset). 377 specs
+classified as `partial`, 17 as `js_only`, 0 errors. Release binary
+8.7 MB (up from 1.8 MB — the 6.9 MB growth is embedded JSON; phase 4
+will switch to MessagePack which should cut that roughly in half).
+Smoke tests: `find -` → `E`, `grep --cou` → `nt`, `chmod 7` → `44`.
+
 ### Phase 2 — Suggestion engine polish + parity test harness
 
 - **Added** `src/lib.rs` exposing modules for integration testing.

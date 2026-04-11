@@ -1,0 +1,5016 @@
+{
+  "names": [
+    "remotion"
+  ],
+  "description": "Create videos programmatically in React",
+  "subcommands": [
+    {
+      "names": [
+        "versions"
+      ],
+      "description": "Prints and validates versions of all Remotion packages"
+    },
+    {
+      "names": [
+        "gpu"
+      ],
+      "description": "Prints information about how Chrome uses the GPU"
+    },
+    {
+      "names": [
+        "compositions"
+      ],
+      "description": "Prints the list of available compositions",
+      "options": [
+        {
+          "names": [
+            "--props"
+          ],
+          "description": "Pass input props as filename or as JSON",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--env-file"
+          ],
+          "description": "Specify a location for a dotenv file",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--disable-headless"
+          ],
+          "description": "Run Chrome in normal mode rather than headless"
+        },
+        {
+          "names": [
+            "--gl"
+          ],
+          "description": "Which OpenGL renderer to use",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "angle"
+                },
+                {
+                  "name": "egl"
+                },
+                {
+                  "name": "swiftshader"
+                },
+                {
+                  "name": "swangle"
+                },
+                {
+                  "name": "vulkan"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--user-agent"
+          ],
+          "description": "User agent to use for Chrome during rendering"
+        },
+        {
+          "names": [
+            "--ignore-certificate-errors"
+          ],
+          "description": "Ignore SSL errors"
+        },
+        {
+          "names": [
+            "--disable-web-security"
+          ],
+          "description": "Disable CORS and other web security features"
+        }
+      ],
+      "args": [
+        {
+          "name": "entry",
+          "description": "The entry point of your Remotion app",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "lambda"
+      ],
+      "description": "Access functionality of @remotion/lambda",
+      "subcommands": [
+        {
+          "names": [
+            "policies"
+          ],
+          "description": "Manage AWS policies",
+          "subcommands": [
+            {
+              "names": [
+                "role"
+              ],
+              "description": "Print policy to be added to the AWS role"
+            },
+            {
+              "names": [
+                "user"
+              ],
+              "description": "Print policy to be added to the AWS user"
+            },
+            {
+              "names": [
+                "validate"
+              ],
+              "description": "Validate the user policy was configured correctly"
+            }
+          ]
+        },
+        {
+          "names": [
+            "quotas"
+          ],
+          "description": "Show current AWS quota",
+          "subcommands": [
+            {
+              "names": [
+                "increase"
+              ],
+              "description": "Send a request to AWS to increase concurrency quotas",
+              "options": [
+                {
+                  "names": [
+                    "--quiet"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "-q"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "--log"
+                  ],
+                  "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+                  "args": [
+                    {
+                      "default": "info",
+                      "suggestions": [
+                        {
+                          "name": "verbose"
+                        },
+                        {
+                          "name": "info"
+                        },
+                        {
+                          "name": "warn"
+                        },
+                        {
+                          "name": "error"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--config"
+                  ],
+                  "description": "Custom location for a Remotion config file",
+                  "args": [
+                    {
+                      "templates": [
+                        "filepaths"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--yes"
+                  ],
+                  "description": "Skip confirmation"
+                },
+                {
+                  "names": [
+                    "--force"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-y"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-f"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "--region"
+                  ],
+                  "description": "The AWS region specifier",
+                  "args": [
+                    {
+                      "suggestions": [
+                        {
+                          "name": "us-east-1",
+                          "description": "North Virginia"
+                        },
+                        {
+                          "name": "us-east-2",
+                          "description": "Ohio"
+                        },
+                        {
+                          "name": "eu-central-1",
+                          "description": "Frankfurt"
+                        },
+                        {
+                          "name": "eu-west-1",
+                          "description": "Ireland"
+                        },
+                        {
+                          "name": "eu-west-2",
+                          "description": "London"
+                        },
+                        {
+                          "name": "us-west-2",
+                          "description": "Oregon"
+                        },
+                        {
+                          "name": "ap-south-1",
+                          "description": "Mumbai"
+                        },
+                        {
+                          "name": "ap-southeast-1",
+                          "description": "Singapore"
+                        },
+                        {
+                          "name": "ap-southeast-2",
+                          "description": "Sydney"
+                        },
+                        {
+                          "name": "ap-northeast-1",
+                          "description": "Tokyo"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "options": [
+            {
+              "names": [
+                "--quiet"
+              ],
+              "description": "Print less output"
+            },
+            {
+              "names": [
+                "-q"
+              ],
+              "description": "Print less output"
+            },
+            {
+              "names": [
+                "--log"
+              ],
+              "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+              "args": [
+                {
+                  "default": "info",
+                  "suggestions": [
+                    {
+                      "name": "verbose"
+                    },
+                    {
+                      "name": "info"
+                    },
+                    {
+                      "name": "warn"
+                    },
+                    {
+                      "name": "error"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--config"
+              ],
+              "description": "Custom location for a Remotion config file",
+              "args": [
+                {
+                  "templates": [
+                    "filepaths"
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--yes"
+              ],
+              "description": "Skip confirmation"
+            },
+            {
+              "names": [
+                "--force"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "-y"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "-f"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "--region"
+              ],
+              "description": "The AWS region specifier",
+              "args": [
+                {
+                  "suggestions": [
+                    {
+                      "name": "us-east-1",
+                      "description": "North Virginia"
+                    },
+                    {
+                      "name": "us-east-2",
+                      "description": "Ohio"
+                    },
+                    {
+                      "name": "eu-central-1",
+                      "description": "Frankfurt"
+                    },
+                    {
+                      "name": "eu-west-1",
+                      "description": "Ireland"
+                    },
+                    {
+                      "name": "eu-west-2",
+                      "description": "London"
+                    },
+                    {
+                      "name": "us-west-2",
+                      "description": "Oregon"
+                    },
+                    {
+                      "name": "ap-south-1",
+                      "description": "Mumbai"
+                    },
+                    {
+                      "name": "ap-southeast-1",
+                      "description": "Singapore"
+                    },
+                    {
+                      "name": "ap-southeast-2",
+                      "description": "Sydney"
+                    },
+                    {
+                      "name": "ap-northeast-1",
+                      "description": "Tokyo"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "regions"
+          ],
+          "description": "Prints list of supported regions",
+          "options": [
+            {
+              "names": [
+                "--default-only"
+              ],
+              "description": "Only print the regions enabled by default in a new AWS account"
+            }
+          ]
+        },
+        {
+          "names": [
+            "render"
+          ],
+          "description": "Render media on Lambda",
+          "options": [
+            {
+              "names": [
+                "--max-retries"
+              ],
+              "description": "How many times a chunk can be retried before the render times out",
+              "args": [
+                {
+                  "name": "numberOfRetries"
+                }
+              ]
+            },
+            {
+              "names": [
+                "--privacy"
+              ],
+              "args": [
+                {
+                  "name": "privacy",
+                  "default": "public",
+                  "suggestions": [
+                    {
+                      "name": "public"
+                    },
+                    {
+                      "name": "private"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--frames-per-lambda"
+              ],
+              "description": "How many frames should be rendered per chunk",
+              "args": [
+                {
+                  "name": "framesPerLambda"
+                }
+              ]
+            },
+            {
+              "names": [
+                "--props"
+              ],
+              "description": "Pass input props as filename or as JSON",
+              "args": [
+                {
+                  "templates": [
+                    "filepaths"
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--disable-headless"
+              ],
+              "description": "Run Chrome in normal mode rather than headless"
+            },
+            {
+              "names": [
+                "--gl"
+              ],
+              "description": "Which OpenGL renderer to use",
+              "args": [
+                {
+                  "suggestions": [
+                    {
+                      "name": "angle"
+                    },
+                    {
+                      "name": "egl"
+                    },
+                    {
+                      "name": "swiftshader"
+                    },
+                    {
+                      "name": "swangle"
+                    },
+                    {
+                      "name": "vulkan"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--user-agent"
+              ],
+              "description": "User agent to use for Chrome during rendering"
+            },
+            {
+              "names": [
+                "--ignore-certificate-errors"
+              ],
+              "description": "Ignore SSL errors"
+            },
+            {
+              "names": [
+                "--disable-web-security"
+              ],
+              "description": "Disable CORS and other web security features"
+            },
+            {
+              "names": [
+                "--concurrency-per-lambda"
+              ],
+              "description": "Concurrency with which each Lambda function should render",
+              "args": [
+                {
+                  "name": "concurrencyPerLambda"
+                }
+              ]
+            },
+            {
+              "names": [
+                "--overwrite"
+              ],
+              "description": "Overwrite a video if it already exists in the S3 bucket"
+            },
+            {
+              "names": [
+                "--function-name"
+              ],
+              "description": "Name of the function that should be invoked"
+            },
+            {
+              "names": [
+                "--renderer-function-name"
+              ],
+              "description": "Use a different function to render the video. By default, use the same function as the one to start the render"
+            },
+            {
+              "names": [
+                "--timeout"
+              ],
+              "description": "The time in milisecond that a delayRender() may take before it times out"
+            },
+            {
+              "names": [
+                "--quality"
+              ],
+              "description": "Quality for rendered frames, JPEG only, 0-100",
+              "args": [
+                {
+                  "default": "80",
+                  "suggestions": [
+                    {
+                      "name": "0"
+                    },
+                    {
+                      "name": "10"
+                    },
+                    {
+                      "name": "20"
+                    },
+                    {
+                      "name": "30"
+                    },
+                    {
+                      "name": "40"
+                    },
+                    {
+                      "name": "50"
+                    },
+                    {
+                      "name": "60"
+                    },
+                    {
+                      "name": "70"
+                    },
+                    {
+                      "name": "80"
+                    },
+                    {
+                      "name": "90"
+                    },
+                    {
+                      "name": "100"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--scale"
+              ],
+              "description": "Upscale or downscale or the dimensions of the video",
+              "args": [
+                {
+                  "default": "1",
+                  "suggestions": [
+                    {
+                      "name": "0.25"
+                    },
+                    {
+                      "name": "0.5"
+                    },
+                    {
+                      "name": "1"
+                    },
+                    {
+                      "name": "1.5"
+                    },
+                    {
+                      "name": "2"
+                    },
+                    {
+                      "name": "4"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--codec"
+              ],
+              "description": "Video or audio codec",
+              "args": [
+                {
+                  "default": "h264",
+                  "suggestions": [
+                    {
+                      "name": "h264"
+                    },
+                    {
+                      "name": "h265"
+                    },
+                    {
+                      "name": "gif"
+                    },
+                    {
+                      "name": "vp8"
+                    },
+                    {
+                      "name": "vp9"
+                    },
+                    {
+                      "name": "mp3"
+                    },
+                    {
+                      "name": "aac"
+                    },
+                    {
+                      "name": "wav"
+                    },
+                    {
+                      "name": "prores"
+                    },
+                    {
+                      "name": "h264-mkv"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--audio-codec"
+              ],
+              "description": "Codec to be used for the audio",
+              "args": [
+                {
+                  "suggestions": [
+                    {
+                      "name": "aac"
+                    },
+                    {
+                      "name": "mp3"
+                    },
+                    {
+                      "name": "opus"
+                    },
+                    {
+                      "name": "pcm-16"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--every-nth-frame"
+              ],
+              "description": "Render only every nth frame (only for GIFs)",
+              "args": [
+                {
+                  "default": "1",
+                  "suggestions": [
+                    {
+                      "name": "2"
+                    },
+                    {
+                      "name": "3"
+                    },
+                    {
+                      "name": "4"
+                    },
+                    {
+                      "name": "5"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--number-of-gif-loops"
+              ],
+              "description": "How many times a GIF should loop. 0 = No loop",
+              "args": [
+                {
+                  "default": "1",
+                  "suggestions": [
+                    {
+                      "name": "0"
+                    },
+                    {
+                      "name": "1"
+                    },
+                    {
+                      "name": "2"
+                    },
+                    {
+                      "name": "3"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--audio-bitrate"
+              ],
+              "description": "Customize the output audio bitrate"
+            },
+            {
+              "names": [
+                "--video-bitrate"
+              ],
+              "description": "Customize the output video bitrate. Mutually exclusive with --crf",
+              "exclusive_on": [
+                "--crf"
+              ]
+            },
+            {
+              "names": [
+                "--crf"
+              ],
+              "description": "FFMPEG CRF value, controls quality, see docs for info",
+              "exclusive_on": [
+                "--video-bitrate"
+              ]
+            },
+            {
+              "names": [
+                "--frames"
+              ],
+              "description": "Render a portion or a still of a video, 0-9, 50",
+              "args": [
+                {
+                  "name": "frames"
+                }
+              ]
+            },
+            {
+              "names": [
+                "--prores-profile"
+              ],
+              "description": "ProRes profile, need --codec=prores to be set",
+              "args": [
+                {
+                  "suggestions": [
+                    {
+                      "name": "4444-xq"
+                    },
+                    {
+                      "name": "4444"
+                    },
+                    {
+                      "name": "hq"
+                    },
+                    {
+                      "name": "standard"
+                    },
+                    {
+                      "name": "light"
+                    },
+                    {
+                      "name": "proxy"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--x264-preset"
+              ],
+              "description": "Presets balance encoding speed and compression quality, with slower presets achieving better compression. Needs --codec=h264 to be set",
+              "args": [
+                {
+                  "suggestions": [
+                    {
+                      "name": "ultrafast"
+                    },
+                    {
+                      "name": "superfast"
+                    },
+                    {
+                      "name": "veryfast"
+                    },
+                    {
+                      "name": "faster"
+                    },
+                    {
+                      "name": "fast"
+                    },
+                    {
+                      "name": "medium"
+                    },
+                    {
+                      "name": "slow"
+                    },
+                    {
+                      "name": "slower"
+                    },
+                    {
+                      "name": "veryslow"
+                    },
+                    {
+                      "name": "placebo"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--image-format"
+              ],
+              "description": "Format to render the frames in, \"jpeg\" or \"png\"",
+              "args": [
+                {
+                  "suggestions": [
+                    {
+                      "name": "jpeg"
+                    },
+                    {
+                      "name": "png"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--pixel-format"
+              ],
+              "description": "Custom pixel format, see docs for available values",
+              "args": [
+                {
+                  "suggestions": [
+                    {
+                      "name": "yuv420p"
+                    },
+                    {
+                      "name": "yuv422p"
+                    },
+                    {
+                      "name": "yuv444p"
+                    },
+                    {
+                      "name": "yuv420p10le"
+                    },
+                    {
+                      "name": "yuv422p10le"
+                    },
+                    {
+                      "name": "yuv444p10le"
+                    },
+                    {
+                      "name": "yuva420p"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--muted"
+              ],
+              "description": "Outputs no audio"
+            },
+            {
+              "names": [
+                "--height"
+              ],
+              "description": "Override the composition height",
+              "args": [
+                {
+                  "name": "height"
+                }
+              ]
+            },
+            {
+              "names": [
+                "--width"
+              ],
+              "description": "Override the composition width",
+              "args": [
+                {
+                  "name": "height"
+                }
+              ]
+            },
+            {
+              "names": [
+                "--quiet"
+              ],
+              "description": "Print less output"
+            },
+            {
+              "names": [
+                "-q"
+              ],
+              "description": "Print less output"
+            },
+            {
+              "names": [
+                "--log"
+              ],
+              "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+              "args": [
+                {
+                  "default": "info",
+                  "suggestions": [
+                    {
+                      "name": "verbose"
+                    },
+                    {
+                      "name": "info"
+                    },
+                    {
+                      "name": "warn"
+                    },
+                    {
+                      "name": "error"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--config"
+              ],
+              "description": "Custom location for a Remotion config file",
+              "args": [
+                {
+                  "templates": [
+                    "filepaths"
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--yes"
+              ],
+              "description": "Skip confirmation"
+            },
+            {
+              "names": [
+                "--force"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "-y"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "-f"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "--region"
+              ],
+              "description": "The AWS region specifier",
+              "args": [
+                {
+                  "suggestions": [
+                    {
+                      "name": "us-east-1",
+                      "description": "North Virginia"
+                    },
+                    {
+                      "name": "us-east-2",
+                      "description": "Ohio"
+                    },
+                    {
+                      "name": "eu-central-1",
+                      "description": "Frankfurt"
+                    },
+                    {
+                      "name": "eu-west-1",
+                      "description": "Ireland"
+                    },
+                    {
+                      "name": "eu-west-2",
+                      "description": "London"
+                    },
+                    {
+                      "name": "us-west-2",
+                      "description": "Oregon"
+                    },
+                    {
+                      "name": "ap-south-1",
+                      "description": "Mumbai"
+                    },
+                    {
+                      "name": "ap-southeast-1",
+                      "description": "Singapore"
+                    },
+                    {
+                      "name": "ap-southeast-2",
+                      "description": "Sydney"
+                    },
+                    {
+                      "name": "ap-northeast-1",
+                      "description": "Tokyo"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "args": [
+            {
+              "name": "serve-url",
+              "description": "URL or name of the site"
+            },
+            {
+              "name": "composition-id",
+              "description": "Name of the composition"
+            },
+            {
+              "name": "out-name",
+              "description": "Where the output should be downloaded. No download it omitted",
+              "is_optional": true
+            }
+          ]
+        },
+        {
+          "names": [
+            "compositions"
+          ],
+          "description": "Get the list of available compositions on Lambda",
+          "options": [
+            {
+              "names": [
+                "--quiet"
+              ],
+              "description": "Print less output"
+            },
+            {
+              "names": [
+                "-q"
+              ],
+              "description": "Print less output"
+            },
+            {
+              "names": [
+                "--log"
+              ],
+              "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+              "args": [
+                {
+                  "default": "info",
+                  "suggestions": [
+                    {
+                      "name": "verbose"
+                    },
+                    {
+                      "name": "info"
+                    },
+                    {
+                      "name": "warn"
+                    },
+                    {
+                      "name": "error"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--config"
+              ],
+              "description": "Custom location for a Remotion config file",
+              "args": [
+                {
+                  "templates": [
+                    "filepaths"
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--yes"
+              ],
+              "description": "Skip confirmation"
+            },
+            {
+              "names": [
+                "--force"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "-y"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "-f"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "--region"
+              ],
+              "description": "The AWS region specifier",
+              "args": [
+                {
+                  "suggestions": [
+                    {
+                      "name": "us-east-1",
+                      "description": "North Virginia"
+                    },
+                    {
+                      "name": "us-east-2",
+                      "description": "Ohio"
+                    },
+                    {
+                      "name": "eu-central-1",
+                      "description": "Frankfurt"
+                    },
+                    {
+                      "name": "eu-west-1",
+                      "description": "Ireland"
+                    },
+                    {
+                      "name": "eu-west-2",
+                      "description": "London"
+                    },
+                    {
+                      "name": "us-west-2",
+                      "description": "Oregon"
+                    },
+                    {
+                      "name": "ap-south-1",
+                      "description": "Mumbai"
+                    },
+                    {
+                      "name": "ap-southeast-1",
+                      "description": "Singapore"
+                    },
+                    {
+                      "name": "ap-southeast-2",
+                      "description": "Sydney"
+                    },
+                    {
+                      "name": "ap-northeast-1",
+                      "description": "Tokyo"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--props"
+              ],
+              "description": "Pass input props as filename or as JSON",
+              "args": [
+                {
+                  "templates": [
+                    "filepaths"
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--env-file"
+              ],
+              "description": "Specify a location for a dotenv file",
+              "args": [
+                {
+                  "templates": [
+                    "filepaths"
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--disable-headless"
+              ],
+              "description": "Run Chrome in normal mode rather than headless"
+            },
+            {
+              "names": [
+                "--gl"
+              ],
+              "description": "Which OpenGL renderer to use",
+              "args": [
+                {
+                  "suggestions": [
+                    {
+                      "name": "angle"
+                    },
+                    {
+                      "name": "egl"
+                    },
+                    {
+                      "name": "swiftshader"
+                    },
+                    {
+                      "name": "swangle"
+                    },
+                    {
+                      "name": "vulkan"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--user-agent"
+              ],
+              "description": "User agent to use for Chrome during rendering"
+            },
+            {
+              "names": [
+                "--ignore-certificate-errors"
+              ],
+              "description": "Ignore SSL errors"
+            },
+            {
+              "names": [
+                "--disable-web-security"
+              ],
+              "description": "Disable CORS and other web security features"
+            }
+          ],
+          "args": [
+            {
+              "name": "serve-url",
+              "description": "URL or name of the site"
+            }
+          ]
+        },
+        {
+          "names": [
+            "still"
+          ],
+          "description": "Render a still on Lambda",
+          "options": [
+            {
+              "names": [
+                "--max-retries"
+              ],
+              "description": "How many times a chunk can be retried before the render times out",
+              "args": [
+                {
+                  "name": "numberOfRetries"
+                }
+              ]
+            },
+            {
+              "names": [
+                "--privacy"
+              ],
+              "args": [
+                {
+                  "name": "privacy",
+                  "default": "public",
+                  "suggestions": [
+                    {
+                      "name": "public"
+                    },
+                    {
+                      "name": "private"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--frames-per-lambda"
+              ],
+              "description": "How many frames should be rendered per chunk",
+              "args": [
+                {
+                  "name": "framesPerLambda"
+                }
+              ]
+            },
+            {
+              "names": [
+                "--props"
+              ],
+              "description": "Pass input props as filename or as JSON",
+              "args": [
+                {
+                  "templates": [
+                    "filepaths"
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--disable-headless"
+              ],
+              "description": "Run Chrome in normal mode rather than headless"
+            },
+            {
+              "names": [
+                "--gl"
+              ],
+              "description": "Which OpenGL renderer to use",
+              "args": [
+                {
+                  "suggestions": [
+                    {
+                      "name": "angle"
+                    },
+                    {
+                      "name": "egl"
+                    },
+                    {
+                      "name": "swiftshader"
+                    },
+                    {
+                      "name": "swangle"
+                    },
+                    {
+                      "name": "vulkan"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--user-agent"
+              ],
+              "description": "User agent to use for Chrome during rendering"
+            },
+            {
+              "names": [
+                "--ignore-certificate-errors"
+              ],
+              "description": "Ignore SSL errors"
+            },
+            {
+              "names": [
+                "--disable-web-security"
+              ],
+              "description": "Disable CORS and other web security features"
+            },
+            {
+              "names": [
+                "--frame"
+              ],
+              "description": "Which frame to render (default 0)",
+              "args": [
+                {
+                  "name": "frame",
+                  "default": "0"
+                }
+              ]
+            },
+            {
+              "names": [
+                "--height"
+              ],
+              "description": "Override the composition height",
+              "args": [
+                {
+                  "name": "height"
+                }
+              ]
+            },
+            {
+              "names": [
+                "--width"
+              ],
+              "description": "Override the composition width",
+              "args": [
+                {
+                  "name": "height"
+                }
+              ]
+            },
+            {
+              "names": [
+                "--quiet"
+              ],
+              "description": "Print less output"
+            },
+            {
+              "names": [
+                "-q"
+              ],
+              "description": "Print less output"
+            },
+            {
+              "names": [
+                "--log"
+              ],
+              "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+              "args": [
+                {
+                  "default": "info",
+                  "suggestions": [
+                    {
+                      "name": "verbose"
+                    },
+                    {
+                      "name": "info"
+                    },
+                    {
+                      "name": "warn"
+                    },
+                    {
+                      "name": "error"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--config"
+              ],
+              "description": "Custom location for a Remotion config file",
+              "args": [
+                {
+                  "templates": [
+                    "filepaths"
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--yes"
+              ],
+              "description": "Skip confirmation"
+            },
+            {
+              "names": [
+                "--force"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "-y"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "-f"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "--region"
+              ],
+              "description": "The AWS region specifier",
+              "args": [
+                {
+                  "suggestions": [
+                    {
+                      "name": "us-east-1",
+                      "description": "North Virginia"
+                    },
+                    {
+                      "name": "us-east-2",
+                      "description": "Ohio"
+                    },
+                    {
+                      "name": "eu-central-1",
+                      "description": "Frankfurt"
+                    },
+                    {
+                      "name": "eu-west-1",
+                      "description": "Ireland"
+                    },
+                    {
+                      "name": "eu-west-2",
+                      "description": "London"
+                    },
+                    {
+                      "name": "us-west-2",
+                      "description": "Oregon"
+                    },
+                    {
+                      "name": "ap-south-1",
+                      "description": "Mumbai"
+                    },
+                    {
+                      "name": "ap-southeast-1",
+                      "description": "Singapore"
+                    },
+                    {
+                      "name": "ap-southeast-2",
+                      "description": "Sydney"
+                    },
+                    {
+                      "name": "ap-northeast-1",
+                      "description": "Tokyo"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "args": [
+            {
+              "name": "serve-url",
+              "description": "URL or name of the site"
+            },
+            {
+              "name": "composition-id",
+              "description": "Name of the composition"
+            },
+            {
+              "name": "out-name",
+              "description": "Where the output should be downloaded. No download it omitted",
+              "is_optional": true
+            }
+          ]
+        },
+        {
+          "names": [
+            "functions"
+          ],
+          "description": "Manage functions on AWS Lambda",
+          "subcommands": [
+            {
+              "names": [
+                "ls"
+              ],
+              "description": "List deployed functions",
+              "options": [
+                {
+                  "names": [
+                    "--quiet"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "-q"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "--log"
+                  ],
+                  "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+                  "args": [
+                    {
+                      "default": "info",
+                      "suggestions": [
+                        {
+                          "name": "verbose"
+                        },
+                        {
+                          "name": "info"
+                        },
+                        {
+                          "name": "warn"
+                        },
+                        {
+                          "name": "error"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--config"
+                  ],
+                  "description": "Custom location for a Remotion config file",
+                  "args": [
+                    {
+                      "templates": [
+                        "filepaths"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--yes"
+                  ],
+                  "description": "Skip confirmation"
+                },
+                {
+                  "names": [
+                    "--force"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-y"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-f"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "--region"
+                  ],
+                  "description": "The AWS region specifier",
+                  "args": [
+                    {
+                      "suggestions": [
+                        {
+                          "name": "us-east-1",
+                          "description": "North Virginia"
+                        },
+                        {
+                          "name": "us-east-2",
+                          "description": "Ohio"
+                        },
+                        {
+                          "name": "eu-central-1",
+                          "description": "Frankfurt"
+                        },
+                        {
+                          "name": "eu-west-1",
+                          "description": "Ireland"
+                        },
+                        {
+                          "name": "eu-west-2",
+                          "description": "London"
+                        },
+                        {
+                          "name": "us-west-2",
+                          "description": "Oregon"
+                        },
+                        {
+                          "name": "ap-south-1",
+                          "description": "Mumbai"
+                        },
+                        {
+                          "name": "ap-southeast-1",
+                          "description": "Singapore"
+                        },
+                        {
+                          "name": "ap-southeast-2",
+                          "description": "Sydney"
+                        },
+                        {
+                          "name": "ap-northeast-1",
+                          "description": "Tokyo"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "deploy"
+              ],
+              "description": "Deploy a function if one with the same parameters doesn't exist",
+              "options": [
+                {
+                  "names": [
+                    "--memory"
+                  ],
+                  "description": "Amount of memory in MB to allocate",
+                  "args": [
+                    {
+                      "name": "sizeInMegabytes"
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--disk"
+                  ],
+                  "description": "Amount of disk space in MB to allocate",
+                  "args": [
+                    {
+                      "name": "diskInMegabytes"
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--architecture"
+                  ],
+                  "description": "Type of CPU architecture to use for the Lambda function",
+                  "args": [
+                    {
+                      "name": "architecture",
+                      "suggestions": [
+                        {
+                          "name": "x86_64",
+                          "icon": "fig://icon?type=cpu"
+                        },
+                        {
+                          "name": "arm64",
+                          "icon": "fig://icon?type=cpu"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--disable-cloudwatch"
+                  ],
+                  "description": "Disable CloudWatch logging",
+                  "exclusive_on": [
+                    "--retention-period"
+                  ]
+                },
+                {
+                  "names": [
+                    "--enable-lambda-insights"
+                  ],
+                  "description": "Enable Lambda Insights"
+                },
+                {
+                  "names": [
+                    "--custom-role-arn"
+                  ],
+                  "description": "Set a custom role ARN to be used instead of the default",
+                  "args": [
+                    {
+                      "name": "Role ARN"
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--retention-period"
+                  ],
+                  "description": "CloudWatch log retention period in days",
+                  "exclusive_on": [
+                    "--disable-cloudwatch"
+                  ],
+                  "args": [
+                    {
+                      "name": "retentionPeriodInDays"
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--quiet"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "-q"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "--log"
+                  ],
+                  "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+                  "args": [
+                    {
+                      "default": "info",
+                      "suggestions": [
+                        {
+                          "name": "verbose"
+                        },
+                        {
+                          "name": "info"
+                        },
+                        {
+                          "name": "warn"
+                        },
+                        {
+                          "name": "error"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--config"
+                  ],
+                  "description": "Custom location for a Remotion config file",
+                  "args": [
+                    {
+                      "templates": [
+                        "filepaths"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--yes"
+                  ],
+                  "description": "Skip confirmation"
+                },
+                {
+                  "names": [
+                    "--force"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-y"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-f"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "--region"
+                  ],
+                  "description": "The AWS region specifier",
+                  "args": [
+                    {
+                      "suggestions": [
+                        {
+                          "name": "us-east-1",
+                          "description": "North Virginia"
+                        },
+                        {
+                          "name": "us-east-2",
+                          "description": "Ohio"
+                        },
+                        {
+                          "name": "eu-central-1",
+                          "description": "Frankfurt"
+                        },
+                        {
+                          "name": "eu-west-1",
+                          "description": "Ireland"
+                        },
+                        {
+                          "name": "eu-west-2",
+                          "description": "London"
+                        },
+                        {
+                          "name": "us-west-2",
+                          "description": "Oregon"
+                        },
+                        {
+                          "name": "ap-south-1",
+                          "description": "Mumbai"
+                        },
+                        {
+                          "name": "ap-southeast-1",
+                          "description": "Singapore"
+                        },
+                        {
+                          "name": "ap-southeast-2",
+                          "description": "Sydney"
+                        },
+                        {
+                          "name": "ap-northeast-1",
+                          "description": "Tokyo"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "rmall"
+              ],
+              "description": "Remove all functions in a region",
+              "is_dangerous": true,
+              "options": [
+                {
+                  "names": [
+                    "--quiet"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "-q"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "--log"
+                  ],
+                  "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+                  "args": [
+                    {
+                      "default": "info",
+                      "suggestions": [
+                        {
+                          "name": "verbose"
+                        },
+                        {
+                          "name": "info"
+                        },
+                        {
+                          "name": "warn"
+                        },
+                        {
+                          "name": "error"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--config"
+                  ],
+                  "description": "Custom location for a Remotion config file",
+                  "args": [
+                    {
+                      "templates": [
+                        "filepaths"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--yes"
+                  ],
+                  "description": "Skip confirmation"
+                },
+                {
+                  "names": [
+                    "--force"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-y"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-f"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "--region"
+                  ],
+                  "description": "The AWS region specifier",
+                  "args": [
+                    {
+                      "suggestions": [
+                        {
+                          "name": "us-east-1",
+                          "description": "North Virginia"
+                        },
+                        {
+                          "name": "us-east-2",
+                          "description": "Ohio"
+                        },
+                        {
+                          "name": "eu-central-1",
+                          "description": "Frankfurt"
+                        },
+                        {
+                          "name": "eu-west-1",
+                          "description": "Ireland"
+                        },
+                        {
+                          "name": "eu-west-2",
+                          "description": "London"
+                        },
+                        {
+                          "name": "us-west-2",
+                          "description": "Oregon"
+                        },
+                        {
+                          "name": "ap-south-1",
+                          "description": "Mumbai"
+                        },
+                        {
+                          "name": "ap-southeast-1",
+                          "description": "Singapore"
+                        },
+                        {
+                          "name": "ap-southeast-2",
+                          "description": "Sydney"
+                        },
+                        {
+                          "name": "ap-northeast-1",
+                          "description": "Tokyo"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "rm"
+              ],
+              "description": "Remove a function",
+              "options": [
+                {
+                  "names": [
+                    "--quiet"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "-q"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "--log"
+                  ],
+                  "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+                  "args": [
+                    {
+                      "default": "info",
+                      "suggestions": [
+                        {
+                          "name": "verbose"
+                        },
+                        {
+                          "name": "info"
+                        },
+                        {
+                          "name": "warn"
+                        },
+                        {
+                          "name": "error"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--config"
+                  ],
+                  "description": "Custom location for a Remotion config file",
+                  "args": [
+                    {
+                      "templates": [
+                        "filepaths"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--yes"
+                  ],
+                  "description": "Skip confirmation"
+                },
+                {
+                  "names": [
+                    "--force"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-y"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-f"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "--region"
+                  ],
+                  "description": "The AWS region specifier",
+                  "args": [
+                    {
+                      "suggestions": [
+                        {
+                          "name": "us-east-1",
+                          "description": "North Virginia"
+                        },
+                        {
+                          "name": "us-east-2",
+                          "description": "Ohio"
+                        },
+                        {
+                          "name": "eu-central-1",
+                          "description": "Frankfurt"
+                        },
+                        {
+                          "name": "eu-west-1",
+                          "description": "Ireland"
+                        },
+                        {
+                          "name": "eu-west-2",
+                          "description": "London"
+                        },
+                        {
+                          "name": "us-west-2",
+                          "description": "Oregon"
+                        },
+                        {
+                          "name": "ap-south-1",
+                          "description": "Mumbai"
+                        },
+                        {
+                          "name": "ap-southeast-1",
+                          "description": "Singapore"
+                        },
+                        {
+                          "name": "ap-southeast-2",
+                          "description": "Sydney"
+                        },
+                        {
+                          "name": "ap-northeast-1",
+                          "description": "Tokyo"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "args": [
+                {
+                  "name": "function-name",
+                  "description": "ID of your function"
+                }
+              ]
+            }
+          ],
+          "options": [
+            {
+              "names": [
+                "--quiet"
+              ],
+              "description": "Print less output"
+            },
+            {
+              "names": [
+                "-q"
+              ],
+              "description": "Print less output"
+            },
+            {
+              "names": [
+                "--log"
+              ],
+              "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+              "args": [
+                {
+                  "default": "info",
+                  "suggestions": [
+                    {
+                      "name": "verbose"
+                    },
+                    {
+                      "name": "info"
+                    },
+                    {
+                      "name": "warn"
+                    },
+                    {
+                      "name": "error"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--config"
+              ],
+              "description": "Custom location for a Remotion config file",
+              "args": [
+                {
+                  "templates": [
+                    "filepaths"
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--yes"
+              ],
+              "description": "Skip confirmation"
+            },
+            {
+              "names": [
+                "--force"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "-y"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "-f"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "--region"
+              ],
+              "description": "The AWS region specifier",
+              "args": [
+                {
+                  "suggestions": [
+                    {
+                      "name": "us-east-1",
+                      "description": "North Virginia"
+                    },
+                    {
+                      "name": "us-east-2",
+                      "description": "Ohio"
+                    },
+                    {
+                      "name": "eu-central-1",
+                      "description": "Frankfurt"
+                    },
+                    {
+                      "name": "eu-west-1",
+                      "description": "Ireland"
+                    },
+                    {
+                      "name": "eu-west-2",
+                      "description": "London"
+                    },
+                    {
+                      "name": "us-west-2",
+                      "description": "Oregon"
+                    },
+                    {
+                      "name": "ap-south-1",
+                      "description": "Mumbai"
+                    },
+                    {
+                      "name": "ap-southeast-1",
+                      "description": "Singapore"
+                    },
+                    {
+                      "name": "ap-southeast-2",
+                      "description": "Sydney"
+                    },
+                    {
+                      "name": "ap-northeast-1",
+                      "description": "Tokyo"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "sites"
+          ],
+          "subcommands": [
+            {
+              "names": [
+                "ls"
+              ],
+              "description": "List sites",
+              "options": [
+                {
+                  "names": [
+                    "--quiet"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "-q"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "--log"
+                  ],
+                  "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+                  "args": [
+                    {
+                      "default": "info",
+                      "suggestions": [
+                        {
+                          "name": "verbose"
+                        },
+                        {
+                          "name": "info"
+                        },
+                        {
+                          "name": "warn"
+                        },
+                        {
+                          "name": "error"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--config"
+                  ],
+                  "description": "Custom location for a Remotion config file",
+                  "args": [
+                    {
+                      "templates": [
+                        "filepaths"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--yes"
+                  ],
+                  "description": "Skip confirmation"
+                },
+                {
+                  "names": [
+                    "--force"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-y"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-f"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "--region"
+                  ],
+                  "description": "The AWS region specifier",
+                  "args": [
+                    {
+                      "suggestions": [
+                        {
+                          "name": "us-east-1",
+                          "description": "North Virginia"
+                        },
+                        {
+                          "name": "us-east-2",
+                          "description": "Ohio"
+                        },
+                        {
+                          "name": "eu-central-1",
+                          "description": "Frankfurt"
+                        },
+                        {
+                          "name": "eu-west-1",
+                          "description": "Ireland"
+                        },
+                        {
+                          "name": "eu-west-2",
+                          "description": "London"
+                        },
+                        {
+                          "name": "us-west-2",
+                          "description": "Oregon"
+                        },
+                        {
+                          "name": "ap-south-1",
+                          "description": "Mumbai"
+                        },
+                        {
+                          "name": "ap-southeast-1",
+                          "description": "Singapore"
+                        },
+                        {
+                          "name": "ap-southeast-2",
+                          "description": "Sydney"
+                        },
+                        {
+                          "name": "ap-northeast-1",
+                          "description": "Tokyo"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "rmall"
+              ],
+              "description": "Remove all sites in a region",
+              "is_dangerous": true,
+              "options": [
+                {
+                  "names": [
+                    "--quiet"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "-q"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "--log"
+                  ],
+                  "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+                  "args": [
+                    {
+                      "default": "info",
+                      "suggestions": [
+                        {
+                          "name": "verbose"
+                        },
+                        {
+                          "name": "info"
+                        },
+                        {
+                          "name": "warn"
+                        },
+                        {
+                          "name": "error"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--config"
+                  ],
+                  "description": "Custom location for a Remotion config file",
+                  "args": [
+                    {
+                      "templates": [
+                        "filepaths"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--yes"
+                  ],
+                  "description": "Skip confirmation"
+                },
+                {
+                  "names": [
+                    "--force"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-y"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-f"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "--region"
+                  ],
+                  "description": "The AWS region specifier",
+                  "args": [
+                    {
+                      "suggestions": [
+                        {
+                          "name": "us-east-1",
+                          "description": "North Virginia"
+                        },
+                        {
+                          "name": "us-east-2",
+                          "description": "Ohio"
+                        },
+                        {
+                          "name": "eu-central-1",
+                          "description": "Frankfurt"
+                        },
+                        {
+                          "name": "eu-west-1",
+                          "description": "Ireland"
+                        },
+                        {
+                          "name": "eu-west-2",
+                          "description": "London"
+                        },
+                        {
+                          "name": "us-west-2",
+                          "description": "Oregon"
+                        },
+                        {
+                          "name": "ap-south-1",
+                          "description": "Mumbai"
+                        },
+                        {
+                          "name": "ap-southeast-1",
+                          "description": "Singapore"
+                        },
+                        {
+                          "name": "ap-southeast-2",
+                          "description": "Sydney"
+                        },
+                        {
+                          "name": "ap-northeast-1",
+                          "description": "Tokyo"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "rm"
+              ],
+              "description": "Remove a site",
+              "options": [
+                {
+                  "names": [
+                    "--quiet"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "-q"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "--log"
+                  ],
+                  "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+                  "args": [
+                    {
+                      "default": "info",
+                      "suggestions": [
+                        {
+                          "name": "verbose"
+                        },
+                        {
+                          "name": "info"
+                        },
+                        {
+                          "name": "warn"
+                        },
+                        {
+                          "name": "error"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--config"
+                  ],
+                  "description": "Custom location for a Remotion config file",
+                  "args": [
+                    {
+                      "templates": [
+                        "filepaths"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--yes"
+                  ],
+                  "description": "Skip confirmation"
+                },
+                {
+                  "names": [
+                    "--force"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-y"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-f"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "--region"
+                  ],
+                  "description": "The AWS region specifier",
+                  "args": [
+                    {
+                      "suggestions": [
+                        {
+                          "name": "us-east-1",
+                          "description": "North Virginia"
+                        },
+                        {
+                          "name": "us-east-2",
+                          "description": "Ohio"
+                        },
+                        {
+                          "name": "eu-central-1",
+                          "description": "Frankfurt"
+                        },
+                        {
+                          "name": "eu-west-1",
+                          "description": "Ireland"
+                        },
+                        {
+                          "name": "eu-west-2",
+                          "description": "London"
+                        },
+                        {
+                          "name": "us-west-2",
+                          "description": "Oregon"
+                        },
+                        {
+                          "name": "ap-south-1",
+                          "description": "Mumbai"
+                        },
+                        {
+                          "name": "ap-southeast-1",
+                          "description": "Singapore"
+                        },
+                        {
+                          "name": "ap-southeast-2",
+                          "description": "Sydney"
+                        },
+                        {
+                          "name": "ap-northeast-1",
+                          "description": "Tokyo"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "args": [
+                {
+                  "name": "site-name",
+                  "description": "ID of your site"
+                }
+              ]
+            },
+            {
+              "names": [
+                "create"
+              ],
+              "description": "Create or update a site",
+              "options": [
+                {
+                  "names": [
+                    "--quiet"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "-q"
+                  ],
+                  "description": "Print less output"
+                },
+                {
+                  "names": [
+                    "--log"
+                  ],
+                  "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+                  "args": [
+                    {
+                      "default": "info",
+                      "suggestions": [
+                        {
+                          "name": "verbose"
+                        },
+                        {
+                          "name": "info"
+                        },
+                        {
+                          "name": "warn"
+                        },
+                        {
+                          "name": "error"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--config"
+                  ],
+                  "description": "Custom location for a Remotion config file",
+                  "args": [
+                    {
+                      "templates": [
+                        "filepaths"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--yes"
+                  ],
+                  "description": "Skip confirmation"
+                },
+                {
+                  "names": [
+                    "--force"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-y"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "-f"
+                  ],
+                  "description": "Skip confirmation",
+                  "hidden": true
+                },
+                {
+                  "names": [
+                    "--region"
+                  ],
+                  "description": "The AWS region specifier",
+                  "args": [
+                    {
+                      "suggestions": [
+                        {
+                          "name": "us-east-1",
+                          "description": "North Virginia"
+                        },
+                        {
+                          "name": "us-east-2",
+                          "description": "Ohio"
+                        },
+                        {
+                          "name": "eu-central-1",
+                          "description": "Frankfurt"
+                        },
+                        {
+                          "name": "eu-west-1",
+                          "description": "Ireland"
+                        },
+                        {
+                          "name": "eu-west-2",
+                          "description": "London"
+                        },
+                        {
+                          "name": "us-west-2",
+                          "description": "Oregon"
+                        },
+                        {
+                          "name": "ap-south-1",
+                          "description": "Mumbai"
+                        },
+                        {
+                          "name": "ap-southeast-1",
+                          "description": "Singapore"
+                        },
+                        {
+                          "name": "ap-southeast-2",
+                          "description": "Sydney"
+                        },
+                        {
+                          "name": "ap-northeast-1",
+                          "description": "Tokyo"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "names": [
+                    "--site-name"
+                  ],
+                  "args": [
+                    {
+                      "name": "How the folder in S3 should be named."
+                    }
+                  ]
+                }
+              ],
+              "args": [
+                {
+                  "name": "entry",
+                  "templates": [
+                    "filepaths"
+                  ]
+                }
+              ]
+            }
+          ],
+          "options": [
+            {
+              "names": [
+                "--quiet"
+              ],
+              "description": "Print less output"
+            },
+            {
+              "names": [
+                "-q"
+              ],
+              "description": "Print less output"
+            },
+            {
+              "names": [
+                "--log"
+              ],
+              "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+              "args": [
+                {
+                  "default": "info",
+                  "suggestions": [
+                    {
+                      "name": "verbose"
+                    },
+                    {
+                      "name": "info"
+                    },
+                    {
+                      "name": "warn"
+                    },
+                    {
+                      "name": "error"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--config"
+              ],
+              "description": "Custom location for a Remotion config file",
+              "args": [
+                {
+                  "templates": [
+                    "filepaths"
+                  ]
+                }
+              ]
+            },
+            {
+              "names": [
+                "--yes"
+              ],
+              "description": "Skip confirmation"
+            },
+            {
+              "names": [
+                "--force"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "-y"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "-f"
+              ],
+              "description": "Skip confirmation",
+              "hidden": true
+            },
+            {
+              "names": [
+                "--region"
+              ],
+              "description": "The AWS region specifier",
+              "args": [
+                {
+                  "suggestions": [
+                    {
+                      "name": "us-east-1",
+                      "description": "North Virginia"
+                    },
+                    {
+                      "name": "us-east-2",
+                      "description": "Ohio"
+                    },
+                    {
+                      "name": "eu-central-1",
+                      "description": "Frankfurt"
+                    },
+                    {
+                      "name": "eu-west-1",
+                      "description": "Ireland"
+                    },
+                    {
+                      "name": "eu-west-2",
+                      "description": "London"
+                    },
+                    {
+                      "name": "us-west-2",
+                      "description": "Oregon"
+                    },
+                    {
+                      "name": "ap-south-1",
+                      "description": "Mumbai"
+                    },
+                    {
+                      "name": "ap-southeast-1",
+                      "description": "Singapore"
+                    },
+                    {
+                      "name": "ap-southeast-2",
+                      "description": "Sydney"
+                    },
+                    {
+                      "name": "ap-northeast-1",
+                      "description": "Tokyo"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "names": [
+            "--quiet"
+          ],
+          "description": "Print less output"
+        },
+        {
+          "names": [
+            "-q"
+          ],
+          "description": "Print less output"
+        },
+        {
+          "names": [
+            "--log"
+          ],
+          "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+          "args": [
+            {
+              "default": "info",
+              "suggestions": [
+                {
+                  "name": "verbose"
+                },
+                {
+                  "name": "info"
+                },
+                {
+                  "name": "warn"
+                },
+                {
+                  "name": "error"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--config"
+          ],
+          "description": "Custom location for a Remotion config file",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--yes"
+          ],
+          "description": "Skip confirmation"
+        },
+        {
+          "names": [
+            "--force"
+          ],
+          "description": "Skip confirmation",
+          "hidden": true
+        },
+        {
+          "names": [
+            "-y"
+          ],
+          "description": "Skip confirmation",
+          "hidden": true
+        },
+        {
+          "names": [
+            "-f"
+          ],
+          "description": "Skip confirmation",
+          "hidden": true
+        },
+        {
+          "names": [
+            "--region"
+          ],
+          "description": "The AWS region specifier",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "us-east-1",
+                  "description": "North Virginia"
+                },
+                {
+                  "name": "us-east-2",
+                  "description": "Ohio"
+                },
+                {
+                  "name": "eu-central-1",
+                  "description": "Frankfurt"
+                },
+                {
+                  "name": "eu-west-1",
+                  "description": "Ireland"
+                },
+                {
+                  "name": "eu-west-2",
+                  "description": "London"
+                },
+                {
+                  "name": "us-west-2",
+                  "description": "Oregon"
+                },
+                {
+                  "name": "ap-south-1",
+                  "description": "Mumbai"
+                },
+                {
+                  "name": "ap-southeast-1",
+                  "description": "Singapore"
+                },
+                {
+                  "name": "ap-southeast-2",
+                  "description": "Sydney"
+                },
+                {
+                  "name": "ap-northeast-1",
+                  "description": "Tokyo"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "bundle"
+      ],
+      "description": "Bundle a Remotion project",
+      "priority": 100,
+      "options": [
+        {
+          "names": [
+            "--quiet"
+          ],
+          "description": "Print less output"
+        },
+        {
+          "names": [
+            "-q"
+          ],
+          "description": "Print less output"
+        },
+        {
+          "names": [
+            "--log"
+          ],
+          "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+          "args": [
+            {
+              "default": "info",
+              "suggestions": [
+                {
+                  "name": "verbose"
+                },
+                {
+                  "name": "info"
+                },
+                {
+                  "name": "warn"
+                },
+                {
+                  "name": "error"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--config"
+          ],
+          "description": "Custom location for a Remotion config file",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--public-dir"
+          ],
+          "description": "Location of the public/ directory",
+          "args": [
+            {
+              "templates": [
+                "folders"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--out-dir"
+          ],
+          "description": "Define the location of the resulting bundle",
+          "args": [
+            {
+              "templates": [
+                "folders"
+              ]
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "entry",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "render"
+      ],
+      "description": "Render a video based on the entry point, the composition ID and save it to the output location",
+      "priority": 60,
+      "options": [
+        {
+          "names": [
+            "--disable-headless"
+          ],
+          "description": "Run Chrome in normal mode rather than headless"
+        },
+        {
+          "names": [
+            "--gl"
+          ],
+          "description": "Which OpenGL renderer to use",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "angle"
+                },
+                {
+                  "name": "egl"
+                },
+                {
+                  "name": "swiftshader"
+                },
+                {
+                  "name": "swangle"
+                },
+                {
+                  "name": "vulkan"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--user-agent"
+          ],
+          "description": "User agent to use for Chrome during rendering"
+        },
+        {
+          "names": [
+            "--ignore-certificate-errors"
+          ],
+          "description": "Ignore SSL errors"
+        },
+        {
+          "names": [
+            "--disable-web-security"
+          ],
+          "description": "Disable CORS and other web security features"
+        },
+        {
+          "names": [
+            "--timeout"
+          ],
+          "description": "The time in milisecond that a delayRender() may take before it times out"
+        },
+        {
+          "names": [
+            "--quality"
+          ],
+          "description": "Quality for rendered frames, JPEG only, 0-100",
+          "args": [
+            {
+              "default": "80",
+              "suggestions": [
+                {
+                  "name": "0"
+                },
+                {
+                  "name": "10"
+                },
+                {
+                  "name": "20"
+                },
+                {
+                  "name": "30"
+                },
+                {
+                  "name": "40"
+                },
+                {
+                  "name": "50"
+                },
+                {
+                  "name": "60"
+                },
+                {
+                  "name": "70"
+                },
+                {
+                  "name": "80"
+                },
+                {
+                  "name": "90"
+                },
+                {
+                  "name": "100"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--scale"
+          ],
+          "description": "Upscale or downscale or the dimensions of the video",
+          "args": [
+            {
+              "default": "1",
+              "suggestions": [
+                {
+                  "name": "0.25"
+                },
+                {
+                  "name": "0.5"
+                },
+                {
+                  "name": "1"
+                },
+                {
+                  "name": "1.5"
+                },
+                {
+                  "name": "2"
+                },
+                {
+                  "name": "4"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--codec"
+          ],
+          "description": "Video or audio codec",
+          "args": [
+            {
+              "default": "h264",
+              "suggestions": [
+                {
+                  "name": "h264"
+                },
+                {
+                  "name": "h265"
+                },
+                {
+                  "name": "gif"
+                },
+                {
+                  "name": "vp8"
+                },
+                {
+                  "name": "vp9"
+                },
+                {
+                  "name": "mp3"
+                },
+                {
+                  "name": "aac"
+                },
+                {
+                  "name": "wav"
+                },
+                {
+                  "name": "prores"
+                },
+                {
+                  "name": "h264-mkv"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--audio-codec"
+          ],
+          "description": "Codec to be used for the audio",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "aac"
+                },
+                {
+                  "name": "mp3"
+                },
+                {
+                  "name": "opus"
+                },
+                {
+                  "name": "pcm-16"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--every-nth-frame"
+          ],
+          "description": "Render only every nth frame (only for GIFs)",
+          "args": [
+            {
+              "default": "1",
+              "suggestions": [
+                {
+                  "name": "2"
+                },
+                {
+                  "name": "3"
+                },
+                {
+                  "name": "4"
+                },
+                {
+                  "name": "5"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--number-of-gif-loops"
+          ],
+          "description": "How many times a GIF should loop. 0 = No loop",
+          "args": [
+            {
+              "default": "1",
+              "suggestions": [
+                {
+                  "name": "0"
+                },
+                {
+                  "name": "1"
+                },
+                {
+                  "name": "2"
+                },
+                {
+                  "name": "3"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--audio-bitrate"
+          ],
+          "description": "Customize the output audio bitrate"
+        },
+        {
+          "names": [
+            "--video-bitrate"
+          ],
+          "description": "Customize the output video bitrate. Mutually exclusive with --crf",
+          "exclusive_on": [
+            "--crf"
+          ]
+        },
+        {
+          "names": [
+            "--crf"
+          ],
+          "description": "FFMPEG CRF value, controls quality, see docs for info",
+          "exclusive_on": [
+            "--video-bitrate"
+          ]
+        },
+        {
+          "names": [
+            "--frames"
+          ],
+          "description": "Render a portion or a still of a video, 0-9, 50",
+          "args": [
+            {
+              "name": "frames"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--prores-profile"
+          ],
+          "description": "ProRes profile, need --codec=prores to be set",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "4444-xq"
+                },
+                {
+                  "name": "4444"
+                },
+                {
+                  "name": "hq"
+                },
+                {
+                  "name": "standard"
+                },
+                {
+                  "name": "light"
+                },
+                {
+                  "name": "proxy"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--x264-preset"
+          ],
+          "description": "Presets balance encoding speed and compression quality, with slower presets achieving better compression. Needs --codec=h264 to be set",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "ultrafast"
+                },
+                {
+                  "name": "superfast"
+                },
+                {
+                  "name": "veryfast"
+                },
+                {
+                  "name": "faster"
+                },
+                {
+                  "name": "fast"
+                },
+                {
+                  "name": "medium"
+                },
+                {
+                  "name": "slow"
+                },
+                {
+                  "name": "slower"
+                },
+                {
+                  "name": "veryslow"
+                },
+                {
+                  "name": "placebo"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--image-format"
+          ],
+          "description": "Format to render the frames in, \"jpeg\" or \"png\"",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "jpeg"
+                },
+                {
+                  "name": "png"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--pixel-format"
+          ],
+          "description": "Custom pixel format, see docs for available values",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "yuv420p"
+                },
+                {
+                  "name": "yuv422p"
+                },
+                {
+                  "name": "yuv444p"
+                },
+                {
+                  "name": "yuv420p10le"
+                },
+                {
+                  "name": "yuv422p10le"
+                },
+                {
+                  "name": "yuv444p10le"
+                },
+                {
+                  "name": "yuva420p"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--muted"
+          ],
+          "description": "Outputs no audio"
+        },
+        {
+          "names": [
+            "--height"
+          ],
+          "description": "Override the composition height",
+          "args": [
+            {
+              "name": "height"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--width"
+          ],
+          "description": "Override the composition width",
+          "args": [
+            {
+              "name": "height"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--sequence"
+          ],
+          "description": "Output as an image sequence"
+        },
+        {
+          "names": [
+            "--concurrency"
+          ],
+          "description": "How many frames to render in parallel"
+        },
+        {
+          "names": [
+            "--enforce-audio-track"
+          ],
+          "description": "Include an audio track even if it's silent"
+        },
+        {
+          "names": [
+            "--repro"
+          ],
+          "description": "Collect information that you can submit to Remotion if asked for a reproduction"
+        },
+        {
+          "names": [
+            "--env-file"
+          ],
+          "description": "Specify a location for a dotenv file",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--overwrite"
+          ],
+          "description": "Overwrite if file exists, default true"
+        },
+        {
+          "names": [
+            "--browser-executable"
+          ],
+          "description": "Custom path for browser executable",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--enable-extensions"
+          ],
+          "description": "Enable Chrome browser extensions while rendering"
+        },
+        {
+          "names": [
+            "--ffmpeg-executable"
+          ],
+          "description": "Custom path for FFMPEG executable",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--ffprobe-executable"
+          ],
+          "description": "Custom path for FFProbe executable",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--bundle-cache"
+          ],
+          "description": "Cache webpack bundle, boolean, default true"
+        },
+        {
+          "names": [
+            "--port"
+          ],
+          "description": "Custom port to use for the HTTP server",
+          "args": [
+            {
+              "name": "port",
+              "default": "3333"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--public-dir"
+          ],
+          "description": "Location of the public/ directory",
+          "args": [
+            {
+              "templates": [
+                "folders"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--props"
+          ],
+          "description": "Pass input props as filename or as JSON",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--quiet"
+          ],
+          "description": "Print less output"
+        },
+        {
+          "names": [
+            "-q"
+          ],
+          "description": "Print less output"
+        },
+        {
+          "names": [
+            "--log"
+          ],
+          "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+          "args": [
+            {
+              "default": "info",
+              "suggestions": [
+                {
+                  "name": "verbose"
+                },
+                {
+                  "name": "info"
+                },
+                {
+                  "name": "warn"
+                },
+                {
+                  "name": "error"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--config"
+          ],
+          "description": "Custom location for a Remotion config file",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "entry",
+          "templates": [
+            "filepaths"
+          ]
+        },
+        {
+          "name": "comp-id",
+          "description": "The composition ID"
+        },
+        {
+          "name": "output",
+          "is_optional": true,
+          "templates": [
+            "filepaths"
+          ],
+          "suggestions": [
+            {
+              "name": "out.mp4"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "still"
+      ],
+      "description": "Render a still frame based on the entry point, the composition ID and save it to the output location",
+      "priority": 55,
+      "options": [
+        {
+          "names": [
+            "--frame"
+          ],
+          "description": "Which frame to render (default 0)",
+          "args": [
+            {
+              "name": "frame",
+              "default": "0"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--height"
+          ],
+          "description": "Override the composition height",
+          "args": [
+            {
+              "name": "height"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--width"
+          ],
+          "description": "Override the composition width",
+          "args": [
+            {
+              "name": "height"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--env-file"
+          ],
+          "description": "Specify a location for a dotenv file",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--overwrite"
+          ],
+          "description": "Overwrite if file exists, default true"
+        },
+        {
+          "names": [
+            "--browser-executable"
+          ],
+          "description": "Custom path for browser executable",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--enable-extensions"
+          ],
+          "description": "Enable Chrome browser extensions while rendering"
+        },
+        {
+          "names": [
+            "--ffmpeg-executable"
+          ],
+          "description": "Custom path for FFMPEG executable",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--ffprobe-executable"
+          ],
+          "description": "Custom path for FFProbe executable",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--bundle-cache"
+          ],
+          "description": "Cache webpack bundle, boolean, default true"
+        },
+        {
+          "names": [
+            "--port"
+          ],
+          "description": "Custom port to use for the HTTP server",
+          "args": [
+            {
+              "name": "port",
+              "default": "3333"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--public-dir"
+          ],
+          "description": "Location of the public/ directory",
+          "args": [
+            {
+              "templates": [
+                "folders"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--props"
+          ],
+          "description": "Pass input props as filename or as JSON",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--disable-headless"
+          ],
+          "description": "Run Chrome in normal mode rather than headless"
+        },
+        {
+          "names": [
+            "--gl"
+          ],
+          "description": "Which OpenGL renderer to use",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "angle"
+                },
+                {
+                  "name": "egl"
+                },
+                {
+                  "name": "swiftshader"
+                },
+                {
+                  "name": "swangle"
+                },
+                {
+                  "name": "vulkan"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--user-agent"
+          ],
+          "description": "User agent to use for Chrome during rendering"
+        },
+        {
+          "names": [
+            "--ignore-certificate-errors"
+          ],
+          "description": "Ignore SSL errors"
+        },
+        {
+          "names": [
+            "--disable-web-security"
+          ],
+          "description": "Disable CORS and other web security features"
+        },
+        {
+          "names": [
+            "--quiet"
+          ],
+          "description": "Print less output"
+        },
+        {
+          "names": [
+            "-q"
+          ],
+          "description": "Print less output"
+        },
+        {
+          "names": [
+            "--log"
+          ],
+          "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+          "args": [
+            {
+              "default": "info",
+              "suggestions": [
+                {
+                  "name": "verbose"
+                },
+                {
+                  "name": "info"
+                },
+                {
+                  "name": "warn"
+                },
+                {
+                  "name": "error"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--config"
+          ],
+          "description": "Custom location for a Remotion config file",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "entry",
+          "templates": [
+            "filepaths"
+          ]
+        },
+        {
+          "name": "comp-id",
+          "description": "The composition ID"
+        },
+        {
+          "name": "output",
+          "is_optional": true,
+          "templates": [
+            "filepaths"
+          ],
+          "suggestions": [
+            {
+              "name": "out.png"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "preview",
+        "studio"
+      ],
+      "description": "Start the Remotion Studio",
+      "priority": 50,
+      "options": [
+        {
+          "names": [
+            "--props"
+          ],
+          "description": "Pass input props as filename or as JSON",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--disable-keyboard-shortcuts"
+          ],
+          "description": "Disable all keyboard shortcuts"
+        },
+        {
+          "names": [
+            "--webpack-poll"
+          ],
+          "description": "Enable webpack polling instead of file system watchers",
+          "args": [
+            {
+              "name": "polling-interval",
+              "description": "Polling interval in milliseconds"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--number-of-shared-audio-tags"
+          ],
+          "description": "Set the number of shared audio tags to prevent autoplay issues",
+          "args": [
+            {
+              "name": "numberOfSharedAudioTags"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--no-open"
+          ],
+          "description": "Prevent the browser from opening automatically when the server starts"
+        }
+      ],
+      "args": [
+        {
+          "name": "entry",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "upgrade"
+      ],
+      "description": "Upgrade all Remotion-related dependencies to the newest version",
+      "options": [
+        {
+          "names": [
+            "--package-manager"
+          ],
+          "description": "Force a specific package manager to be used",
+          "args": [
+            {
+              "name": "package-manager",
+              "suggestions": [
+                {
+                  "name": "npm"
+                },
+                {
+                  "name": "yarn"
+                },
+                {
+                  "name": "pnpm"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--version"
+          ],
+          "description": "Upgrade to a specific version",
+          "args": [
+            {
+              "name": "version"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "benchmark"
+      ],
+      "description": "Try different render configurations and compare them",
+      "options": [
+        {
+          "names": [
+            "--disable-headless"
+          ],
+          "description": "Run Chrome in normal mode rather than headless"
+        },
+        {
+          "names": [
+            "--gl"
+          ],
+          "description": "Which OpenGL renderer to use",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "angle"
+                },
+                {
+                  "name": "egl"
+                },
+                {
+                  "name": "swiftshader"
+                },
+                {
+                  "name": "swangle"
+                },
+                {
+                  "name": "vulkan"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--user-agent"
+          ],
+          "description": "User agent to use for Chrome during rendering"
+        },
+        {
+          "names": [
+            "--ignore-certificate-errors"
+          ],
+          "description": "Ignore SSL errors"
+        },
+        {
+          "names": [
+            "--disable-web-security"
+          ],
+          "description": "Disable CORS and other web security features"
+        },
+        {
+          "names": [
+            "--timeout"
+          ],
+          "description": "The time in milisecond that a delayRender() may take before it times out"
+        },
+        {
+          "names": [
+            "--quality"
+          ],
+          "description": "Quality for rendered frames, JPEG only, 0-100",
+          "args": [
+            {
+              "default": "80",
+              "suggestions": [
+                {
+                  "name": "0"
+                },
+                {
+                  "name": "10"
+                },
+                {
+                  "name": "20"
+                },
+                {
+                  "name": "30"
+                },
+                {
+                  "name": "40"
+                },
+                {
+                  "name": "50"
+                },
+                {
+                  "name": "60"
+                },
+                {
+                  "name": "70"
+                },
+                {
+                  "name": "80"
+                },
+                {
+                  "name": "90"
+                },
+                {
+                  "name": "100"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--scale"
+          ],
+          "description": "Upscale or downscale or the dimensions of the video",
+          "args": [
+            {
+              "default": "1",
+              "suggestions": [
+                {
+                  "name": "0.25"
+                },
+                {
+                  "name": "0.5"
+                },
+                {
+                  "name": "1"
+                },
+                {
+                  "name": "1.5"
+                },
+                {
+                  "name": "2"
+                },
+                {
+                  "name": "4"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--codec"
+          ],
+          "description": "Video or audio codec",
+          "args": [
+            {
+              "default": "h264",
+              "suggestions": [
+                {
+                  "name": "h264"
+                },
+                {
+                  "name": "h265"
+                },
+                {
+                  "name": "gif"
+                },
+                {
+                  "name": "vp8"
+                },
+                {
+                  "name": "vp9"
+                },
+                {
+                  "name": "mp3"
+                },
+                {
+                  "name": "aac"
+                },
+                {
+                  "name": "wav"
+                },
+                {
+                  "name": "prores"
+                },
+                {
+                  "name": "h264-mkv"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--audio-codec"
+          ],
+          "description": "Codec to be used for the audio",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "aac"
+                },
+                {
+                  "name": "mp3"
+                },
+                {
+                  "name": "opus"
+                },
+                {
+                  "name": "pcm-16"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--every-nth-frame"
+          ],
+          "description": "Render only every nth frame (only for GIFs)",
+          "args": [
+            {
+              "default": "1",
+              "suggestions": [
+                {
+                  "name": "2"
+                },
+                {
+                  "name": "3"
+                },
+                {
+                  "name": "4"
+                },
+                {
+                  "name": "5"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--number-of-gif-loops"
+          ],
+          "description": "How many times a GIF should loop. 0 = No loop",
+          "args": [
+            {
+              "default": "1",
+              "suggestions": [
+                {
+                  "name": "0"
+                },
+                {
+                  "name": "1"
+                },
+                {
+                  "name": "2"
+                },
+                {
+                  "name": "3"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--audio-bitrate"
+          ],
+          "description": "Customize the output audio bitrate"
+        },
+        {
+          "names": [
+            "--video-bitrate"
+          ],
+          "description": "Customize the output video bitrate. Mutually exclusive with --crf",
+          "exclusive_on": [
+            "--crf"
+          ]
+        },
+        {
+          "names": [
+            "--crf"
+          ],
+          "description": "FFMPEG CRF value, controls quality, see docs for info",
+          "exclusive_on": [
+            "--video-bitrate"
+          ]
+        },
+        {
+          "names": [
+            "--frames"
+          ],
+          "description": "Render a portion or a still of a video, 0-9, 50",
+          "args": [
+            {
+              "name": "frames"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--prores-profile"
+          ],
+          "description": "ProRes profile, need --codec=prores to be set",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "4444-xq"
+                },
+                {
+                  "name": "4444"
+                },
+                {
+                  "name": "hq"
+                },
+                {
+                  "name": "standard"
+                },
+                {
+                  "name": "light"
+                },
+                {
+                  "name": "proxy"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--x264-preset"
+          ],
+          "description": "Presets balance encoding speed and compression quality, with slower presets achieving better compression. Needs --codec=h264 to be set",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "ultrafast"
+                },
+                {
+                  "name": "superfast"
+                },
+                {
+                  "name": "veryfast"
+                },
+                {
+                  "name": "faster"
+                },
+                {
+                  "name": "fast"
+                },
+                {
+                  "name": "medium"
+                },
+                {
+                  "name": "slow"
+                },
+                {
+                  "name": "slower"
+                },
+                {
+                  "name": "veryslow"
+                },
+                {
+                  "name": "placebo"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--image-format"
+          ],
+          "description": "Format to render the frames in, \"jpeg\" or \"png\"",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "jpeg"
+                },
+                {
+                  "name": "png"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--pixel-format"
+          ],
+          "description": "Custom pixel format, see docs for available values",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "yuv420p"
+                },
+                {
+                  "name": "yuv422p"
+                },
+                {
+                  "name": "yuv444p"
+                },
+                {
+                  "name": "yuv420p10le"
+                },
+                {
+                  "name": "yuv422p10le"
+                },
+                {
+                  "name": "yuv444p10le"
+                },
+                {
+                  "name": "yuva420p"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--muted"
+          ],
+          "description": "Outputs no audio"
+        },
+        {
+          "names": [
+            "--height"
+          ],
+          "description": "Override the composition height",
+          "args": [
+            {
+              "name": "height"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--width"
+          ],
+          "description": "Override the composition width",
+          "args": [
+            {
+              "name": "height"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--sequence"
+          ],
+          "description": "Output as an image sequence"
+        },
+        {
+          "names": [
+            "--enforce-audio-track"
+          ],
+          "description": "Include an audio track even if it's silent"
+        },
+        {
+          "names": [
+            "--repro"
+          ],
+          "description": "Collect information that you can submit to Remotion if asked for a reproduction"
+        },
+        {
+          "names": [
+            "--env-file"
+          ],
+          "description": "Specify a location for a dotenv file",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--browser-executable"
+          ],
+          "description": "Custom path for browser executable",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--enable-extensions"
+          ],
+          "description": "Enable Chrome browser extensions while rendering"
+        },
+        {
+          "names": [
+            "--ffmpeg-executable"
+          ],
+          "description": "Custom path for FFMPEG executable",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--ffprobe-executable"
+          ],
+          "description": "Custom path for FFProbe executable",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--bundle-cache"
+          ],
+          "description": "Cache webpack bundle, boolean, default true"
+        },
+        {
+          "names": [
+            "--port"
+          ],
+          "description": "Custom port to use for the HTTP server",
+          "args": [
+            {
+              "name": "port",
+              "default": "3333"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--public-dir"
+          ],
+          "description": "Location of the public/ directory",
+          "args": [
+            {
+              "templates": [
+                "folders"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--props"
+          ],
+          "description": "Pass input props as filename or as JSON",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--quiet"
+          ],
+          "description": "Print less output"
+        },
+        {
+          "names": [
+            "-q"
+          ],
+          "description": "Print less output"
+        },
+        {
+          "names": [
+            "--log"
+          ],
+          "description": "Log level, \"error\", \"warning\", \"verbose\", \"info\" (default)",
+          "args": [
+            {
+              "default": "info",
+              "suggestions": [
+                {
+                  "name": "verbose"
+                },
+                {
+                  "name": "info"
+                },
+                {
+                  "name": "warn"
+                },
+                {
+                  "name": "error"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--config"
+          ],
+          "description": "Custom location for a Remotion config file",
+          "args": [
+            {
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--concurrencies"
+          ],
+          "description": "Comma-separated list of concurrency values to include in benchmark"
+        }
+      ]
+    },
+    {
+      "names": [
+        "install"
+      ],
+      "description": "Ensure Remotion dependencies",
+      "args": [
+        {
+          "name": "dependency",
+          "suggestions": [
+            {
+              "name": "ffmpeg"
+            },
+            {
+              "name": "ffprobe"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "--help"
+      ],
+      "description": "Prints the list of commands and flags for quick lookup"
+    }
+  ]
+}

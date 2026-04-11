@@ -1,0 +1,210 @@
+{
+  "names": [
+    "ghq"
+  ],
+  "description": "'ghq' provides a way to organize remote repository clones, like go get does. When you clone a remote repository by ghq get, ghq makes a directory under a specific root directory (by default ~/ghq) using the remote repository URL’s host and path",
+  "subcommands": [
+    {
+      "names": [
+        "get"
+      ],
+      "description": "Clone/sync with a remote repository",
+      "options": [
+        {
+          "names": [
+            "-u",
+            "--update"
+          ],
+          "description": "Update local repository if cloned already (default: false)"
+        },
+        {
+          "names": [
+            "-p"
+          ],
+          "description": "Clone with SSH (default: false)"
+        },
+        {
+          "names": [
+            "--shallow"
+          ],
+          "description": "Do a shallow clone (default: false)"
+        },
+        {
+          "names": [
+            "-l",
+            "--look"
+          ],
+          "description": "Look after get (default: false)"
+        },
+        {
+          "names": [
+            "--vcs"
+          ],
+          "description": "Specify vcs backend for cloning",
+          "args": [
+            {
+              "name": "vcs"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-s",
+            "--silent"
+          ],
+          "description": "Clone or update silently (default: false)"
+        },
+        {
+          "names": [
+            "--no-recursive"
+          ],
+          "description": "Prevent recursive fetching (default: false)"
+        },
+        {
+          "names": [
+            "-b",
+            "--branch"
+          ],
+          "description": "Specify branch name. This flag implies --single-branch on Git",
+          "args": [
+            {
+              "name": "branch"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-P",
+            "--parallel"
+          ],
+          "description": "Import parallelly (default: false)"
+        },
+        {
+          "names": [
+            "--bare"
+          ],
+          "description": "Do a bare clone (default: false)"
+        }
+      ],
+      "args": [
+        {
+          "name": "<repository URL>|<project>|<user>/<project>|<host>/<user>/<project>"
+        }
+      ]
+    },
+    {
+      "names": [
+        "list"
+      ],
+      "description": "List local repositories",
+      "options": [
+        {
+          "names": [
+            "-e",
+            "--exact"
+          ],
+          "description": "Perform an exact match (default: false)"
+        },
+        {
+          "names": [
+            "--vcs"
+          ],
+          "description": "Specify vcs backend for matching",
+          "args": [
+            {
+              "name": "vcs"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-p",
+            "--full-path"
+          ],
+          "description": "Print full paths (default: false)",
+          "exclusive_on": [
+            "--unique"
+          ]
+        },
+        {
+          "names": [
+            "--unique"
+          ],
+          "description": "Print unique subpaths (default: false)",
+          "exclusive_on": [
+            "--full-path"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "query",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "root"
+      ],
+      "description": "Show repositories' root",
+      "options": [
+        {
+          "names": [
+            "--all"
+          ],
+          "description": "Show all roots (default: false)"
+        }
+      ]
+    },
+    {
+      "names": [
+        "create"
+      ],
+      "description": "Create a new repository",
+      "options": [
+        {
+          "names": [
+            "--vcs"
+          ],
+          "description": "Specify vcs backend explicitly",
+          "args": [
+            {
+              "name": "vcs"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "<project>|<user>/<project>|<host>/<user>/<project>"
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "-h",
+        "--help",
+        "h",
+        "help"
+      ],
+      "description": "Show help",
+      "is_persistent": true,
+      "exclusive_on": [
+        "--version"
+      ]
+    },
+    {
+      "names": [
+        "-v",
+        "--version"
+      ],
+      "description": "Print the version",
+      "exclusive_on": [
+        "--help"
+      ]
+    }
+  ]
+}

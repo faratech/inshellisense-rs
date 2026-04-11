@@ -1,0 +1,333 @@
+{
+  "names": [
+    "ps"
+  ],
+  "description": "Report a snapshot of the current processes",
+  "options": [
+    {
+      "names": [
+        "-A",
+        "-e"
+      ],
+      "description": "Select all processes"
+    },
+    {
+      "names": [
+        "-a"
+      ],
+      "description": "Select all processes except both session leaders",
+      "args": [
+        {
+          "name": "getsid"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-d"
+      ],
+      "description": "Select all processes except session leaders"
+    },
+    {
+      "names": [
+        "--deselect"
+      ],
+      "description": "Select all processes except those that fulfill the specified conditions"
+    },
+    {
+      "names": [
+        "-N"
+      ],
+      "description": "Select all processes except those that fulfill the specified conditions (negates the selection)"
+    },
+    {
+      "names": [
+        "--pid"
+      ],
+      "description": "Select by process ID",
+      "args": [
+        {
+          "name": "pidlist"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--ppid"
+      ],
+      "description": "Select by parent process ID. This selects the processes with a parent process ID in pidlist",
+      "args": [
+        {
+          "name": "pidlist"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--sid"
+      ],
+      "description": "Select by session ID",
+      "args": [
+        {
+          "name": "sesslist"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--tty"
+      ],
+      "description": "Select by terminal",
+      "args": [
+        {
+          "name": "ttylist"
+        }
+      ]
+    },
+    {
+      "names": [
+        "U"
+      ],
+      "description": "Select by effective user ID (EUID) or name",
+      "args": [
+        {
+          "name": "userlist"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-U"
+      ],
+      "description": "Select by real user ID (RUID) or name",
+      "args": [
+        {
+          "name": "userlist"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-u"
+      ],
+      "description": "Select by effective user ID (EUID) or name",
+      "args": [
+        {
+          "name": "userlist"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--User"
+      ],
+      "description": "Select by real user ID (RUID) or name",
+      "args": [
+        {
+          "name": "userlist"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--user"
+      ],
+      "description": "Select by effective user ID (EUID) or name",
+      "args": [
+        {
+          "name": "userlist"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-c"
+      ],
+      "description": "Show different scheduler information for the -l option"
+    },
+    {
+      "names": [
+        "--context"
+      ],
+      "description": "Display security context format (for SE Linux)"
+    },
+    {
+      "names": [
+        "-f"
+      ],
+      "description": "Do full-format listing"
+    },
+    {
+      "names": [
+        "-F"
+      ],
+      "description": "Extra full format"
+    },
+    {
+      "names": [
+        "--format",
+        "-o",
+        "o"
+      ],
+      "description": "",
+      "is_repeatable": true,
+      "args": [
+        {
+          "name": "format"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-M",
+        "Z"
+      ],
+      "description": "(for SE Linux)"
+    },
+    {
+      "names": [
+        "-y",
+        "-l"
+      ],
+      "description": ""
+    },
+    {
+      "names": [
+        "--cols"
+      ],
+      "description": "Set screen width",
+      "args": [
+        {
+          "name": "n"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--columns"
+      ],
+      "description": "Set screen width",
+      "args": [
+        {
+          "name": "n"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--cumulative"
+      ],
+      "description": "Include some dead child process data (as a sum with the parent)"
+    },
+    {
+      "names": [
+        "--forest"
+      ],
+      "description": "ASCII art process tree"
+    },
+    {
+      "names": [
+        "-H"
+      ],
+      "description": "Show process hierarchy (forest)"
+    },
+    {
+      "names": [
+        "--headers"
+      ],
+      "description": "Repeat header lines, one per page of output"
+    },
+    {
+      "names": [
+        "-n"
+      ],
+      "description": "Set namelist file",
+      "args": [
+        {
+          "name": "namelist"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--lines"
+      ],
+      "description": "Set screen height",
+      "args": [
+        {
+          "name": "n"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--no-headers",
+        "--no-heading"
+      ],
+      "description": "Print no header line at all"
+    },
+    {
+      "names": [
+        "--rows"
+      ],
+      "description": "Set screen height",
+      "args": [
+        {
+          "name": "n"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--sort"
+      ],
+      "description": "Specify sorting order",
+      "args": [
+        {
+          "name": "spec"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--width"
+      ],
+      "description": "Set screen width",
+      "args": [
+        {
+          "name": "n"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-L"
+      ],
+      "description": "Show threads, possibly with LWP and NLWP columns"
+    },
+    {
+      "names": [
+        "-T"
+      ],
+      "description": "Show threads, possibly with SPID column"
+    },
+    {
+      "names": [
+        "--help"
+      ],
+      "description": "Print a help message"
+    },
+    {
+      "names": [
+        "--info"
+      ],
+      "description": "Print debugging info"
+    },
+    {
+      "names": [
+        "--version"
+      ],
+      "description": "Print the procps version"
+    }
+  ]
+}

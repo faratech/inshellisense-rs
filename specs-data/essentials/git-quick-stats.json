@@ -1,0 +1,155 @@
+{
+  "names": [
+    "git-quick-stats"
+  ],
+  "description": "Git quick statistics is a simple and efficient way to access various statistics in git repository",
+  "options": [
+    {
+      "names": [
+        "--help",
+        "-h"
+      ],
+      "description": "Show help for git-quick-stats"
+    },
+    {
+      "names": [
+        "--suggest-reviewers",
+        "-r"
+      ],
+      "description": "Show the best people to contact to review code"
+    },
+    {
+      "names": [
+        "--detailed-git-stats",
+        "-T"
+      ],
+      "description": "Give a detailed list of git stats"
+    },
+    {
+      "names": [
+        "---git-stats-by-branch",
+        "-R"
+      ],
+      "description": "Show detailed list of git stats by branch"
+    },
+    {
+      "names": [
+        "--changelogs",
+        "-c"
+      ],
+      "description": "Show changelogs"
+    },
+    {
+      "names": [
+        "--changelogs-by-author",
+        "-L"
+      ],
+      "description": "Show changelogs by author"
+    },
+    {
+      "names": [
+        "--my-daily-stats",
+        "-S"
+      ],
+      "description": "Show your current daily stats"
+    },
+    {
+      "names": [
+        "--my-csv-output-by-branch-stats",
+        "-V"
+      ],
+      "description": "Output daily stats by branch in CSV format"
+    },
+    {
+      "names": [
+        "--json-output",
+        "-j"
+      ],
+      "description": "Save git log as a JSON formatted file to a specified area"
+    },
+    {
+      "names": [
+        "--branch-tree",
+        "-b"
+      ],
+      "description": "Show an ASCII graph of the git repo branch history"
+    },
+    {
+      "names": [
+        "--branches-by-date",
+        "-D"
+      ],
+      "description": "Show branches by date"
+    },
+    {
+      "names": [
+        "--contributors",
+        "-C"
+      ],
+      "description": "See a list of everyone who contributed to the repo"
+    },
+    {
+      "names": [
+        "--commits-per-author",
+        "-a"
+      ],
+      "description": "Displays a list of commits per author"
+    },
+    {
+      "names": [
+        "--commits-per-day",
+        "-d"
+      ],
+      "description": "Displays a list of commits per day"
+    },
+    {
+      "names": [
+        "--commits-by-month",
+        "-m"
+      ],
+      "description": "Displays a list of commits per month"
+    },
+    {
+      "names": [
+        "--commits-by-year",
+        "-Y"
+      ],
+      "description": "Displays a list of commits per year"
+    },
+    {
+      "names": [
+        "--commits-by-weekday",
+        "-w"
+      ],
+      "description": "Displays a list of commits per weekday"
+    },
+    {
+      "names": [
+        "--commits-by-hour",
+        "-o"
+      ],
+      "description": "Displays a list of commits per hour"
+    },
+    {
+      "names": [
+        "--commits-by-author-by-hour",
+        "-A"
+      ],
+      "description": "Displays a list of commits per hour by author"
+    },
+    {
+      "names": [
+        "--commits-by-timezone",
+        "-z"
+      ],
+      "description": "Displays a list of commits per timezone"
+    },
+    {
+      "names": [
+        "--commits-by-author-by-timezone",
+        "-Z"
+      ],
+      "description": "Displays a list of commits per timezone by author"
+    }
+  ]
+}

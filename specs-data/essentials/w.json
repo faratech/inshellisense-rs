@@ -1,0 +1,30 @@
+{
+  "names": [
+    "w"
+  ],
+  "description": "Display who is logged in and what they are doing",
+  "options": [
+    {
+      "names": [
+        "-h"
+      ],
+      "description": "Suppress the heading"
+    },
+    {
+      "names": [
+        "-i"
+      ],
+      "description": "Output is sorted by idle time"
+    }
+  ],
+  "args": [
+    {
+      "name": "user",
+      "is_optional": true,
+      "is_variadic": true
+    }
+  ],
+  "parser_directives": {
+    "options_must_precede_arguments": true
+  }
+}

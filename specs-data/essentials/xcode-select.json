@@ -1,0 +1,57 @@
+{
+  "names": [
+    "xcode-select"
+  ],
+  "description": "Active developer directory for Xcode tools",
+  "options": [
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Help message"
+    },
+    {
+      "names": [
+        "-p",
+        "--print-path"
+      ],
+      "description": "Display path to active developer directory"
+    },
+    {
+      "names": [
+        "-s",
+        "--switch"
+      ],
+      "description": "Set path to active developer directory",
+      "args": [
+        {
+          "name": "path",
+          "templates": [
+            "folders"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--install"
+      ],
+      "description": "Install Xcode command line tools"
+    },
+    {
+      "names": [
+        "-v",
+        "--version"
+      ],
+      "description": "Display version"
+    },
+    {
+      "names": [
+        "-r",
+        "--reset"
+      ],
+      "description": "Reset to the default CLT path"
+    }
+  ]
+}

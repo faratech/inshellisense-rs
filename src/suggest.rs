@@ -101,7 +101,9 @@ impl Engine {
                     .names
                     .iter()
                     .any(|n| result.accepted_option_tokens.iter().any(|a| a == n));
-                if already_used && !matches!(opt.is_repeatable, crate::spec::model::Repeatable::True | crate::spec::model::Repeatable::N(_)) {
+                use crate::spec::model::Repeatable;
+                let is_rep = matches!(opt.is_repeatable, Repeatable::Bool(true) | Repeatable::N(_));
+                if already_used && !is_rep {
                     continue;
                 }
                 let excluded = opt

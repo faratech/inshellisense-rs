@@ -1,0 +1,393 @@
+{
+  "names": [
+    "phpunit"
+  ],
+  "description": "The PHPUnit is a command-line test runner that can be invoked through the phpunit command",
+  "options": [
+    {
+      "names": [
+        "--coverage-clover"
+      ],
+      "description": "Generate code coverage report in Clover XML format,",
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--coverage-crap4j"
+      ],
+      "description": "Generate code coverage report in Crap4J XML format",
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--coverage-html"
+      ],
+      "description": "Generate code coverage report in HTML format",
+      "args": [
+        {
+          "name": "dir",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--coverage-php"
+      ],
+      "description": "Export PHP_CodeCoverage object to file",
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--coverage-text"
+      ],
+      "description": "Generate code coverage report in text format [default: standard output]",
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--coverage-xml"
+      ],
+      "description": "Generate code coverage report in PHPUnit XML format",
+      "args": [
+        {
+          "name": "dir",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--coverage-cache"
+      ],
+      "description": "Cache static analysis results",
+      "args": [
+        {
+          "name": "dir",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--warm-coverage-cache"
+      ],
+      "description": "Warm static analysis cache"
+    },
+    {
+      "names": [
+        "--coverage-filter"
+      ],
+      "description": "Include <dir> in code coverage analysis",
+      "args": [
+        {
+          "name": "dir",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--path-coverage"
+      ],
+      "description": "Perform path coverage analysis"
+    },
+    {
+      "names": [
+        "--disable-coverage-ignore"
+      ],
+      "description": "Disable annotations for ignoring code coverage"
+    },
+    {
+      "names": [
+        "--no-coverage"
+      ],
+      "description": "Ignore code coverage configuration"
+    },
+    {
+      "names": [
+        "--dont-report-useless-tests"
+      ],
+      "description": "Do not report tests that do not test anything"
+    },
+    {
+      "names": [
+        "--strict-coverage"
+      ],
+      "description": "Be strict about @covers annotation usage"
+    },
+    {
+      "names": [
+        "--strict-global-state"
+      ],
+      "description": "Be strict about changes to global state"
+    },
+    {
+      "names": [
+        "--disallow-test-output"
+      ],
+      "description": "Be strict about output during tests"
+    },
+    {
+      "names": [
+        "--disallow-resource-usage"
+      ],
+      "description": "Be strict about resource usage during small tests"
+    },
+    {
+      "names": [
+        "--enforce-time-limit"
+      ],
+      "description": "Enforce time limit based on test size"
+    },
+    {
+      "names": [
+        "--default-time-limit"
+      ],
+      "description": "Timeout in seconds for tests without @small, @medium or @large",
+      "args": [
+        {
+          "name": "seconds"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--disallow-todo-tests"
+      ],
+      "description": "Disallow @todo-annotated tests"
+    },
+    {
+      "names": [
+        "--log-junit"
+      ],
+      "description": "Log test execution in JUnit XML format to file",
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--log-teamcity"
+      ],
+      "description": "Log test execution in TeamCity format to file",
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--testdox-html"
+      ],
+      "description": "Write agile documentation in HTML format to file",
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--testdox-text"
+      ],
+      "description": "Write agile documentation in Text format to file",
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--testdox-xml"
+      ],
+      "description": "Write agile documentation in HTML format to file",
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--reverse-list"
+      ],
+      "description": "Print defects in reverse order"
+    },
+    {
+      "names": [
+        "--no-logging"
+      ],
+      "description": "Ignore logging configuration"
+    },
+    {
+      "names": [
+        "--prepend"
+      ],
+      "description": "A PHP script that is included as early as possible",
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--bootstrap"
+      ],
+      "description": "A PHP script that is included before the tests run",
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-c",
+        "--configuration"
+      ],
+      "description": "Read configuration from XML file",
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--no-configuration"
+      ],
+      "description": "Ignore default configuration file (phpunit.xml)"
+    },
+    {
+      "names": [
+        "--extensions"
+      ],
+      "description": "A comma separated list of PHPUnit extensions to load",
+      "args": [
+        {
+          "name": "extensions"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--no-extensions"
+      ],
+      "description": "Do not load PHPUnit extensions"
+    },
+    {
+      "names": [
+        "--include-path"
+      ],
+      "description": "Prepend PHP's include_path with given path(s)",
+      "args": [
+        {
+          "name": "path(s)"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-d"
+      ],
+      "description": "Sets a php.ini value",
+      "args": [
+        {
+          "name": "key[=value]"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--cache-result-file"
+      ],
+      "description": "Specify result cache path and filename",
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--generate-configuration"
+      ],
+      "description": "Generate configuration file with suggested settings"
+    },
+    {
+      "names": [
+        "--migrate-configuration"
+      ],
+      "description": "Migrate configuration file to current format"
+    }
+  ]
+}

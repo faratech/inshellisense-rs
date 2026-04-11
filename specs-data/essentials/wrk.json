@@ -1,0 +1,104 @@
+{
+  "names": [
+    "wrk"
+  ],
+  "description": "Wrk - a HTTP benchmarking tool",
+  "options": [
+    {
+      "names": [
+        "-c",
+        "--c"
+      ],
+      "description": "Connections to keep open",
+      "args": [
+        {
+          "name": "Number"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-d",
+        "--duration"
+      ],
+      "description": "Duration of test",
+      "args": [
+        {
+          "name": "Time"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-t",
+        "--threads"
+      ],
+      "description": "Number of threads",
+      "args": [
+        {
+          "name": "Number"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-s",
+        "--script"
+      ],
+      "description": "Load Lua script file",
+      "args": [
+        {
+          "name": "Script"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-H",
+        "--header"
+      ],
+      "description": "Add header to request",
+      "args": [
+        {
+          "name": "Header"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--latency"
+      ],
+      "description": "Print latency statistics"
+    },
+    {
+      "names": [
+        "--timeout"
+      ],
+      "description": "Socket/request timeout",
+      "args": [
+        {
+          "name": "Time"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-v",
+        "--version"
+      ],
+      "description": "Print version details"
+    },
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Output usage information"
+    }
+  ],
+  "args": [
+    {
+      "name": "Url"
+    }
+  ]
+}

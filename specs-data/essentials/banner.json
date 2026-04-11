@@ -1,0 +1,31 @@
+{
+  "names": [
+    "banner"
+  ],
+  "description": "Prints a large, high quality banner on the standard output",
+  "options": [
+    {
+      "names": [
+        "-t"
+      ],
+      "description": "Enable trace"
+    },
+    {
+      "names": [
+        "-d"
+      ],
+      "description": "Enable debug"
+    },
+    {
+      "names": [
+        "-w"
+      ],
+      "description": "Change the output from a width of 132 to width, suitable for a narrow terminal"
+    }
+  ],
+  "args": [
+    {
+      "name": "text"
+    }
+  ]
+}

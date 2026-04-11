@@ -1,0 +1,496 @@
+{
+  "names": [
+    "autocannon"
+  ],
+  "description": "Fast HTTP/1.1 benchmarking tool written in Node.js",
+  "icon": "https://raw.githubusercontent.com/mcollina/autocannon/master/autocannon-logo-icon-100px.png",
+  "options": [
+    {
+      "names": [
+        "-c",
+        "--connections"
+      ],
+      "description": "The number of concurrent connections to use",
+      "args": [
+        {
+          "name": "NUM",
+          "default": "10"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-p",
+        "--pipelining"
+      ],
+      "description": "The number of pipelined requests to use",
+      "args": [
+        {
+          "name": "NUM",
+          "default": "1"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-d",
+        "--duration"
+      ],
+      "description": "The number of seconds to run the autocannon",
+      "exclusive_on": [
+        "-a",
+        "--amount"
+      ],
+      "args": [
+        {
+          "name": "SEC",
+          "default": "10"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-a",
+        "--amount"
+      ],
+      "description": "The number of requests to make before exiting the benchmark",
+      "exclusive_on": [
+        "-d",
+        "--duration"
+      ],
+      "args": [
+        {
+          "name": "NUM"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-L"
+      ],
+      "description": "The number of milliseconds to elapse between taking samples. This controls the sample interval, & therefore the total number of samples, which affects statistical analyses",
+      "args": [
+        {
+          "name": "NUM",
+          "default": "1"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-S",
+        "--socketPath"
+      ],
+      "description": "A path to a Unix Domain Socket or a Windows Named Pipe. A URL is still required to send the correct Host header and path",
+      "args": [
+        {
+          "name": "PATH"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-w",
+        "--workers"
+      ],
+      "description": "Number of worker threads to use to fire requests",
+      "args": [
+        {
+          "name": "NUM",
+          "default": "1"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-W",
+        "--warmup"
+      ],
+      "description": "Use a warm up interval before starting sampling. This enables startup processes to finish and traffic to normalize before sampling begins",
+      "args": [
+        {
+          "name": "-c",
+          "default": "1"
+        },
+        {
+          "name": "-d",
+          "default": "3"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--on-port"
+      ],
+      "description": "Start the command listed after -- on the command line. When it starts listening on a port, start sending requests to that port. A URL is still required to send requests to the correct path. The hostname can be omitted, `localhost` will be used by default",
+      "args": [
+        {
+          "name": "PORT"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-m",
+        "--method"
+      ],
+      "description": "The HTTP method to use",
+      "args": [
+        {
+          "name": "METHOD",
+          "default": "GET",
+          "suggestions": [
+            {
+              "name": "GET"
+            },
+            {
+              "name": "POST"
+            },
+            {
+              "name": "PUT"
+            },
+            {
+              "name": "DELETE"
+            },
+            {
+              "name": "PATCH"
+            },
+            {
+              "name": "HEAD"
+            },
+            {
+              "name": "OPTIONS"
+            },
+            {
+              "name": "TRACE"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-t",
+        "--timeout"
+      ],
+      "description": "The number of seconds before timing out and resetting a connection",
+      "args": [
+        {
+          "name": "NUM",
+          "default": "10"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-T",
+        "--title"
+      ],
+      "description": "The title to place in the results for identification",
+      "args": [
+        {
+          "name": "TITLE"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-b",
+        "--body"
+      ],
+      "description": "The body of the request",
+      "depends_on": [
+        "-H",
+        "--headers"
+      ],
+      "args": [
+        {
+          "name": "BODY"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-F",
+        "--form"
+      ],
+      "args": [
+        {
+          "name": "FORM"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-i",
+        "--input"
+      ],
+      "description": "The body of the request",
+      "depends_on": [
+        "-H",
+        "--headers"
+      ],
+      "args": [
+        {
+          "name": "FILE",
+          "generators": [
+            {
+              "kind": "template",
+              "template": "filepaths"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-H",
+        "--headers"
+      ],
+      "description": "The request headers",
+      "is_repeatable": true,
+      "args": [
+        {
+          "name": "K=V"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--har"
+      ],
+      "description": "When provided, Autocannon will use requests from the HAR file",
+      "args": [
+        {
+          "name": "FILE",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-B",
+        "--bailout"
+      ],
+      "description": "The number of failures before initiating a bailout",
+      "args": [
+        {
+          "name": "NUM",
+          "default": "0"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-M",
+        "--maxConnectionRequests"
+      ],
+      "description": "The max number of requests to make per connection to the server",
+      "args": [
+        {
+          "name": "NUM"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-O",
+        "--maxOverallRequests"
+      ],
+      "description": "The max number of requests to make overall to the server",
+      "args": [
+        {
+          "name": "NUM"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-r",
+        "--connectionRate"
+      ],
+      "description": "The max number of requests to make per second from an individual connection",
+      "args": [
+        {
+          "name": "NUM"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-R",
+        "--overallRate"
+      ],
+      "description": "The max number of requests to make per second from all connections",
+      "args": [
+        {
+          "name": "NUM"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-C",
+        "--ignoreCoordinatedOmission"
+      ],
+      "description": "Ignore the coordinated omission issue when requests should be sent at a fixed rate using 'connectionRate' or 'overallRate'"
+    },
+    {
+      "names": [
+        "-D",
+        "--reconnectRate"
+      ],
+      "description": "The number of requests to make before resetting a connections connection to the server",
+      "args": [
+        {
+          "name": "NUM"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-n",
+        "--no-progress"
+      ],
+      "description": "Don't render the progress bar. default: false"
+    },
+    {
+      "names": [
+        "-l",
+        "--latency"
+      ],
+      "description": "Print all the latency data. default: false"
+    },
+    {
+      "names": [
+        "-I",
+        "--idReplacement"
+      ],
+      "description": "Enable replacement of [<id>] with a randomly generated ID within the request body. default: false"
+    },
+    {
+      "names": [
+        "-j",
+        "--jsonPath"
+      ],
+      "description": "Print the output as newline delimited JSON. This will cause the progress bar and results not to be rendered"
+    },
+    {
+      "names": [
+        "-f",
+        "--forever"
+      ],
+      "description": "Run the benchmark forever. Efficiently restarts the benchmark on completion"
+    },
+    {
+      "names": [
+        "-s",
+        "--servername"
+      ],
+      "description": "Server name for the SNI (Server Name Indication) TLS extension. Defaults to the hostname of the URL when it is not an IP address"
+    },
+    {
+      "names": [
+        "-x",
+        "--excludeErrorStats"
+      ],
+      "description": "Exclude error statistics (non-2xx HTTP responses) from the final latency and bytes per second averages. default: false"
+    },
+    {
+      "names": [
+        "-E",
+        "--expectBody"
+      ],
+      "description": "Ensure the body matches this value. If enabled, mismatches count towards bailout. Enabling this option will slow down the load testing",
+      "args": [
+        {
+          "name": "EXPECTED"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--renderStatusCodes"
+      ],
+      "description": "Print status codes and their respective statistics"
+    },
+    {
+      "names": [
+        "--cert"
+      ],
+      "description": "Path to cert chain in pem format",
+      "args": [
+        {
+          "name": "FILE",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--key"
+      ],
+      "description": "Path to private key for specified cert in pem format",
+      "args": [
+        {
+          "name": "FILE",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--ca"
+      ],
+      "description": "Path to trusted ca certificates for the test. This argument accepts both a single file as well as a list of files",
+      "args": [
+        {
+          "name": "FILE",
+          "is_variadic": true,
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--debug"
+      ],
+      "description": "Print connection errors to stderr"
+    },
+    {
+      "names": [
+        "-v",
+        "--version"
+      ],
+      "description": "Print the version number"
+    },
+    {
+      "names": [
+        "-V",
+        "--verbose"
+      ],
+      "description": "Print the table with results (default: true)"
+    },
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Print help"
+    }
+  ],
+  "args": [
+    {
+      "name": "URL",
+      "description": "The URL to benchmark"
+    }
+  ]
+}

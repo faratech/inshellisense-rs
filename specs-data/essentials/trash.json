@@ -1,0 +1,54 @@
+{
+  "names": [
+    "trash"
+  ],
+  "description": "Trash, move files/folders to the trash",
+  "options": [
+    {
+      "names": [
+        "-v"
+      ],
+      "description": "Print verbose output while moving items"
+    },
+    {
+      "names": [
+        "-F"
+      ],
+      "description": "Use the Finder API to move items to the trash"
+    },
+    {
+      "names": [
+        "-l"
+      ],
+      "description": "List items in the trash"
+    },
+    {
+      "names": [
+        "-e"
+      ],
+      "description": "Empty the trash"
+    },
+    {
+      "names": [
+        "-s"
+      ],
+      "description": "Securely empty the trash. trash asks for confirmation executing this action. If this argument is used, no need to be specified"
+    },
+    {
+      "names": [
+        "-y"
+      ],
+      "description": "Skips the confirmation prompt for -e and -s. CAUTION: permanently instantly"
+    }
+  ],
+  "args": [
+    {
+      "is_optional": true,
+      "is_variadic": true,
+      "templates": [
+        "folders",
+        "filepaths"
+      ]
+    }
+  ]
+}

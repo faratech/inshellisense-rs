@@ -1,0 +1,81 @@
+{
+  "names": [
+    "vimr"
+  ],
+  "description": "VimR — Neovim GUI for macOS in Swift",
+  "options": [
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Show help"
+    },
+    {
+      "names": [
+        "--dry-run"
+      ],
+      "description": "Just print the 'open' command"
+    },
+    {
+      "names": [
+        "--cwd"
+      ],
+      "description": "Set the working directory",
+      "args": [
+        {
+          "name": "CWD"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--line"
+      ],
+      "description": "Go to line",
+      "args": [
+        {
+          "name": "LINE"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--wait"
+      ],
+      "description": "This command line tool will exit when the corresponding UI window is closed"
+    },
+    {
+      "names": [
+        "--nvim"
+      ],
+      "description": "All arguments except --cur-env, --line, --dry-run and --wait will be passed over to the (new) nvim instance in a new UI window"
+    },
+    {
+      "names": [
+        "--cur-env"
+      ],
+      "description": "Use the current environment variables when launching the background neovim process. All files will be opened in a new window"
+    },
+    {
+      "names": [
+        "-n"
+      ],
+      "description": "Open files in tabs in a new window"
+    },
+    {
+      "names": [
+        "-s"
+      ],
+      "description": "Open files in separate windows"
+    }
+  ],
+  "args": [
+    {
+      "templates": [
+        "filepaths",
+        "folders"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,440 @@
+{
+  "names": [
+    "railway"
+  ],
+  "description": "CLI for managing Railway Apps",
+  "subcommands": [
+    {
+      "names": [
+        "add"
+      ],
+      "description": "Add a plugin to your project"
+    },
+    {
+      "names": [
+        "completion"
+      ],
+      "description": "Generate shell-completions",
+      "args": [
+        {
+          "name": "shell",
+          "description": "The shell to generate completions for",
+          "suggestions": [
+            {
+              "name": "bash"
+            },
+            {
+              "name": "zsh"
+            },
+            {
+              "name": "fish"
+            },
+            {
+              "name": "powershell"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "connect"
+      ],
+      "description": "Connect to a plugin",
+      "args": [
+        {
+          "name": "plugin",
+          "description": "The plugin to connect to",
+          "is_optional": true,
+          "suggestions": [
+            {
+              "name": "postgresql"
+            },
+            {
+              "name": "mysql"
+            },
+            {
+              "name": "redis"
+            },
+            {
+              "name": "mongodb"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "delete"
+      ],
+      "description": "Delete a project",
+      "args": [
+        {
+          "name": "project-id",
+          "description": "The project to delete",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "docs"
+      ],
+      "description": "Open Railway Documentation in default browser"
+    },
+    {
+      "names": [
+        "down"
+      ],
+      "description": "Remove the most recent deployment",
+      "options": [
+        {
+          "names": [
+            "-e",
+            "--environment"
+          ],
+          "description": "Environment to delete from",
+          "args": [
+            {}
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "environment"
+      ],
+      "description": "Change your environment",
+      "args": [
+        {
+          "name": "environment",
+          "description": "The environment to change to",
+          "is_optional": true,
+          "suggestions": [
+            {
+              "name": "production"
+            },
+            {
+              "name": "preview"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "help"
+      ],
+      "description": "Get help about any command",
+      "args": [
+        {
+          "name": "command",
+          "description": "The command to get help about",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "init"
+      ],
+      "description": "Create a new railway project"
+    },
+    {
+      "names": [
+        "link"
+      ],
+      "description": "Connect to an existing railway project",
+      "args": [
+        {
+          "name": "project-id",
+          "description": "The project to link to",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "list"
+      ],
+      "description": "List all railway projects"
+    },
+    {
+      "names": [
+        "login"
+      ],
+      "description": "Login to railway",
+      "options": [
+        {
+          "names": [
+            "--browserless"
+          ],
+          "description": "Login without opening a browser"
+        }
+      ]
+    },
+    {
+      "names": [
+        "logout"
+      ],
+      "description": "Logout of railway"
+    },
+    {
+      "names": [
+        "logs"
+      ],
+      "description": "Show logs for the most-recent deployment",
+      "options": [
+        {
+          "names": [
+            "-n",
+            "--lines"
+          ],
+          "description": "Output a specific number of lines",
+          "args": [
+            {
+              "name": "Number of lines",
+              "description": "The number of lines to output"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "open"
+      ],
+      "description": "Open the project",
+      "subcommands": [
+        {
+          "names": [
+            "live"
+          ],
+          "description": "Open the live project"
+        },
+        {
+          "names": [
+            "metrics"
+          ],
+          "description": "Open project metrics"
+        },
+        {
+          "names": [
+            "settings"
+          ],
+          "description": "Open project settings"
+        }
+      ]
+    },
+    {
+      "names": [
+        "run"
+      ],
+      "description": "Run a local command using variables from the active environment",
+      "options": [
+        {
+          "names": [
+            "-e",
+            "--environment"
+          ],
+          "description": "Environment to run in",
+          "args": [
+            {}
+          ]
+        },
+        {
+          "names": [
+            "-s",
+            "--service"
+          ],
+          "description": "Define specific service",
+          "args": [
+            {
+              "name": "Service name"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "shell"
+      ],
+      "description": "Open a subshell with Railway variables available",
+      "options": [
+        {
+          "names": [
+            "-s",
+            "--service"
+          ],
+          "description": "Deploy app to specific service",
+          "args": [
+            {
+              "name": "Service name"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "status"
+      ],
+      "description": "View the status of railway project"
+    },
+    {
+      "names": [
+        "unlink"
+      ],
+      "description": "Disconnects the current directory from a Railway project"
+    },
+    {
+      "names": [
+        "up"
+      ],
+      "description": "Deploy to railway",
+      "options": [
+        {
+          "names": [
+            "-d",
+            "--detach"
+          ],
+          "description": "Detach from build logs"
+        },
+        {
+          "names": [
+            "-e",
+            "--environment"
+          ],
+          "description": "Environment to run in"
+        },
+        {
+          "names": [
+            "-s",
+            "--service"
+          ],
+          "description": "Deploy app to specific service",
+          "args": [
+            {
+              "name": "Service name"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "path",
+          "description": "Path to deploy to",
+          "is_optional": true,
+          "templates": [
+            "folders"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "variables"
+      ],
+      "description": "Work with environment variables",
+      "subcommands": [
+        {
+          "names": [
+            "delete"
+          ],
+          "description": "Delete variable",
+          "args": [
+            {
+              "name": "variable",
+              "description": "The name of the variable you want to delete"
+            }
+          ]
+        },
+        {
+          "names": [
+            "get"
+          ],
+          "description": "Get variable value",
+          "args": [
+            {
+              "name": "variable",
+              "description": "The name of the variable you want to get"
+            }
+          ]
+        },
+        {
+          "names": [
+            "set"
+          ],
+          "description": "Set variable value",
+          "args": [
+            {
+              "name": "variable",
+              "description": "The name of the variable you want to set"
+            },
+            {
+              "name": "value",
+              "description": "Value of the variable"
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "names": [
+            "-e",
+            "--environment"
+          ],
+          "description": "Environment"
+        },
+        {
+          "names": [
+            "-s",
+            "--service"
+          ],
+          "description": "Deploy app to specific service",
+          "args": [
+            {
+              "name": "Service name"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "version"
+      ],
+      "description": "Get the version of railway's CLI"
+    },
+    {
+      "names": [
+        "whoami"
+      ],
+      "description": "Get the logged in user"
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "--help",
+        "-h"
+      ],
+      "description": "Show help for railway"
+    },
+    {
+      "names": [
+        "--version",
+        "-V"
+      ],
+      "description": "Show railway version"
+    },
+    {
+      "names": [
+        "--verbose",
+        "-v"
+      ],
+      "description": "Enable verbose output"
+    }
+  ]
+}

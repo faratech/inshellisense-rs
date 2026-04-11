@@ -28,11 +28,43 @@ pub struct Registry {
 impl Registry {
     pub fn new_with_defaults() -> Self {
         let mut r = Self::default();
+        // Extractor-produced specs take priority — they cover ~45% of the
+        // @withfig/autocomplete library.
+        r.load_embedded_essentials();
+        // Curated hand-ported specs fill gaps that the extractor couldn't
+        // handle (anything with inline functions — phase 6 closes this).
         for spec in crate::curated::all() {
-            r.insert(spec);
+            // Only insert if not already loaded from essentials.
+            let name = spec.name().to_string();
+            if !r.specs.contains_key(&name) {
+                r.insert(spec);
+            }
         }
         r.load_toml_dir();
         r
+    }
+
+    fn load_embedded_essentials(&mut self) {
+        use include_dir::{include_dir, Dir};
+        static ESSENTIALS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/specs-data/essentials");
+        for file in ESSENTIALS.files() {
+            if file.path().extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let Some(bytes) = file.contents_utf8() else { continue };
+            match serde_json::from_str::<Subcommand>(bytes) {
+                Ok(spec) => self.insert(spec),
+                Err(e) => {
+                    // A field we don't yet model — log and skip so the rest
+                    // of the registry still loads.
+                    eprintln!(
+                        "insh-rs: skipped {}: {}",
+                        file.path().display(),
+                        e
+                    );
+                }
+            }
+        }
     }
 
     pub fn insert(&mut self, spec: Subcommand) {

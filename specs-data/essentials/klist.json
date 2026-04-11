@@ -1,0 +1,84 @@
+{
+  "names": [
+    "klist"
+  ],
+  "description": "Reads and displays the current tickets in the credential cache (also known as the ticket file)",
+  "options": [
+    {
+      "names": [
+        "-c"
+      ],
+      "description": "Credential cache to list",
+      "args": [
+        {
+          "name": "cache"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--cache"
+      ],
+      "description": "Credential cache to list",
+      "args": [
+        {
+          "name": "cache"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-s",
+        "-t",
+        "--test"
+      ],
+      "description": "Test for there being an active and valid TGT for the local realm of the user in the credential cache"
+    },
+    {
+      "names": [
+        "-T",
+        "--tokens"
+      ],
+      "description": "Display AFS tokens"
+    },
+    {
+      "names": [
+        "-5",
+        "--v5"
+      ],
+      "description": "Display v5 cred cache (this is the default)"
+    },
+    {
+      "names": [
+        "-f"
+      ],
+      "description": "Include ticket flags in short form, each character stands for a specific flag"
+    },
+    {
+      "names": [
+        "-v",
+        "--verbose"
+      ],
+      "description": "Verbose output. Include all possible information"
+    },
+    {
+      "names": [
+        "-l",
+        "--list-all"
+      ],
+      "description": "List the credential caches for the current users, not all cache types supports listing multiple caches"
+    },
+    {
+      "names": [
+        "--json"
+      ],
+      "description": "JSON formatted output"
+    },
+    {
+      "names": [
+        "--hidden"
+      ],
+      "description": "Verbose output"
+    }
+  ]
+}

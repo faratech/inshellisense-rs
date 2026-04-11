@@ -1,0 +1,84 @@
+{
+  "names": [
+    "cut"
+  ],
+  "description": "Cut out selected portions of each line of a file",
+  "options": [
+    {
+      "names": [
+        "-b"
+      ],
+      "description": "Byte positions as a comma or - separated list of numbers",
+      "args": [
+        {
+          "name": "list",
+          "description": "Specifies byte positions"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-c"
+      ],
+      "description": "Column positions as a comma or - separated list of numbers",
+      "args": [
+        {
+          "name": "list",
+          "description": "Specifies column positions"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-f"
+      ],
+      "description": "Field positions as a comma or - separated list of numbers",
+      "args": [
+        {
+          "name": "list",
+          "description": "Specifies column positions"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-n"
+      ],
+      "description": "Do not split multi-byte characters"
+    },
+    {
+      "names": [
+        "-d"
+      ],
+      "description": "Use delim as the field delimiter character instead of the tab character",
+      "args": [
+        {
+          "name": "delim",
+          "description": "Field deliminator to use instead of the tab character",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "-s"
+      ],
+      "description": "Suppress lines with no field delimiter characters.  unless specified, lines with no delimiters are passed through unmodified"
+    },
+    {
+      "names": [
+        "-w"
+      ],
+      "description": "Use whitespace (spaces and tabs) as the delimiter.  Consecutive spaces and tabs count as one single field separator"
+    }
+  ],
+  "args": [
+    {
+      "is_optional": true,
+      "is_variadic": true,
+      "templates": [
+        "filepaths"
+      ]
+    }
+  ]
+}

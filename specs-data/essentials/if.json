@@ -1,0 +1,11 @@
+{
+  "names": [
+    "if"
+  ],
+  "description": "Conditionally execute based on the return value of a command",
+  "args": [
+    {
+      "is_command": true
+    }
+  ]
+}

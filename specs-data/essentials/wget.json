@@ -1,0 +1,754 @@
+{
+  "names": [
+    "wget"
+  ],
+  "description": "A non-interactive network retriever",
+  "options": [
+    {
+      "names": [
+        "-V",
+        "--version"
+      ],
+      "description": "Display the version of Wget and exit"
+    },
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Print this help"
+    },
+    {
+      "names": [
+        "-b",
+        "--background"
+      ],
+      "description": "Go to background after startup"
+    },
+    {
+      "names": [
+        "-e",
+        "--execute=COMMAND"
+      ],
+      "description": "Execute a `.wgetrc'-style command"
+    },
+    {
+      "names": [
+        "-o",
+        "--output-file=FILE"
+      ],
+      "description": "Log messages to FILE"
+    },
+    {
+      "names": [
+        "-a",
+        "--append-output=FILE"
+      ],
+      "description": "Append messages to FILE"
+    },
+    {
+      "names": [
+        "-q",
+        "--quiet"
+      ],
+      "description": "Quiet (no output)"
+    },
+    {
+      "names": [
+        "-v",
+        "--verbose"
+      ],
+      "description": "Be verbose (this is the default)"
+    },
+    {
+      "names": [
+        "-nv",
+        "--no-verbose"
+      ],
+      "description": "Turn off verboseness, without being quiet"
+    },
+    {
+      "names": [
+        "--report-speed=TYPE"
+      ],
+      "description": "Output bandwidth as TYPE.  TYPE can be bits"
+    },
+    {
+      "names": [
+        "-i",
+        "--input-file=FILE"
+      ],
+      "description": "Download URLs found in local or external FILE"
+    },
+    {
+      "names": [
+        "-F",
+        "--force-html"
+      ],
+      "description": "Treat input file as HTML"
+    },
+    {
+      "names": [
+        "-B",
+        "--base=URL"
+      ],
+      "description": "Resolves HTML input-file links (-i -F) relative to URL"
+    },
+    {
+      "names": [
+        "--config=FILE"
+      ],
+      "description": "Specify config file to use"
+    },
+    {
+      "names": [
+        "--no-config"
+      ],
+      "description": "Do not read any config file"
+    },
+    {
+      "names": [
+        "--rejected-log=FILE"
+      ],
+      "description": "Log reasons for URL rejection to FILE"
+    },
+    {
+      "names": [
+        "-t",
+        "--tries=NUMBER"
+      ],
+      "description": "Set number of retries to NUMBER (0 unlimits)"
+    },
+    {
+      "names": [
+        "--retry-connrefused"
+      ],
+      "description": "Retry even if connection is refused"
+    },
+    {
+      "names": [
+        "--retry-on-http-error"
+      ],
+      "description": "Comma-separated list of HTTP errors to retry"
+    },
+    {
+      "names": [
+        "-O",
+        "--output-document=FILE"
+      ],
+      "description": "Write documents to FILE"
+    },
+    {
+      "names": [
+        "-nc",
+        "--no-clobber"
+      ],
+      "description": "Skip downloads that would download to existing files (overwriting them)"
+    },
+    {
+      "names": [
+        "--no-netrc"
+      ],
+      "description": "Don't try to obtain credentials from .netrc"
+    },
+    {
+      "names": [
+        "-c",
+        "--continue"
+      ],
+      "description": "Resume getting a partially-downloaded file"
+    },
+    {
+      "names": [
+        "--start-pos=OFFSET"
+      ],
+      "description": "Start downloading from zero-based position OFFSET"
+    },
+    {
+      "names": [
+        "--progress=TYPE"
+      ],
+      "description": "Select progress gauge type"
+    },
+    {
+      "names": [
+        "--show-progress"
+      ],
+      "description": "Display the progress bar in any verbosity mode"
+    },
+    {
+      "names": [
+        "-N",
+        "--timestamping"
+      ],
+      "description": "Don't re-retrieve files unless newer than local"
+    },
+    {
+      "names": [
+        "-S",
+        "--server-response"
+      ],
+      "description": "Print server response"
+    },
+    {
+      "names": [
+        "--spider"
+      ],
+      "description": "Don't download anything"
+    },
+    {
+      "names": [
+        "-T",
+        "--timeout=SECONDS"
+      ],
+      "description": "Set all timeout values to SECONDS"
+    },
+    {
+      "names": [
+        "--dns-timeout=SECS"
+      ],
+      "description": "Set the DNS lookup timeout to SECS"
+    },
+    {
+      "names": [
+        "--connect-timeout=SECS"
+      ],
+      "description": "Set the connect timeout to SECS"
+    },
+    {
+      "names": [
+        "--read-timeout=SECS"
+      ],
+      "description": "Set the read timeout to SECS"
+    },
+    {
+      "names": [
+        "-w",
+        "--wait=SECONDS"
+      ],
+      "description": "Wait SECONDS between retrievals"
+    },
+    {
+      "names": [
+        "--waitretry=SECONDS"
+      ],
+      "description": "Wait 1..SECONDS between retries of a retrieval"
+    },
+    {
+      "names": [
+        "--random-wait"
+      ],
+      "description": "Wait from 0.5*WAIT...1.5*WAIT secs between retrievals"
+    },
+    {
+      "names": [
+        "--no-proxy"
+      ],
+      "description": "Explicitly turn off proxy"
+    },
+    {
+      "names": [
+        "-Q",
+        "--quota=NUMBER"
+      ],
+      "description": "Set retrieval quota to NUMBER"
+    },
+    {
+      "names": [
+        "--bind-address=ADDRESS"
+      ],
+      "description": "Bind to ADDRESS (hostname or IP) on local host"
+    },
+    {
+      "names": [
+        "--limit-rate=RATE"
+      ],
+      "description": "Limit download rate to RATE"
+    },
+    {
+      "names": [
+        "--no-dns-cache"
+      ],
+      "description": "Disable caching DNS lookups"
+    },
+    {
+      "names": [
+        "--restrict-file-names=OS"
+      ],
+      "description": "Restrict chars in file names to ones OS allows"
+    },
+    {
+      "names": [
+        "--ignore-case"
+      ],
+      "description": "Ignore case when matching files/directories"
+    },
+    {
+      "names": [
+        "-4",
+        "--inet4-only"
+      ],
+      "description": "Connect only to IPv4 addresses"
+    },
+    {
+      "names": [
+        "-6",
+        "--inet6-only"
+      ],
+      "description": "Connect only to IPv6 addresses"
+    },
+    {
+      "names": [
+        "--user=USER"
+      ],
+      "description": "Set both ftp and http user to USER"
+    },
+    {
+      "names": [
+        "--password=PASS"
+      ],
+      "description": "Set both ftp and http password to PASS"
+    },
+    {
+      "names": [
+        "--ask-password"
+      ],
+      "description": "Prompt for passwords"
+    },
+    {
+      "names": [
+        "--no-iri"
+      ],
+      "description": "Turn off IRI support"
+    },
+    {
+      "names": [
+        "--local-encoding=ENC"
+      ],
+      "description": "Use ENC as the local encoding for IRIs"
+    },
+    {
+      "names": [
+        "--remote-encoding=ENC"
+      ],
+      "description": "Use ENC as the default remote encoding"
+    },
+    {
+      "names": [
+        "--unlink"
+      ],
+      "description": "Remove file before clobber"
+    },
+    {
+      "names": [
+        "--xattr"
+      ],
+      "description": "Turn on storage of metadata in extended file attributes"
+    },
+    {
+      "names": [
+        "-nd",
+        "--no-directories"
+      ],
+      "description": "Don't create directories"
+    },
+    {
+      "names": [
+        "-x",
+        "--force-directories"
+      ],
+      "description": "Force creation of directories"
+    },
+    {
+      "names": [
+        "-nH",
+        "--no-host-directories"
+      ],
+      "description": "Don't create host directories"
+    },
+    {
+      "names": [
+        "--protocol-directories"
+      ],
+      "description": "Use protocol name in directories"
+    },
+    {
+      "names": [
+        "-P",
+        "--directory-prefix=PREFIX"
+      ],
+      "description": "Save files to PREFIX/"
+    },
+    {
+      "names": [
+        "--cut-dirs=NUMBER"
+      ],
+      "description": "Ignore NUMBER remote directory components"
+    },
+    {
+      "names": [
+        "--http-user=USER"
+      ],
+      "description": "Set http user to USER"
+    },
+    {
+      "names": [
+        "--http-password=PASS"
+      ],
+      "description": "Set http password to PASS"
+    },
+    {
+      "names": [
+        "--no-cache"
+      ],
+      "description": "Disallow server-cached data"
+    },
+    {
+      "names": [
+        "-E",
+        "--adjust-extension"
+      ],
+      "description": "Save HTML/CSS documents with proper extensions"
+    },
+    {
+      "names": [
+        "--ignore-length"
+      ],
+      "description": "Ignore 'Content-Length' header field"
+    },
+    {
+      "names": [
+        "--header=STRING"
+      ],
+      "description": "Insert STRING among the headers"
+    },
+    {
+      "names": [
+        "--compression=TYPE"
+      ],
+      "description": "Choose compression, one of auto, gzip and none. (default: none)"
+    },
+    {
+      "names": [
+        "--max-redirect"
+      ],
+      "description": "Maximum redirections allowed per page"
+    },
+    {
+      "names": [
+        "--proxy-user=USER"
+      ],
+      "description": "Set USER as proxy username"
+    },
+    {
+      "names": [
+        "--proxy-password=PASS"
+      ],
+      "description": "Set PASS as proxy password"
+    },
+    {
+      "names": [
+        "--referer=URL"
+      ],
+      "description": "Include 'Referer: URL' header in HTTP request"
+    },
+    {
+      "names": [
+        "--save-headers"
+      ],
+      "description": "Save the HTTP headers to file"
+    },
+    {
+      "names": [
+        "-U",
+        "--user-agent=AGENT"
+      ],
+      "description": "Identify as AGENT instead of Wget/VERSION"
+    },
+    {
+      "names": [
+        "--no-http-keep-alive"
+      ],
+      "description": "Disable HTTP keep-alive (persistent connections)"
+    },
+    {
+      "names": [
+        "--no-cookies"
+      ],
+      "description": "Don't use cookies"
+    },
+    {
+      "names": [
+        "--load-cookies=FILE"
+      ],
+      "description": "Load cookies from FILE before session"
+    },
+    {
+      "names": [
+        "--save-cookies=FILE"
+      ],
+      "description": "Save cookies to FILE after session"
+    },
+    {
+      "names": [
+        "--keep-session-cookies"
+      ],
+      "description": "Load and save session (non-permanent) cookies"
+    },
+    {
+      "names": [
+        "--post-data=STRING"
+      ],
+      "description": "Use the POST method; send STRING as the data"
+    },
+    {
+      "names": [
+        "--post-file=FILE"
+      ],
+      "description": "Use the POST method; send contents of FILE"
+    },
+    {
+      "names": [
+        "--method=HTTPMethod"
+      ],
+      "description": "Use method \"HTTPMethod\" in the request"
+    },
+    {
+      "names": [
+        "--body-data=STRING"
+      ],
+      "description": "Send STRING as data. --method MUST be set"
+    },
+    {
+      "names": [
+        "--body-file=FILE"
+      ],
+      "description": "Send contents of FILE. --method MUST be set"
+    },
+    {
+      "names": [
+        "--content-on-error"
+      ],
+      "description": "Output the received content on server errors"
+    },
+    {
+      "names": [
+        "--secure-protocol=PR"
+      ],
+      "description": "Choose secure protocol, one of auto, SSLv2,"
+    },
+    {
+      "names": [
+        "--https-only"
+      ],
+      "description": "Only follow secure HTTPS links"
+    },
+    {
+      "names": [
+        "--no-check-certificate"
+      ],
+      "description": "Don't validate the server's certificate"
+    },
+    {
+      "names": [
+        "--certificate=FILE"
+      ],
+      "description": "Client certificate file"
+    },
+    {
+      "names": [
+        "--certificate-type=TYPE"
+      ],
+      "description": "Client certificate type, PEM or DER"
+    },
+    {
+      "names": [
+        "--private-key=FILE"
+      ],
+      "description": "Private key file"
+    },
+    {
+      "names": [
+        "--private-key-type=TYPE"
+      ],
+      "description": "Private key type, PEM or DER"
+    },
+    {
+      "names": [
+        "--ca-certificate=FILE"
+      ],
+      "description": "File with the bundle of CAs"
+    },
+    {
+      "names": [
+        "--ca-directory=DIR"
+      ],
+      "description": "Directory where hash list of CAs is stored"
+    },
+    {
+      "names": [
+        "--crl-file=FILE"
+      ],
+      "description": "File with bundle of CRLs"
+    },
+    {
+      "names": [
+        "--ciphers=STR"
+      ],
+      "description": "Set the priority string (GnuTLS) or cipher list string (OpenSSL) directly"
+    },
+    {
+      "names": [
+        "-r",
+        "--recursive"
+      ],
+      "description": "Specify recursive download"
+    },
+    {
+      "names": [
+        "-l",
+        "--level=NUMBER"
+      ],
+      "description": "Maximum recursion depth (inf or 0 for infinite)"
+    },
+    {
+      "names": [
+        "--delete-after"
+      ],
+      "description": "Delete files locally after downloading them"
+    },
+    {
+      "names": [
+        "-k",
+        "--convert-links"
+      ],
+      "description": "Make links in downloaded HTML or CSS point to local files"
+    },
+    {
+      "names": [
+        "-K",
+        "--backup-converted"
+      ],
+      "description": "Before converting file X, back up as X.orig"
+    },
+    {
+      "names": [
+        "-m",
+        "--mirror"
+      ],
+      "description": "Shortcut for -N -r -l inf --no-remove-listing"
+    },
+    {
+      "names": [
+        "-p",
+        "--page-requisites"
+      ],
+      "description": "Get all images, etc. needed to display HTML page"
+    },
+    {
+      "names": [
+        "-A",
+        "--accept=LIST"
+      ],
+      "description": "Comma-separated list of accepted extensions"
+    },
+    {
+      "names": [
+        "-R",
+        "--reject=LIST"
+      ],
+      "description": "Comma-separated list of rejected extensions"
+    },
+    {
+      "names": [
+        "--accept-regex=REGEX"
+      ],
+      "description": "Regex matching accepted URLs"
+    },
+    {
+      "names": [
+        "--reject-regex=REGEX"
+      ],
+      "description": "Regex matching rejected URLs"
+    },
+    {
+      "names": [
+        "--regex-type=TYPE"
+      ],
+      "description": "Regex type (posix)"
+    },
+    {
+      "names": [
+        "-D",
+        "--domains=LIST"
+      ],
+      "description": "Comma-separated list of accepted domains"
+    },
+    {
+      "names": [
+        "--exclude-domains=LIST"
+      ],
+      "description": "Comma-separated list of rejected domains"
+    },
+    {
+      "names": [
+        "--follow-ftp"
+      ],
+      "description": "Follow FTP links from HTML documents"
+    },
+    {
+      "names": [
+        "--follow-tags=LIST"
+      ],
+      "description": "Comma-separated list of followed HTML tags"
+    },
+    {
+      "names": [
+        "--ignore-tags=LIST"
+      ],
+      "description": "Comma-separated list of ignored HTML tags"
+    },
+    {
+      "names": [
+        "-H",
+        "--span-hosts"
+      ],
+      "description": "Go to foreign hosts when recursive"
+    },
+    {
+      "names": [
+        "-L",
+        "--relative"
+      ],
+      "description": "Follow relative links only"
+    },
+    {
+      "names": [
+        "-I",
+        "--include-directories=LIST"
+      ],
+      "description": "List of allowed directories"
+    },
+    {
+      "names": [
+        "-X",
+        "--exclude-directories=LIST"
+      ],
+      "description": "List of excluded directories"
+    },
+    {
+      "names": [
+        "-np",
+        "--no-parent"
+      ],
+      "description": "Don't ascend to the parent directory"
+    }
+  ],
+  "args": [
+    {
+      "name": "url",
+      "description": "The url(s) to retrieve",
+      "is_variadic": true
+    }
+  ]
+}

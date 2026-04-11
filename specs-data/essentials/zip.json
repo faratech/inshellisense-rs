@@ -1,0 +1,60 @@
+{
+  "names": [
+    "zip"
+  ],
+  "description": "Package and compress (archive) files into zip file",
+  "options": [
+    {
+      "names": [
+        "-r"
+      ],
+      "description": "Package and compress a directory and its contents, recursively"
+    },
+    {
+      "names": [
+        "-e"
+      ]
+    },
+    {
+      "names": [
+        "-s"
+      ],
+      "args": [
+        {
+          "name": "split size"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-d"
+      ],
+      "args": [
+        {
+          "name": "file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-9"
+      ],
+      "description": "Archive a directory and its contents with the highest level [9] of compression"
+    }
+  ],
+  "args": [
+    {
+      "name": "name",
+      "description": "Name of archive"
+    },
+    {
+      "name": "dir",
+      "templates": [
+        "folders"
+      ]
+    }
+  ]
+}

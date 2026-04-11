@@ -1,0 +1,186 @@
+{
+  "names": [
+    "leaf"
+  ],
+  "description": "Create and interact with your leaf projects",
+  "subcommands": [
+    {
+      "names": [
+        "completion"
+      ],
+      "description": "Dump the shell completion script"
+    },
+    {
+      "names": [
+        "create"
+      ],
+      "description": "[init] Create a new Leaf PHP project",
+      "args": [
+        {
+          "name": "project name",
+          "description": "Name of the project"
+        }
+      ]
+    },
+    {
+      "names": [
+        "deploy"
+      ],
+      "description": "[publish] Deploy your leaf project"
+    },
+    {
+      "names": [
+        "help"
+      ],
+      "description": "Display help for a command"
+    },
+    {
+      "names": [
+        "install"
+      ],
+      "description": "Add a new package to your leaf app",
+      "args": [
+        {
+          "name": "package name",
+          "description": "Name of the package"
+        }
+      ]
+    },
+    {
+      "names": [
+        "interact"
+      ],
+      "description": "Interact with your application"
+    },
+    {
+      "names": [
+        "list"
+      ],
+      "description": "List commands"
+    },
+    {
+      "names": [
+        "run"
+      ],
+      "description": "Run a script in your composer.json",
+      "args": [
+        {
+          "name": "command name",
+          "description": "Name of the command"
+        }
+      ]
+    },
+    {
+      "names": [
+        "serve"
+      ],
+      "description": "Run your Leaf app",
+      "options": [
+        {
+          "names": [
+            "--port"
+          ],
+          "description": "The port number to run the server on",
+          "args": [
+            {
+              "name": "port number",
+              "description": "The port number to run the server on"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--watch"
+          ],
+          "description": "Watch for changes and restart the server"
+        }
+      ]
+    },
+    {
+      "names": [
+        "test"
+      ],
+      "description": "Test your leaf application through leaf alchemy"
+    },
+    {
+      "names": [
+        "test:setup"
+      ],
+      "description": "Add tests to your application"
+    },
+    {
+      "names": [
+        "uninstall"
+      ],
+      "description": "Uninstall a package",
+      "args": [
+        {
+          "name": "package name",
+          "description": "Name of the package"
+        }
+      ]
+    },
+    {
+      "names": [
+        "update"
+      ],
+      "description": "Update leaf cli to the latest version"
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Display help for the given command. When no command is given display help for the list command"
+    },
+    {
+      "names": [
+        "-q",
+        "--quiet"
+      ],
+      "description": "Do not output any message"
+    },
+    {
+      "names": [
+        "-V",
+        "--version"
+      ],
+      "description": "Display this application version"
+    },
+    {
+      "names": [
+        "--ansi"
+      ],
+      "description": "Force ANSI output",
+      "exclusive_on": [
+        "--no-ansi"
+      ]
+    },
+    {
+      "names": [
+        "--no-ansi"
+      ],
+      "description": "Disable ANSI output",
+      "exclusive_on": [
+        "--ansi"
+      ]
+    },
+    {
+      "names": [
+        "-n",
+        "--no-interaction"
+      ],
+      "description": "Do not ask any interactive question"
+    },
+    {
+      "names": [
+        "-v",
+        "--verbose"
+      ],
+      "description": "Increase the verbosity of messages: 1 for normal output, 2 for more verbose output and 3 for debug",
+      "is_repeatable": 3
+    }
+  ]
+}

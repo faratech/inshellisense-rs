@@ -1,0 +1,132 @@
+{
+  "names": [
+    "xdg-mime"
+  ],
+  "description": "Command line tool for querying information about file type handling and adding descriptions for new file types",
+  "subcommands": [
+    {
+      "names": [
+        "query"
+      ],
+      "description": "Returns information related to file types",
+      "args": [
+        {
+          "name": "filetype | default",
+          "is_variadic": true,
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "default"
+      ],
+      "description": "Ask the desktop environment to make application the default application for opening files of type mimetype",
+      "args": [
+        {
+          "name": "application"
+        },
+        {
+          "name": "mimetype(s)",
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "install"
+      ],
+      "description": "Adds the file type descriptions provided in mimetypes-file to the desktop environment",
+      "options": [
+        {
+          "names": [
+            "--mode"
+          ],
+          "args": [
+            {
+              "name": "mode",
+              "suggestions": [
+                {
+                  "name": "user"
+                },
+                {
+                  "name": "system"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--novendor"
+          ],
+          "description": "Disables xdg-mime checks that the mimetypes-file to be installed has a proper vendor prefix"
+        }
+      ],
+      "args": [
+        {
+          "name": "mimetypes-file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "uninstall"
+      ],
+      "description": "Removes the file type descriptions provided in mimetypes-file and previously added with xdg-mime install from the desktop environment",
+      "options": [
+        {
+          "names": [
+            "--mode"
+          ],
+          "args": [
+            {
+              "name": "mode",
+              "suggestions": [
+                {
+                  "name": "user"
+                },
+                {
+                  "name": "system"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "mimetypes-file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "--help"
+      ],
+      "description": "Show command synopsis"
+    },
+    {
+      "names": [
+        "--manual"
+      ],
+      "description": "Show manual page"
+    },
+    {
+      "names": [
+        "--version"
+      ],
+      "description": "Show the xdg-utils version information"
+    }
+  ]
+}

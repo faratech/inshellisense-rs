@@ -1,0 +1,223 @@
+{
+  "names": [
+    "tangram"
+  ],
+  "description": "",
+  "subcommands": [
+    {
+      "names": [
+        "app"
+      ],
+      "description": "Run the app",
+      "options": [
+        {
+          "names": [
+            "-c",
+            "--config"
+          ],
+          "description": "The path to a config file",
+          "args": [
+            {
+              "name": "CONFIG",
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "migrate"
+      ],
+      "description": "Migrate your app database",
+      "options": [
+        {
+          "names": [
+            "--database-url"
+          ],
+          "args": [
+            {
+              "name": "DATABASE_URL"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "predict"
+      ],
+      "description": "Make predictions with a model",
+      "options": [
+        {
+          "names": [
+            "-f",
+            "--file"
+          ],
+          "description": "The path to read examples from, defaults to stdin",
+          "args": [
+            {
+              "name": "FILE",
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-m",
+            "--model"
+          ],
+          "description": "The path to the model to make predictions with",
+          "args": [
+            {
+              "name": "MODEL",
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-o",
+            "--output"
+          ],
+          "description": "The path to write the predictions to, defaults to stdout",
+          "args": [
+            {
+              "name": "OUTPUT",
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-p",
+            "--probabilities"
+          ],
+          "description": "Output probabilities instead of class labels, only relevant for classifier models",
+          "args": [
+            {
+              "name": "PROBABILITIES"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "train"
+      ],
+      "description": "Train a model",
+      "options": [
+        {
+          "names": [
+            "-c",
+            "--config"
+          ],
+          "description": "The path to a config file",
+          "args": [
+            {
+              "name": "CONFIG",
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-f",
+            "--file"
+          ],
+          "description": "The path to your .csv file",
+          "args": [
+            {
+              "name": "FILE",
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--file-test"
+          ],
+          "description": "The path to your .csv file used for testing",
+          "args": [
+            {
+              "name": "FILE_TEST",
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--file-train"
+          ],
+          "description": "The path to your .csv file used for training",
+          "args": [
+            {
+              "name": "FILE_TRAIN",
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-o",
+            "--output"
+          ],
+          "description": "The path to write the .tangram file to",
+          "args": [
+            {
+              "name": "OUTPUT",
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t",
+            "--target"
+          ],
+          "description": "The name of the column to predict",
+          "args": [
+            {
+              "name": "TARGET"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "--help",
+        "-h"
+      ],
+      "description": "Print help information"
+    },
+    {
+      "names": [
+        "--version",
+        "-v"
+      ],
+      "description": "Print version information"
+    }
+  ]
+}

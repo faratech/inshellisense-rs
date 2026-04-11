@@ -148,7 +148,7 @@ fn run_arg<'a>(
     sub: &'a Subcommand,
     ctx: Ctx<'a>,
     from_option: bool,
-    from_variadic: bool,
+    _from_variadic: bool,
 ) -> ResolveResult<'a> {
     if args.is_empty() {
         return run_subcommand(tokens, sub, ctx, true, !from_option);

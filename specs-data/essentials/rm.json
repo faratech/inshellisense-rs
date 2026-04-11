@@ -1,0 +1,54 @@
+{
+  "names": [
+    "rm"
+  ],
+  "description": "Remove directory entries",
+  "options": [
+    {
+      "names": [
+        "-r",
+        "-R"
+      ],
+      "description": "Recursive. Attempt to remove the file hierarchy rooted in each file argument"
+    },
+    {
+      "names": [
+        "-P"
+      ],
+      "description": "Overwrite regular files before deleting them"
+    },
+    {
+      "names": [
+        "-d"
+      ],
+      "description": "Attempt to remove directories as well as other types of files"
+    },
+    {
+      "names": [
+        "-f"
+      ],
+      "description": "⚠️ Attempt to remove the files without prompting for confirmation"
+    },
+    {
+      "names": [
+        "-i"
+      ],
+      "description": "Request confirmation before attempting to remove each file"
+    },
+    {
+      "names": [
+        "-v"
+      ],
+      "description": "Be verbose when deleting files"
+    }
+  ],
+  "args": [
+    {
+      "is_variadic": true,
+      "templates": [
+        "folders",
+        "filepaths"
+      ]
+    }
+  ]
+}

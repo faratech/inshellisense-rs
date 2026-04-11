@@ -1,0 +1,206 @@
+{
+  "names": [
+    "hb-service"
+  ],
+  "description": "The hb-service command is provided by homebridge-config-ui-x",
+  "subcommands": [
+    {
+      "names": [
+        "install"
+      ],
+      "description": "Install homebridge as a service"
+    },
+    {
+      "names": [
+        "uninstall"
+      ],
+      "description": "Remove the homebridge service"
+    },
+    {
+      "names": [
+        "start"
+      ],
+      "description": "Start the homebridge service"
+    },
+    {
+      "names": [
+        "stop"
+      ],
+      "description": "Stop the homebridge service"
+    },
+    {
+      "names": [
+        "restart"
+      ],
+      "description": "Restart the homebridge service"
+    },
+    {
+      "names": [
+        "rebuild"
+      ],
+      "description": "Rebuild UI",
+      "options": [
+        {
+          "names": [
+            "--all"
+          ],
+          "description": "Rebuild all npm modules (use after updating Node.js)"
+        }
+      ]
+    },
+    {
+      "names": [
+        "run"
+      ],
+      "description": "Run homebridge daemon"
+    },
+    {
+      "names": [
+        "logs"
+      ],
+      "description": "Tails the homebridge service logs"
+    },
+    {
+      "names": [
+        "update-node"
+      ],
+      "description": "Update Node.js",
+      "args": [
+        {
+          "name": "version",
+          "is_optional": true
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "--help",
+        "-h"
+      ],
+      "description": "Display help for command"
+    },
+    {
+      "names": [
+        "--version",
+        "-v"
+      ],
+      "description": "Output the version number"
+    },
+    {
+      "names": [
+        "--service-name",
+        "-S"
+      ],
+      "description": "The name of the homebridge service to install or control",
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "service name"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--port"
+      ],
+      "description": "The port to set to the Homebridge UI when installing as a service",
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "port"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--user"
+      ],
+      "description": "The user account the Homebridge service will be installed as (Linux, macOS only)",
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "user"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--plugin-path",
+        "-P"
+      ],
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "path"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--user-storage-path",
+        "-U"
+      ],
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "path"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--no-timestamp",
+        "-T"
+      ],
+      "is_persistent": true
+    },
+    {
+      "names": [
+        "--gid"
+      ],
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "number"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--uid"
+      ],
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "number"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--docker"
+      ],
+      "is_persistent": true
+    },
+    {
+      "names": [
+        "--allow-root"
+      ],
+      "is_persistent": true
+    },
+    {
+      "names": [
+        "--stdout"
+      ],
+      "is_persistent": true
+    },
+    {
+      "names": [
+        "--strict-plugin-resolution"
+      ],
+      "is_persistent": true
+    }
+  ]
+}

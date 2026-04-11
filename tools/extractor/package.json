@@ -1,0 +1,15 @@
+{
+  "name": "insh-rs-extractor",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Extracts @withfig/autocomplete TypeScript specs into JSON for insh-rs",
+  "type": "module",
+  "scripts": {
+    "extract": "tsx extract.ts"
+  },
+  "dependencies": {
+    "ts-morph": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.0"
+  }
+}

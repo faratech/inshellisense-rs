@@ -1,0 +1,12 @@
+{
+  "names": [
+    "nocorrect"
+  ],
+  "description": "ZSH pre-command modifier that disables correction",
+  "hidden": true,
+  "args": [
+    {
+      "is_command": true
+    }
+  ]
+}

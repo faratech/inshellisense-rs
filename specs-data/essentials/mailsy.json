@@ -1,0 +1,65 @@
+{
+  "names": [
+    "mailsy"
+  ],
+  "description": "⚡️ Quickly generate a disposable email straight from terminal",
+  "subcommands": [
+    {
+      "names": [
+        "g"
+      ],
+      "description": "Generate a new email"
+    },
+    {
+      "names": [
+        "m"
+      ],
+      "description": "Fetch messages from the inbox"
+    },
+    {
+      "names": [
+        "d"
+      ],
+      "description": "Delete account"
+    },
+    {
+      "names": [
+        "me"
+      ],
+      "description": "Show details of the account"
+    },
+    {
+      "names": [
+        "help"
+      ],
+      "description": "Get help for a command",
+      "args": [
+        {
+          "name": "command",
+          "is_optional": true,
+          "templates": [
+            "help"
+          ]
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "-v",
+        "--version"
+      ],
+      "description": "Output the current version"
+    },
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Display help for command",
+      "priority": 49,
+      "is_persistent": true
+    }
+  ]
+}

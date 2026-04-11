@@ -1,0 +1,337 @@
+{
+  "names": [
+    "hyperfine"
+  ],
+  "description": "A command-line benchmarking tool",
+  "options": [
+    {
+      "names": [
+        "--warmup",
+        "-w"
+      ],
+      "description": "Perform warmupruns (number) before the actual benchmarking starts",
+      "args": [
+        {
+          "name": "NUM"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--min-runs",
+        "-m"
+      ],
+      "description": "Perform at least NUM runs for each command",
+      "args": [
+        {
+          "name": "NUM",
+          "default": "10"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--max-runs",
+        "-M"
+      ],
+      "description": "Perform at most NUM runs for each command. Default: no limit",
+      "args": [
+        {
+          "name": "NUM"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--runs",
+        "-r"
+      ],
+      "description": "Perform exactly NUM runs for each command",
+      "args": [
+        {
+          "name": "NUM"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--setup",
+        "-s"
+      ],
+      "description": "Execute cmd once before each set of timing runs",
+      "is_repeatable": false,
+      "args": [
+        {
+          "name": "CMD",
+          "is_command": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "--prepare",
+        "-p"
+      ],
+      "description": "Execute cmd before each timing run. This is useful for clearing disk caches, for example",
+      "args": [
+        {
+          "name": "CMD ...",
+          "is_command": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "--cleanup",
+        "-c"
+      ],
+      "description": "Execute cmd after the completion of all benchmarking runs for each individual command to be benchmarked",
+      "args": [
+        {
+          "name": "CMD",
+          "is_command": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "--parameter-scan",
+        "-P"
+      ],
+      "description": "Perform benchmark runs for each value in the range min..max",
+      "args": [
+        {
+          "name": "VAR"
+        },
+        {
+          "name": "MIN"
+        },
+        {
+          "name": "MAX"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--parameter-step-size",
+        "-D"
+      ],
+      "description": "This argument requires --parameter-scan to be specified as well. Traverse the range min..max in steps of delta",
+      "depends_on": [
+        "--parameter-scan",
+        "-P"
+      ],
+      "args": [
+        {
+          "name": "delta"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--parameter-list",
+        "-L"
+      ],
+      "description": "Perform benchmark runs for each value in the comma-separated list of values",
+      "args": [
+        {
+          "name": "VAR"
+        },
+        {
+          "name": "VALS"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--style"
+      ],
+      "description": "Set output style type",
+      "args": [
+        {
+          "name": "STYLE",
+          "suggestions": [
+            {
+              "name": "basic",
+              "description": "Disable output coloring and interactive elements"
+            },
+            {
+              "name": "full",
+              "description": "Enable all effects even if no interactive terminal was detected"
+            },
+            {
+              "name": "nocolor",
+              "description": "Keep the interactive output without any colors"
+            },
+            {
+              "name": "color",
+              "description": "Keep the colors without any interactive output"
+            },
+            {
+              "name": "none",
+              "description": "Disable all the output of the tool"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--shell",
+        "-S"
+      ],
+      "description": "Set the shell to use for executing benchmarked commands",
+      "args": [
+        {
+          "name": "SHELL",
+          "suggestions": [
+            {
+              "name": "bash",
+              "description": "Use bash as the shell"
+            },
+            {
+              "name": "zsh",
+              "description": "Use zsh as the shell"
+            },
+            {
+              "name": "sh",
+              "description": "Use sh as the shell"
+            },
+            {
+              "name": "fish",
+              "description": "Use fish as the shell"
+            },
+            {
+              "name": "pwsh",
+              "description": "Use pwsh as the shell"
+            },
+            {
+              "name": "powershell",
+              "description": "Use powershell as the shell"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--ignore-failure",
+        "-i"
+      ],
+      "description": "Ignore non-zero exit codes of the benchmarked commands"
+    },
+    {
+      "names": [
+        "--time-unit",
+        "-u"
+      ],
+      "description": "Set the time unit to use for the benchmark results",
+      "args": [
+        {
+          "name": "UNIT",
+          "default": "second",
+          "suggestions": [
+            {
+              "name": "millisecond"
+            },
+            {
+              "name": "second"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--export-asciidoc"
+      ],
+      "description": "Export the timing summary statistics as an AsciiDoc table to the given file",
+      "args": [
+        {
+          "name": "FILE",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--export-csv"
+      ],
+      "description": "Export the timing summary statistics as CSV to the given file",
+      "args": [
+        {
+          "name": "FILE",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--export-json"
+      ],
+      "description": "Export the timing summary statistics and timings of individual runs as JSON to the given file",
+      "args": [
+        {
+          "name": "FILE",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--export-markdown"
+      ],
+      "description": "Export the timing summary statistics as a Markdown table to the given file",
+      "args": [
+        {
+          "name": "FILE",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--show-output"
+      ],
+      "description": "Print the stdout and stderr of the benchmark instead of suppressing it"
+    },
+    {
+      "names": [
+        "--command-name"
+      ],
+      "description": "Identify a command with the given name",
+      "args": [
+        {
+          "name": "NAME"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--help"
+      ],
+      "description": "Prints help message"
+    },
+    {
+      "names": [
+        "--version"
+      ],
+      "description": "Shows version information"
+    }
+  ],
+  "args": [
+    {
+      "name": "CMD",
+      "description": "Command to benchmark",
+      "is_command": true
+    }
+  ]
+}

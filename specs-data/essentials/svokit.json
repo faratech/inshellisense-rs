@@ -1,0 +1,29 @@
+{
+  "names": [
+    "svokit"
+  ],
+  "description": "Runs built svokit project",
+  "subcommands": [
+    {
+      "names": [
+        "setup"
+      ],
+      "description": "Creates svokit config (experimental)"
+    },
+    {
+      "names": [
+        "run"
+      ],
+      "description": "Runs build svokit project"
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "--help",
+        "-h"
+      ],
+      "description": "Show help for svokit"
+    }
+  ]
+}

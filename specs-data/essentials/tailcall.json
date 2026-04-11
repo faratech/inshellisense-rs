@@ -1,0 +1,110 @@
+{
+  "names": [
+    "tailcall"
+  ],
+  "description": "TailCall CLI for managing and optimizing GraphQL configurations",
+  "subcommands": [
+    {
+      "names": [
+        "check"
+      ],
+      "description": "Validate a composition spec",
+      "options": [
+        {
+          "names": [
+            "--n-plus-one-queries"
+          ],
+          "description": "Detect N+1 issues",
+          "is_persistent": true
+        },
+        {
+          "names": [
+            "--schema"
+          ],
+          "description": "Display the schema of the composition spec",
+          "is_persistent": true
+        },
+        {
+          "names": [
+            "--format"
+          ],
+          "description": "Change the format of the input file",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "gql"
+                },
+                {
+                  "name": "graphql"
+                },
+                {
+                  "name": "yml"
+                },
+                {
+                  "name": "yaml"
+                },
+                {
+                  "name": "json"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "FILE_PATHS",
+          "is_variadic": true,
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "start"
+      ],
+      "description": "Launch the GraphQL Server for the specific configuration",
+      "args": [
+        {
+          "name": "PATHS",
+          "is_variadic": true,
+          "templates": [
+            "filepaths",
+            "folders"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "init"
+      ],
+      "description": "Bootstrap a new TailCall project",
+      "args": [
+        {
+          "name": "FILE_PATH",
+          "templates": [
+            "folders"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "gen"
+      ],
+      "description": "Generate GraphQL configurations from various sources",
+      "args": [
+        {
+          "name": "CONFIG_FILE",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "names": [
+    "mv"
+  ],
+  "description": "Move & rename files and folders",
+  "options": [
+    {
+      "names": [
+        "-f"
+      ],
+      "description": "Do not prompt for confirmation before overwriting the destination path",
+      "exclusive_on": [
+        "-i",
+        "-n"
+      ]
+    },
+    {
+      "names": [
+        "-i"
+      ],
+      "description": "Cause mv to write a prompt to standard error before moving a file that would overwrite an existing file",
+      "exclusive_on": [
+        "-f",
+        "-n"
+      ]
+    },
+    {
+      "names": [
+        "-n"
+      ],
+      "description": "Do not overwrite existing file",
+      "exclusive_on": [
+        "-f",
+        "-i"
+      ]
+    },
+    {
+      "names": [
+        "-v"
+      ],
+      "description": "Cause mv to be verbose, showing files after they are moved"
+    }
+  ],
+  "args": [
+    {
+      "name": "source",
+      "is_variadic": true,
+      "templates": [
+        "filepaths",
+        "folders"
+      ]
+    },
+    {
+      "name": "target",
+      "templates": [
+        "filepaths",
+        "folders"
+      ]
+    }
+  ]
+}

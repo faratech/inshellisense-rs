@@ -1,0 +1,32 @@
+{
+  "names": [
+    "sl"
+  ],
+  "description": "A highly advanced animation program for curing your bad habit of mistyping",
+  "options": [
+    {
+      "names": [
+        "-a"
+      ],
+      "description": "An accident is occurring; people cry for help"
+    },
+    {
+      "names": [
+        "-l"
+      ],
+      "description": "Little version"
+    },
+    {
+      "names": [
+        "-F"
+      ],
+      "description": "It flies like the galaxy express 999"
+    },
+    {
+      "names": [
+        "-c"
+      ],
+      "description": "C51 appears instead of D51"
+    }
+  ]
+}

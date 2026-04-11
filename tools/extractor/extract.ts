@@ -1,0 +1,537 @@
+/*!
+ * insh-rs spec extractor.
+ *
+ * Walks @withfig/autocomplete/src/*.ts, parses each file with ts-morph,
+ * locates the default-exported Fig.Spec object literal, and converts the
+ * pure-data subset into JSON matching insh-rs's Rust schema.
+ *
+ * Functions (postProcess callbacks, custom generators, generateSpec, etc.)
+ * are NOT extracted in this pass — a spec containing any function at any
+ * depth below a supported field is classified as "partial" or "js_only"
+ * and skipped. Phase 6 will handle those via rquickjs.
+ *
+ * Output: one .json file per pure spec into <out>/essentials/<name>.json.
+ * A manifest index.json enumerates everything extracted with kind tags.
+ *
+ * Usage:
+ *   SRC=/tmp/withfig-autocomplete/src OUT=../../specs-data npm run extract
+ */
+
+import * as fs from "node:fs";
+import * as path from "node:path";
+import {
+  ArrayLiteralExpression,
+  Node,
+  ObjectLiteralExpression,
+  Project,
+  PropertyAssignment,
+  SourceFile,
+  SyntaxKind,
+} from "ts-morph";
+
+const SRC = process.env.SRC ?? "/tmp/withfig-autocomplete/src";
+const OUT = process.env.OUT ?? path.resolve(process.cwd(), "../../specs-data");
+const ESSENTIALS_DIR = path.join(OUT, "essentials");
+
+// Priority set: the top commands we want to ensure get extracted. We still
+// try to extract everything pure, but these are the ones most likely to be
+// used interactively.
+const ESSENTIALS = new Set([
+  "git", "docker", "kubectl", "ssh", "cargo", "npm", "apt", "systemctl",
+  "curl", "find", "grep", "sed", "ls", "cp", "mv", "tar", "make", "python",
+  "node", "go", "rustup", "gh", "pnpm", "yarn", "bun", "helm", "terraform",
+  "rg", "fd", "bat", "exa", "eza", "fzf", "tmux", "vim", "nvim", "emacs",
+  "ps", "top", "htop", "kill", "chmod", "chown", "df", "du", "free",
+  "systemctl", "journalctl", "ip", "ss", "dig", "nc", "nmap", "openssl",
+  "ffmpeg", "yt-dlp", "zip", "unzip", "awk", "jq", "yq", "wget",
+]);
+
+interface Stats {
+  total: number;
+  pure: number;
+  partial: number;
+  js_only: number;
+  error: number;
+  essentials_extracted: number;
+  function_skips: number;
+}
+
+const stats: Stats = {
+  total: 0,
+  pure: 0,
+  partial: 0,
+  js_only: 0,
+  error: 0,
+  essentials_extracted: 0,
+  function_skips: 0,
+};
+
+interface ManifestEntry {
+  name: string;
+  file: string;
+  kind: "pure" | "partial" | "js_only";
+  has_functions: boolean;
+}
+
+const manifest: ManifestEntry[] = [];
+
+// ---------------------------------------------------------------------------
+// Value extraction
+// ---------------------------------------------------------------------------
+
+type ExtractCtx = {
+  has_functions: boolean;
+  file: string;
+};
+
+function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
+  if (!node) return null;
+
+  if (Node.isStringLiteral(node) || Node.isNoSubstitutionTemplateLiteral(node)) {
+    return node.getLiteralText();
+  }
+  if (Node.isTemplateExpression(node)) {
+    // Non-literal template — mark as function since we can't reliably
+    // stringify it without interpolation.
+    ctx.has_functions = true;
+    return null;
+  }
+  if (Node.isNumericLiteral(node)) {
+    return Number(node.getText());
+  }
+  if (node.getKind() === SyntaxKind.TrueKeyword) return true;
+  if (node.getKind() === SyntaxKind.FalseKeyword) return false;
+  if (node.getKind() === SyntaxKind.NullKeyword) return null;
+  if (node.getKind() === SyntaxKind.UndefinedKeyword) return null;
+
+  if (Node.isArrayLiteralExpression(node)) {
+    const arr = node as ArrayLiteralExpression;
+    return arr.getElements().map((e) => extractValue(e, ctx));
+  }
+  if (Node.isObjectLiteralExpression(node)) {
+    return extractObject(node, ctx);
+  }
+  if (Node.isIdentifier(node)) {
+    // Reference to an imported/top-level identifier. We can't resolve these
+    // without full semantic analysis — mark as impure.
+    ctx.has_functions = true;
+    return null;
+  }
+  if (Node.isFunctionExpression(node) || Node.isArrowFunction(node) || Node.isMethodDeclaration(node)) {
+    ctx.has_functions = true;
+    return { __fn: true };
+  }
+  if (Node.isAsExpression(node) || Node.isParenthesizedExpression(node)) {
+    return extractValue(node.getExpression(), ctx);
+  }
+  if (Node.isSpreadElement(node)) {
+    // Spread of an unresolvable expression → mark impure.
+    ctx.has_functions = true;
+    return null;
+  }
+  if (Node.isCallExpression(node)) {
+    // A function call result (e.g. helper(...)) is not statically knowable.
+    ctx.has_functions = true;
+    return null;
+  }
+
+  // Unknown node shape — conservative: mark impure.
+  ctx.has_functions = true;
+  return null;
+}
+
+function extractObject(obj: ObjectLiteralExpression, ctx: ExtractCtx): any {
+  const out: Record<string, any> = {};
+  for (const prop of obj.getProperties()) {
+    if (Node.isPropertyAssignment(prop)) {
+      const pa = prop as PropertyAssignment;
+      const name = pa.getName();
+      const value = extractValue(pa.getInitializer(), ctx);
+      if (value !== undefined) {
+        out[name] = value;
+      }
+    } else if (Node.isShorthandPropertyAssignment(prop)) {
+      ctx.has_functions = true;
+    } else if (Node.isSpreadAssignment(prop)) {
+      ctx.has_functions = true;
+    } else if (Node.isMethodDeclaration(prop)) {
+      ctx.has_functions = true;
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Shape conversion: upstream Fig.Spec → insh-rs Rust schema
+// ---------------------------------------------------------------------------
+
+function toRustSubcommand(x: any): any {
+  if (!x || typeof x !== "object") return null;
+  const out: any = {};
+  // names: string | string[]
+  if (typeof x.name === "string") out.names = [x.name];
+  else if (Array.isArray(x.name)) out.names = x.name.filter((n: any) => typeof n === "string");
+  else return null; // no name = not a valid subcommand
+
+  if (out.names.length === 0) return null;
+
+  if (typeof x.description === "string") out.description = x.description;
+  if (typeof x.displayName === "string") out.display_name = x.displayName;
+  if (typeof x.priority === "number") out.priority = clamp0_100(x.priority);
+  if (x.hidden === true) out.hidden = true;
+  if (x.isDangerous === true) out.is_dangerous = true;
+  if (x.deprecated === true) out.deprecated = true;
+  if (x.requiresSubcommand === true) out.requires_subcommand = true;
+  if (typeof x.icon === "string") out.icon = x.icon;
+
+  if (Array.isArray(x.subcommands)) {
+    out.subcommands = x.subcommands
+      .map(toRustSubcommand)
+      .filter((v: any) => v !== null);
+  }
+  if (Array.isArray(x.options)) {
+    out.options = x.options.map(toRustOpt).filter((v: any) => v !== null);
+  }
+  const argsVal = toRustArgsField(x.args);
+  if (argsVal !== null) out.args = argsVal;
+
+  // loadSpec: string only for now (functions become js).
+  if (typeof x.loadSpec === "string") {
+    out.load_spec = { kind: "spec_path", name: x.loadSpec };
+  }
+
+  // parserDirectives
+  if (x.parserDirectives && typeof x.parserDirectives === "object") {
+    const pd: any = {};
+    if (x.parserDirectives.flagsArePosixNoncompliant === true)
+      pd.flags_are_posix_noncompliant = true;
+    if (x.parserDirectives.optionsMustPrecedeArguments === true)
+      pd.options_must_precede_arguments = true;
+    if (Array.isArray(x.parserDirectives.optionArgSeparators))
+      pd.option_arg_separators = x.parserDirectives.optionArgSeparators.filter(
+        (s: any) => typeof s === "string"
+      );
+    if (Object.keys(pd).length > 0) out.parser_directives = pd;
+  }
+
+  return out;
+}
+
+function toRustOpt(x: any): any {
+  if (!x || typeof x !== "object") return null;
+  const out: any = {};
+  if (typeof x.name === "string") out.names = [x.name];
+  else if (Array.isArray(x.name)) out.names = x.name.filter((n: any) => typeof n === "string");
+  else return null;
+  if (out.names.length === 0) return null;
+
+  if (typeof x.description === "string") out.description = x.description;
+  if (typeof x.displayName === "string") out.display_name = x.displayName;
+  if (typeof x.priority === "number") out.priority = clamp0_100(x.priority);
+  if (x.hidden === true) out.hidden = true;
+  if (x.deprecated === true) out.deprecated = true;
+  if (x.isPersistent === true) out.is_persistent = true;
+  if (x.isRequired === true) out.is_required = true;
+  if (x.isRepeatable === true) out.is_repeatable = true;
+  else if (x.isRepeatable === false) out.is_repeatable = false;
+  else if (typeof x.isRepeatable === "number") out.is_repeatable = x.isRepeatable;
+  if (Array.isArray(x.exclusiveOn))
+    out.exclusive_on = x.exclusiveOn.filter((s: any) => typeof s === "string");
+  if (Array.isArray(x.dependsOn))
+    out.depends_on = x.dependsOn.filter((s: any) => typeof s === "string");
+  if (typeof x.requiresSeparator === "string") out.requires_separator = x.requiresSeparator;
+
+  const argsVal = toRustArgsField(x.args);
+  if (argsVal !== null) out.args = argsVal;
+
+  return out;
+}
+
+function toRustArgsField(x: any): any[] | null {
+  if (x == null) return null;
+  const arr = Array.isArray(x) ? x : [x];
+  const out = arr.map(toRustArg).filter((v: any) => v !== null);
+  return out.length > 0 ? out : null;
+}
+
+function toRustArg(x: any): any {
+  if (!x || typeof x !== "object") return null;
+  const out: any = {};
+  if (typeof x.name === "string") out.name = x.name;
+  if (typeof x.description === "string") out.description = x.description;
+  if (x.isOptional === true) out.is_optional = true;
+  if (x.isVariadic === true) out.is_variadic = true;
+  if (x.isCommand === true) out.is_command = true;
+  if (x.isScript === true) out.is_script = true;
+  if (x.debounce === true) out.debounce = true;
+  if (typeof x.default === "string") out.default = x.default;
+
+  // template: "filepaths" | "folders" | "history" | "help" | array
+  const tplsField = x.template;
+  if (tplsField != null) {
+    const tpls = Array.isArray(tplsField) ? tplsField : [tplsField];
+    const mapped = tpls
+      .map((t: any) => (typeof t === "string" ? mapTemplate(t) : null))
+      .filter((v: any) => v !== null);
+    if (mapped.length > 0) out.templates = mapped;
+  }
+
+  // suggestions: (string | Suggestion)[]
+  if (Array.isArray(x.suggestions)) {
+    const sugs: any[] = [];
+    for (const s of x.suggestions) {
+      if (typeof s === "string") {
+        sugs.push({ name: s });
+      } else if (s && typeof s === "object") {
+        const sug: any = {};
+        if (typeof s.name === "string") sug.name = s.name;
+        else if (Array.isArray(s.name)) {
+          sug.name = s.name[0];
+          sug.all_names = s.name;
+        } else continue;
+        if (typeof s.description === "string") sug.description = s.description;
+        if (typeof s.icon === "string") sug.icon = s.icon;
+        if (typeof s.priority === "number") sug.priority = clamp0_100(s.priority);
+        if (typeof s.insertValue === "string") sug.insert_value = s.insertValue;
+        if (typeof s.displayName === "string") sug.display_name = s.displayName;
+        sugs.push(sug);
+      }
+    }
+    if (sugs.length > 0) out.suggestions = sugs;
+  }
+
+  // generators: Generator | Generator[]
+  const gens = x.generators;
+  if (gens != null) {
+    const arr = Array.isArray(gens) ? gens : [gens];
+    const mapped = arr.map(toRustGenerator).filter((v: any) => v !== null);
+    if (mapped.length > 0) out.generators = mapped;
+  }
+
+  // filterStrategy
+  if (typeof x.filterStrategy === "string") {
+    out.filter_strategy = x.filterStrategy; // serde handles snake_case mapping
+  }
+
+  return out;
+}
+
+function toRustGenerator(g: any): any {
+  if (!g || typeof g !== "object" || g.__fn) return null;
+
+  // Template generator
+  if (g.template != null && g.script == null && g.custom == null) {
+    const tplVal = Array.isArray(g.template) ? g.template[0] : g.template;
+    if (typeof tplVal !== "string") return null;
+    const t = mapTemplate(tplVal);
+    if (!t) return null;
+    return { kind: "template", template: t };
+  }
+
+  // Script generator
+  if (g.script != null && !g.__fn) {
+    if (typeof g.script === "string") {
+      return {
+        kind: "script",
+        input: { kind: "shell", script: g.script },
+        split_on: typeof g.splitOn === "string" ? g.splitOn : "\n",
+        post_process: { kind: "none" },
+        timeout_ms: typeof g.scriptTimeout === "number" ? g.scriptTimeout : 5000,
+      };
+    }
+    if (Array.isArray(g.script) && g.script.every((s: any) => typeof s === "string")) {
+      return {
+        kind: "script",
+        input: { kind: "argv", argv: g.script },
+        split_on: typeof g.splitOn === "string" ? g.splitOn : "\n",
+        post_process: { kind: "none" },
+        timeout_ms: typeof g.scriptTimeout === "number" ? g.scriptTimeout : 5000,
+      };
+    }
+  }
+
+  // Custom/postProcess closures: mark requiring JS — phase 6.
+  return null;
+}
+
+function mapTemplate(t: string): string | null {
+  switch (t) {
+    case "filepaths":
+      return "filepaths";
+    case "folders":
+      return "folders";
+    case "history":
+      return "history";
+    case "help":
+      return "help";
+    default:
+      return null;
+  }
+}
+
+function clamp0_100(n: number): number {
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+// ---------------------------------------------------------------------------
+// Per-file extraction
+// ---------------------------------------------------------------------------
+
+function extractFile(project: Project, filePath: string): void {
+  stats.total++;
+  const rel = path.basename(filePath, ".ts");
+  let sourceFile: SourceFile;
+  try {
+    sourceFile = project.addSourceFileAtPath(filePath);
+  } catch (e) {
+    stats.error++;
+    return;
+  }
+
+  // Find the default export.
+  const defaultExport = sourceFile.getDefaultExportSymbol();
+  if (!defaultExport) {
+    stats.error++;
+    sourceFile.forget();
+    return;
+  }
+
+  // Locate the object literal the default export resolves to.
+  let specNode: ObjectLiteralExpression | null = null;
+  for (const decl of defaultExport.getDeclarations()) {
+    if (Node.isExportAssignment(decl)) {
+      const expr = decl.getExpression();
+      if (Node.isObjectLiteralExpression(expr)) {
+        specNode = expr as ObjectLiteralExpression;
+        break;
+      }
+      if (Node.isIdentifier(expr)) {
+        const symbol = expr.getSymbol();
+        if (symbol) {
+          for (const d of symbol.getDeclarations()) {
+            if (Node.isVariableDeclaration(d)) {
+              const init = d.getInitializer();
+              if (init && Node.isObjectLiteralExpression(init)) {
+                specNode = init as ObjectLiteralExpression;
+                break;
+              }
+              if (init && Node.isAsExpression(init)) {
+                const inner = init.getExpression();
+                if (Node.isObjectLiteralExpression(inner)) {
+                  specNode = inner as ObjectLiteralExpression;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (!specNode) {
+    stats.js_only++;
+    manifest.push({
+      name: rel,
+      file: `${rel}.ts`,
+      kind: "js_only",
+      has_functions: true,
+    });
+    sourceFile.forget();
+    return;
+  }
+
+  const ctx: ExtractCtx = { has_functions: false, file: filePath };
+  const raw = extractObject(specNode, ctx);
+  sourceFile.forget();
+
+  if (ctx.has_functions) {
+    stats.function_skips++;
+    stats.partial++;
+    manifest.push({
+      name: rel,
+      file: `${rel}.ts`,
+      kind: "partial",
+      has_functions: true,
+    });
+    return;
+  }
+
+  const rust = toRustSubcommand(raw);
+  if (!rust || !Array.isArray(rust.names) || rust.names.length === 0) {
+    stats.error++;
+    return;
+  }
+
+  // Write the JSON.
+  const outFile = path.join(ESSENTIALS_DIR, `${rel}.json`);
+  fs.writeFileSync(outFile, JSON.stringify(rust, null, 2) + "\n");
+  stats.pure++;
+  if (ESSENTIALS.has(rel)) stats.essentials_extracted++;
+
+  manifest.push({
+    name: rel,
+    file: `${rel}.ts`,
+    kind: "pure",
+    has_functions: false,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+function main(): void {
+  if (!fs.existsSync(SRC)) {
+    console.error(`SRC not found: ${SRC}`);
+    process.exit(1);
+  }
+  fs.mkdirSync(ESSENTIALS_DIR, { recursive: true });
+
+  const project = new Project({
+    compilerOptions: {
+      target: 99, // ESNext
+      module: 99, // ESNext
+      strict: false,
+      skipLibCheck: true,
+      noEmit: true,
+      allowJs: false,
+    },
+    useInMemoryFileSystem: false,
+  });
+
+  const entries = fs
+    .readdirSync(SRC)
+    .filter((f) => f.endsWith(".ts") && !f.startsWith("."))
+    .sort();
+
+  for (const entry of entries) {
+    const filePath = path.join(SRC, entry);
+    try {
+      extractFile(project, filePath);
+    } catch (e: any) {
+      stats.error++;
+      console.error(`error on ${entry}: ${e?.message ?? e}`);
+    }
+  }
+
+  // Write the manifest.
+  fs.writeFileSync(
+    path.join(OUT, "index.json"),
+    JSON.stringify(
+      {
+        version: "upstream-unknown",
+        stats,
+        entries: manifest,
+      },
+      null,
+      2
+    ) + "\n"
+  );
+
+  console.log(JSON.stringify(stats, null, 2));
+  console.log(`wrote ${stats.pure} pure specs to ${ESSENTIALS_DIR}`);
+  console.log(`manifest: ${path.join(OUT, "index.json")}`);
+}
+
+main();

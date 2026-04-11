@@ -1,0 +1,229 @@
+{
+  "names": [
+    "kotlinc"
+  ],
+  "description": "Kotlin compiler for JVM",
+  "subcommands": [
+    {
+      "names": [
+        "-version"
+      ],
+      "description": "Display the compiler version"
+    },
+    {
+      "names": [
+        "-nowarn"
+      ],
+      "description": "Suppress the compiler from displaying warnings during compilation"
+    },
+    {
+      "names": [
+        "-Werror"
+      ],
+      "description": "Turn any warnings into a compilation error"
+    },
+    {
+      "names": [
+        "-verbose"
+      ],
+      "description": "Enable verbose logging output which includes details of the compilation process"
+    },
+    {
+      "names": [
+        "-script"
+      ],
+      "description": "Evaluate a Kotlin script file. When called with this option, the compiler executes the first Kotlin script (*.kts) file among the given arguments",
+      "args": [
+        {
+          "name": "script-file",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-help",
+        "-h"
+      ],
+      "description": "Display usage information and exit. Only standard options are shown. To show advanced options, use -X"
+    },
+    {
+      "names": [
+        "-X"
+      ],
+      "description": "Display information about the advanced options and exit. These options are currently unstable: their names and behavior may be changed without notice"
+    },
+    {
+      "names": [
+        "-kotlin-home"
+      ],
+      "description": "Specify a custom path to the Kotlin compiler used for the discovery of runtime libraries",
+      "args": [
+        {
+          "name": "path",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-P"
+      ],
+      "description": "Pass an option to a Kotlin compiler plugin. Available plugins and their options are listed in the Tools > Compiler plugins section of the documentation",
+      "args": [
+        {
+          "name": "plugin:pluginId:optionName=value"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-language-version"
+      ],
+      "description": "Provide source compatibility with the specified version of Kotlin",
+      "args": [
+        {
+          "name": "version"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-api-version"
+      ],
+      "description": "Allow using declarations only from the specified version of Kotlin bundled libraries",
+      "args": [
+        {
+          "name": "version"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-progressive"
+      ],
+      "description": "Enable the progressive mode for the compiler. In the progressive mode, deprecations and bug fixes for unstable code take effect immediately, instead of going through a graceful migration cycle. Code written in the progressive mode is backward compatible; however, code written in a non-progressive mode may cause compilation errors in the progressive mode"
+    },
+    {
+      "names": [
+        "-opt-in"
+      ],
+      "description": "Enable usages of API that requires opt-in with a requirement annotation specified by the given fully qualified name",
+      "args": [
+        {
+          "name": "annotation"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-classpath",
+        "-cp"
+      ],
+      "description": "Search for class files in the specified paths. Separate elements of the classpath with system path separators (; on Windows, : on macOS/Linux). The classpath can contain file and directory paths, ZIP, or JAR files",
+      "args": [
+        {
+          "name": "path",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-d"
+      ],
+      "description": "Place the generated class files into the specified location. The location can be a directory, a ZIP, or a JAR file",
+      "args": [
+        {
+          "name": "path",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-include-runtime"
+      ],
+      "description": "Include the Kotlin runtime into the resulting JAR file. Makes the resulting archive runnable on any Java-enabled environment"
+    },
+    {
+      "names": [
+        "-jdk-home"
+      ],
+      "description": "Use a custom JDK home directory to include into the classpath if it differs from the default JAVA_HOME",
+      "args": [
+        {
+          "name": "path",
+          "templates": [
+            "folders"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-jvm-target"
+      ],
+      "description": "Specify the target version of the generated JVM bytecode. Possible values are 1.8, 9, 10, ..., 21. The default value is 1.8",
+      "args": [
+        {
+          "name": "version"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-java-parameters"
+      ],
+      "description": "Generate metadata for Java 1.8 reflection on method parameters"
+    },
+    {
+      "names": [
+        "-module-name"
+      ],
+      "description": "Set a custom name for the generated .kotlin_module file",
+      "args": [
+        {
+          "name": "name"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-no-jdk"
+      ],
+      "description": "Don't automatically include the Java runtime into the classpath"
+    },
+    {
+      "names": [
+        "-no-reflect"
+      ],
+      "description": "Don't automatically include the Kotlin reflection (kotlin-reflect.jar) into the classpath"
+    },
+    {
+      "names": [
+        "-no-stdlib"
+      ],
+      "description": "Don't automatically include the Kotlin/JVM stdlib (kotlin-stdlib.jar) and Kotlin reflection (kotlin-reflect.jar) into the classpath"
+    },
+    {
+      "names": [
+        "-script-templates"
+      ],
+      "description": "Script definition template classes. Use fully qualified class names and separate them with commas (,)",
+      "args": [
+        {
+          "name": "classnames[,]"
+        }
+      ]
+    }
+  ]
+}

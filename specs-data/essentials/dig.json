@@ -1,0 +1,146 @@
+{
+  "names": [
+    "dig"
+  ],
+  "description": "Domain Information Groper",
+  "subcommands": [
+    {
+      "names": [
+        "A"
+      ],
+      "description": "Query Domain A Record",
+      "options": [
+        {
+          "names": [
+            "+short",
+            ""
+          ],
+          "description": "Only print meaningful results",
+          "args": [
+            {}
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "MX"
+      ],
+      "description": "Query Domain MX Record",
+      "options": [
+        {
+          "names": [
+            "+short",
+            ""
+          ],
+          "description": "Only print meaningful results",
+          "args": [
+            {}
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "CNAME"
+      ],
+      "description": "Query Domain CNAME Record",
+      "options": [
+        {
+          "names": [
+            "+short",
+            ""
+          ],
+          "description": "Only print meaningful results",
+          "args": [
+            {}
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "TXT"
+      ],
+      "description": "Query Domain TXT Record",
+      "options": [
+        {
+          "names": [
+            "+short",
+            ""
+          ],
+          "description": "Only print meaningful results",
+          "args": [
+            {}
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "NS"
+      ],
+      "description": "Query MX Record",
+      "options": [
+        {
+          "names": [
+            "+short",
+            ""
+          ],
+          "description": "Only print meaningful results",
+          "args": [
+            {}
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "SOA"
+      ],
+      "description": "Query SOA Record",
+      "options": [
+        {
+          "names": [
+            "+short",
+            ""
+          ],
+          "description": "Only print meaningful results",
+          "args": [
+            {}
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "TTL"
+      ],
+      "description": "Query TTL Record",
+      "options": [
+        {
+          "names": [
+            "+short",
+            ""
+          ],
+          "description": "Only print meaningful results",
+          "args": [
+            {}
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "ANY +noall +answer"
+      ],
+      "description": "Query ALL DNS Records"
+    },
+    {
+      "names": [
+        "+nocomments +noquestion +noauthority +noadditional +nostats"
+      ],
+      "description": "Query only answer section"
+    }
+  ]
+}

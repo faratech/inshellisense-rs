@@ -1,0 +1,497 @@
+{
+  "names": [
+    "splash-cli"
+  ],
+  "description": "Get stunning wallpapers from Unsplash",
+  "display_name": "Splash",
+  "subcommands": [
+    {
+      "names": [
+        "settings"
+      ],
+      "description": "Manage settings",
+      "icon": "⚙️",
+      "subcommands": [
+        {
+          "names": [
+            "get"
+          ],
+          "args": [
+            {
+              "name": "config key",
+              "description": "Config key",
+              "is_optional": true
+            }
+          ]
+        },
+        {
+          "names": [
+            "set"
+          ],
+          "description": "Setup the configuration"
+        },
+        {
+          "names": [
+            "restore"
+          ],
+          "description": "Restore default settings"
+        }
+      ]
+    },
+    {
+      "names": [
+        "aliases"
+      ],
+      "description": "Manage aliases",
+      "icon": "🔗",
+      "subcommands": [
+        {
+          "names": [
+            "get"
+          ],
+          "description": "Get an alias",
+          "args": [
+            {
+              "name": "alias"
+            }
+          ]
+        },
+        {
+          "names": [
+            "set"
+          ],
+          "description": "Set an alias",
+          "args": [
+            {
+              "name": "key"
+            },
+            {
+              "name": "value"
+            }
+          ]
+        },
+        {
+          "names": [
+            "help"
+          ],
+          "description": "Show help menu"
+        }
+      ]
+    },
+    {
+      "names": [
+        "collection"
+      ],
+      "description": "Manage collections",
+      "icon": "🗃",
+      "subcommands": [
+        {
+          "names": [
+            "get"
+          ],
+          "description": "Get a collection",
+          "args": [
+            {
+              "name": "collection id"
+            }
+          ]
+        },
+        {
+          "names": [
+            "delete"
+          ],
+          "description": "Delete a collection",
+          "args": [
+            {
+              "name": "collection id"
+            }
+          ]
+        },
+        {
+          "names": [
+            "create"
+          ],
+          "description": "Create a collection"
+        },
+        {
+          "names": [
+            "photos:add"
+          ],
+          "description": "Add photos to a collection"
+        },
+        {
+          "names": [
+            "photos:remove"
+          ],
+          "description": "Remove photos to a collection"
+        },
+        {
+          "names": [
+            "help"
+          ],
+          "description": "Show help for this command"
+        }
+      ]
+    },
+    {
+      "names": [
+        "dir"
+      ],
+      "description": "Manage SplashCLI download directory",
+      "icon": "📁",
+      "subcommands": [
+        {
+          "names": [
+            "get"
+          ],
+          "description": "Get the download directory path",
+          "icon": "📁"
+        },
+        {
+          "names": [
+            "set"
+          ],
+          "description": "Set the download directory path",
+          "icon": "📁",
+          "args": [
+            {
+              "name": "path"
+            }
+          ]
+        },
+        {
+          "names": [
+            "clean"
+          ],
+          "description": "Delete all the downloaded photos",
+          "is_dangerous": true,
+          "icon": "🗑️"
+        },
+        {
+          "names": [
+            "count"
+          ],
+          "description": "Count all the downloaded photos",
+          "icon": "📈"
+        },
+        {
+          "names": [
+            "help"
+          ],
+          "description": "Show help for this command"
+        }
+      ]
+    },
+    {
+      "names": [
+        "user"
+      ],
+      "subcommands": [
+        {
+          "names": [
+            "login"
+          ],
+          "description": "Login with your Unsplash account"
+        },
+        {
+          "names": [
+            "logout"
+          ],
+          "description": "Removes all user data"
+        },
+        {
+          "names": [
+            "liked"
+          ],
+          "description": "List last 10 liked photos",
+          "icon": "❤️"
+        },
+        {
+          "names": [
+            "collections"
+          ],
+          "description": "List all user's collections",
+          "icon": "🗃"
+        },
+        {
+          "names": [
+            "get"
+          ],
+          "description": "Get user infos",
+          "icon": "🔍"
+        },
+        {
+          "names": [
+            "edit",
+            "update"
+          ],
+          "description": "Update user infos",
+          "icon": "🧪"
+        },
+        {
+          "names": [
+            "help"
+          ],
+          "description": "Help Menu"
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "--help",
+        "-h"
+      ],
+      "description": "Help Message"
+    },
+    {
+      "names": [
+        "--version",
+        "-v"
+      ],
+      "description": "Prints `splash-cli` version"
+    },
+    {
+      "names": [
+        "--scale"
+      ],
+      "description": "Scale of the image",
+      "args": [
+        {
+          "name": "scale",
+          "default": "auto",
+          "suggestions": [
+            {
+              "name": "auto"
+            },
+            {
+              "name": "fill"
+            },
+            {
+              "name": "fit"
+            },
+            {
+              "name": "stretch"
+            },
+            {
+              "name": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--screen"
+      ],
+      "description": "Set wallpaper on selected screen",
+      "args": [
+        {
+          "name": "screen",
+          "default": "all",
+          "suggestions": [
+            {
+              "name": "all"
+            },
+            {
+              "name": "main"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-s",
+        "--save"
+      ],
+      "description": "Save photo without setting as wallpaper",
+      "args": [
+        {
+          "name": "path",
+          "is_optional": true,
+          "default": ".",
+          "templates": [
+            "folders"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--set"
+      ],
+      "description": "Set wallpaper from local file",
+      "args": [
+        {
+          "name": "filepath",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-i",
+        "--info"
+      ],
+      "description": "Show image exif data"
+    },
+    {
+      "names": [
+        "-q",
+        "--quiet"
+      ],
+      "description": "Hide output"
+    },
+    {
+      "names": [
+        "--rotate"
+      ],
+      "description": "Rotate image",
+      "args": [
+        {
+          "name": "degrees",
+          "suggestions": [
+            {
+              "name": "90"
+            },
+            {
+              "name": "180"
+            },
+            {
+              "name": "270"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--colorspace"
+      ],
+      "description": "Define image colorspace",
+      "args": [
+        {
+          "name": "colorspace",
+          "default": "srgb",
+          "suggestions": [
+            {
+              "name": "srgb"
+            },
+            {
+              "name": "rgb"
+            },
+            {
+              "name": "cmyk"
+            },
+            {
+              "name": "lab"
+            },
+            {
+              "name": "b-w"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--flip"
+      ],
+      "description": "Flip image on the Y axis"
+    },
+    {
+      "names": [
+        "-f",
+        "--featured"
+      ],
+      "description": "Limit to only featured photos",
+      "is_repeatable": false
+    },
+    {
+      "names": [
+        "--query"
+      ],
+      "description": "Filter by keywords",
+      "is_repeatable": false,
+      "args": [
+        {
+          "name": "querystring"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--orientation"
+      ],
+      "description": "Filter by orientation",
+      "args": [
+        {
+          "name": "orientation",
+          "default": "landscape",
+          "suggestions": [
+            {
+              "name": "landscape"
+            },
+            {
+              "name": "portrait"
+            },
+            {
+              "name": "squarish"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-c",
+        "--curated"
+      ],
+      "description": "Random Curated photo"
+    },
+    {
+      "names": [
+        "-u",
+        "--user"
+      ],
+      "description": "Random photo from user",
+      "args": [
+        {
+          "name": "username"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--collection"
+      ],
+      "description": "Random photo from collection",
+      "args": [
+        {
+          "name": "collection id"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--id"
+      ],
+      "description": "Get photo by ID",
+      "args": [
+        {
+          "name": "photo_id"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--day"
+      ],
+      "description": "Photo of the day"
+    }
+  ]
+}

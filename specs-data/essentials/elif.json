@@ -1,0 +1,11 @@
+{
+  "names": [
+    "elif"
+  ],
+  "description": "Execute if the previous condition returned 0",
+  "args": [
+    {
+      "is_command": true
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "names": [
+    "tee"
+  ],
+  "description": "Duplicate standard input",
+  "options": [
+    {
+      "names": [
+        "-a"
+      ],
+      "description": "Append the output to the files rather than overwriting them"
+    },
+    {
+      "names": [
+        "-i"
+      ],
+      "description": "Ignore the SIGINT signal"
+    }
+  ],
+  "args": [
+    {
+      "name": "file",
+      "description": "Pathname of an output file",
+      "is_variadic": true,
+      "templates": [
+        "filepaths"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "names": [
+    "dotslash"
+  ],
+  "args": [
+    {
+      "templates": [
+        "filepaths",
+        "folders"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+{
+  "names": [
+    "sapphire"
+  ],
+  "description": "CLI for the Sapphire Framework",
+  "subcommands": [
+    {
+      "names": [
+        "new",
+        "n"
+      ],
+      "description": "Creates a new Sapphire project",
+      "display_name": "Create a new Sapphire project 📂",
+      "priority": 100,
+      "options": [
+        {
+          "names": [
+            "-v",
+            "--verbose"
+          ],
+          "description": "Enable verbose logging"
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "description": "Project name",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "generate",
+        "g"
+      ],
+      "description": "Generates a component/piece",
+      "display_name": "Generate a component/piece 📄",
+      "priority": 90,
+      "args": [
+        {
+          "name": "component",
+          "description": "Component/piece name"
+        },
+        {
+          "name": "name",
+          "description": "File name",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "init",
+        "i"
+      ],
+      "description": "Creates a config file on an existing Sapphire project",
+      "display_name": "Initalize CLI on an existing project ⚙️",
+      "priority": 80
+    },
+    {
+      "names": [
+        "help"
+      ],
+      "description": "Display help for command",
+      "display_name": "Display help for a command 📖",
+      "priority": 70,
+      "args": [
+        {
+          "name": "command",
+          "description": "Command to display help for",
+          "is_optional": true,
+          "templates": [
+            "help"
+          ]
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "--help",
+        "-h"
+      ],
+      "description": "Show help for sapphire",
+      "priority": 10,
+      "is_persistent": true
+    },
+    {
+      "names": [
+        "--version",
+        "-V"
+      ],
+      "description": "Output the version number",
+      "priority": 1
+    }
+  ]
+}

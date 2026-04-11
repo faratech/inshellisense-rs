@@ -10,10 +10,6 @@ pub fn all() -> Vec<Subcommand> {
     vec![git_spec(), docker_spec(), cargo_spec(), systemctl_spec(), ssh_spec()]
 }
 
-fn sub(name: &str) -> Subcommand {
-    Subcommand::new(name)
-}
-
 fn sub_desc(name: &str, desc: &str) -> Subcommand {
     Subcommand {
         names: vec![name.to_string()],

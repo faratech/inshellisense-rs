@@ -1,0 +1,22 @@
+{
+  "names": [
+    "rmdir"
+  ],
+  "description": "Remove directories",
+  "options": [
+    {
+      "names": [
+        "-p"
+      ],
+      "description": "Remove each directory of path"
+    }
+  ],
+  "args": [
+    {
+      "is_variadic": true,
+      "templates": [
+        "folders"
+      ]
+    }
+  ]
+}

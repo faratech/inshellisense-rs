@@ -1,0 +1,947 @@
+{
+  "names": [
+    "sqlmesh"
+  ],
+  "description": "SQLMesh command line tool",
+  "subcommands": [
+    {
+      "names": [
+        "init"
+      ],
+      "description": "Create a new SQLMesh repository",
+      "options": [
+        {
+          "names": [
+            "-t",
+            "--template"
+          ],
+          "description": "Project template. Supported values: airflow, dbt, dlt, default, empty",
+          "args": [
+            {
+              "name": "template",
+              "suggestions": [
+                {
+                  "name": "airflow"
+                },
+                {
+                  "name": "dbt"
+                },
+                {
+                  "name": "dlt"
+                },
+                {
+                  "name": "default"
+                },
+                {
+                  "name": "empty"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--dlt-pipeline"
+          ],
+          "description": "DLT pipeline for which to generate a SQLMesh project. Use alongside template: dlt",
+          "args": [
+            {
+              "name": "pipeline"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "sql_dialect",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "render"
+      ],
+      "description": "Render a model's query, optionally expanding referenced models",
+      "options": [
+        {
+          "names": [
+            "--dialect"
+          ],
+          "description": "The SQL dialect to render the query as",
+          "args": [
+            {
+              "name": "dialect"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--no-format"
+          ],
+          "description": "Disable fancy formatting of the query"
+        },
+        {
+          "names": [
+            "--start"
+          ],
+          "description": "Start time for the render",
+          "args": [
+            {
+              "name": "start"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--end"
+          ],
+          "description": "End time for the render",
+          "args": [
+            {
+              "name": "end"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--execution-time"
+          ],
+          "description": "Execution time for the render",
+          "args": [
+            {
+              "name": "time"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--expand"
+          ],
+          "description": "Expand referenced models",
+          "args": [
+            {
+              "name": "models",
+              "is_variadic": true
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "model"
+        }
+      ]
+    },
+    {
+      "names": [
+        "evaluate"
+      ],
+      "description": "Evaluate a model and return a dataframe with a default limit of 1000",
+      "options": [
+        {
+          "names": [
+            "--start"
+          ],
+          "description": "Start time for evaluation",
+          "args": [
+            {
+              "name": "start"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--end"
+          ],
+          "description": "End time for evaluation",
+          "args": [
+            {
+              "name": "end"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--execution-time"
+          ],
+          "description": "Execution time for evaluation",
+          "args": [
+            {
+              "name": "time"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--limit"
+          ],
+          "description": "The number of rows which the query should be limited to",
+          "args": [
+            {
+              "name": "limit"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "model"
+        }
+      ]
+    },
+    {
+      "names": [
+        "format"
+      ],
+      "description": "Format all SQL models and audits",
+      "options": [
+        {
+          "names": [
+            "-t",
+            "--transpile"
+          ],
+          "description": "Transpile project models to the specified dialect",
+          "args": [
+            {
+              "name": "dialect"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--append-newline"
+          ],
+          "description": "Include a newline at the end of each file"
+        },
+        {
+          "names": [
+            "--no-rewrite-casts"
+          ],
+          "description": "Preserve the existing casts, without rewriting them to use the :: syntax"
+        },
+        {
+          "names": [
+            "--normalize"
+          ],
+          "description": "Whether or not to normalize identifiers to lowercase"
+        },
+        {
+          "names": [
+            "--pad"
+          ],
+          "description": "Determines the pad size in a formatted string",
+          "args": [
+            {
+              "name": "size"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--indent"
+          ],
+          "description": "Determines the indentation size in a formatted string",
+          "args": [
+            {
+              "name": "size"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--normalize-functions"
+          ],
+          "description": "Whether or not to normalize all function names",
+          "args": [
+            {
+              "name": "mode",
+              "suggestions": [
+                {
+                  "name": "upper"
+                },
+                {
+                  "name": "lower"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--leading-comma"
+          ],
+          "description": "Determines whether or not the comma is leading or trailing in select expressions"
+        },
+        {
+          "names": [
+            "--max-text-width"
+          ],
+          "description": "The max number of characters in a segment before creating new lines in pretty mode",
+          "args": [
+            {
+              "name": "width"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--check"
+          ],
+          "description": "Whether or not to check formatting (but not actually format anything)"
+        }
+      ],
+      "args": [
+        {
+          "name": "paths",
+          "is_optional": true,
+          "is_variadic": true,
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "diff"
+      ],
+      "description": "Show the diff between the local state and the target environment",
+      "args": [
+        {
+          "name": "environment"
+        }
+      ]
+    },
+    {
+      "names": [
+        "plan"
+      ],
+      "description": "Apply local changes to the target environment",
+      "options": [
+        {
+          "names": [
+            "--create-from"
+          ],
+          "description": "The environment to create the target environment from if it doesn't exist. Default: prod",
+          "args": [
+            {
+              "name": "environment"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--skip-tests"
+          ],
+          "description": "Skip tests prior to generating the plan if they are defined"
+        },
+        {
+          "names": [
+            "--restate-model"
+          ],
+          "description": "Restate data for specified models and models downstream from the one specified",
+          "is_repeatable": true,
+          "args": [
+            {
+              "name": "model"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--no-gaps"
+          ],
+          "description": "Ensure that new snapshots have no data gaps when comparing to existing snapshots"
+        },
+        {
+          "names": [
+            "--skip-backfill"
+          ],
+          "description": "Skip the backfill step and only create a virtual update for the plan"
+        },
+        {
+          "names": [
+            "--empty-backfill"
+          ],
+          "description": "Produce empty backfill"
+        },
+        {
+          "names": [
+            "--forward-only"
+          ],
+          "description": "Create a plan for forward-only changes"
+        },
+        {
+          "names": [
+            "--allow-destructive-model"
+          ],
+          "description": "Allow destructive forward-only changes to models whose names match the expression",
+          "is_repeatable": true,
+          "args": [
+            {
+              "name": "model"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--effective-from"
+          ],
+          "description": "The effective date from which to apply forward-only changes on production",
+          "args": [
+            {
+              "name": "date"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--no-prompts"
+          ],
+          "description": "Disable interactive prompts for the backfill time range"
+        },
+        {
+          "names": [
+            "--auto-apply"
+          ],
+          "description": "Automatically apply the new plan after creation"
+        },
+        {
+          "names": [
+            "--no-auto-categorization"
+          ],
+          "description": "Disable automatic change categorization"
+        },
+        {
+          "names": [
+            "--include-unmodified"
+          ],
+          "description": "Include unmodified models in the target environment"
+        },
+        {
+          "names": [
+            "--select-model"
+          ],
+          "description": "Select specific model changes that should be included in the plan",
+          "is_repeatable": true,
+          "args": [
+            {
+              "name": "model"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--backfill-model"
+          ],
+          "description": "Backfill only the models whose names match the expression",
+          "is_repeatable": true,
+          "args": [
+            {
+              "name": "model"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--no-diff"
+          ],
+          "description": "Hide text differences for changed models"
+        },
+        {
+          "names": [
+            "--run"
+          ],
+          "description": "Run latest intervals as part of the plan application (prod environment only)"
+        },
+        {
+          "names": [
+            "--enable-preview"
+          ],
+          "description": "Enable preview for forward-only models when targeting a development environment"
+        },
+        {
+          "names": [
+            "--verbose"
+          ],
+          "description": "Enable verbose output"
+        }
+      ],
+      "args": [
+        {
+          "name": "environment",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "run"
+      ],
+      "description": "Evaluate missing intervals for the target environment",
+      "options": [
+        {
+          "names": [
+            "--start"
+          ],
+          "description": "Start time for the run",
+          "args": [
+            {
+              "name": "start"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--end"
+          ],
+          "description": "End time for the run",
+          "args": [
+            {
+              "name": "end"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--skip-janitor"
+          ],
+          "description": "Skip the janitor task"
+        },
+        {
+          "names": [
+            "--ignore-cron"
+          ],
+          "description": "Run for all missing intervals, ignoring individual cron schedules"
+        },
+        {
+          "names": [
+            "--select-model"
+          ],
+          "description": "Select specific models to run. Note: this always includes upstream dependencies",
+          "is_repeatable": true,
+          "args": [
+            {
+              "name": "model"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--exit-on-env-update"
+          ],
+          "description": "Exit with specified code if the run is interrupted by an update to the target environment",
+          "args": [
+            {
+              "name": "code"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--no-auto-upstream"
+          ],
+          "description": "Do not automatically include upstream models. Only applicable when --select-model is used"
+        }
+      ],
+      "args": [
+        {
+          "name": "environment",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "invalidate"
+      ],
+      "description": "Invalidate the target environment, forcing its removal during the next run of the janitor process",
+      "options": [
+        {
+          "names": [
+            "-s",
+            "--sync"
+          ],
+          "description": "Wait for the environment to be deleted before returning"
+        }
+      ],
+      "args": [
+        {
+          "name": "environment"
+        }
+      ]
+    },
+    {
+      "names": [
+        "janitor"
+      ],
+      "description": "Run the janitor process on-demand",
+      "options": [
+        {
+          "names": [
+            "--ignore-ttl"
+          ],
+          "description": "Cleanup snapshots that are not referenced in any environment, regardless of when they're set to expire"
+        }
+      ]
+    },
+    {
+      "names": [
+        "dag"
+      ],
+      "description": "Render the DAG as an html file",
+      "options": [
+        {
+          "names": [
+            "--select-model"
+          ],
+          "description": "Select specific models to include in the dag",
+          "is_repeatable": true,
+          "args": [
+            {
+              "name": "model"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "file"
+        }
+      ]
+    },
+    {
+      "names": [
+        "create_test"
+      ],
+      "description": "Generate a unit test fixture for a given model",
+      "options": [
+        {
+          "names": [
+            "-q",
+            "--query"
+          ],
+          "description": "Queries that will be used to generate data for the model's dependencies",
+          "is_repeatable": true,
+          "args": [
+            {
+              "name": "name"
+            },
+            {
+              "name": "query"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-o",
+            "--overwrite"
+          ],
+          "description": "When true, the fixture file will be overwritten in case it already exists"
+        },
+        {
+          "names": [
+            "-v",
+            "--var"
+          ],
+          "description": "Key-value pairs that will define variables needed by the model",
+          "is_repeatable": true,
+          "args": [
+            {
+              "name": "key"
+            },
+            {
+              "name": "value"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-p",
+            "--path"
+          ],
+          "description": "The file path corresponding to the fixture, relative to the test directory",
+          "args": [
+            {
+              "name": "path"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-n",
+            "--name"
+          ],
+          "description": "The name of the test that will be created",
+          "args": [
+            {
+              "name": "name"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--include-ctes"
+          ],
+          "description": "When true, CTE fixtures will also be generated"
+        }
+      ],
+      "args": [
+        {
+          "name": "model"
+        }
+      ]
+    },
+    {
+      "names": [
+        "test"
+      ],
+      "description": "Run model unit tests",
+      "options": [
+        {
+          "names": [
+            "-k",
+            "--match-pattern"
+          ],
+          "description": "Only run tests matching pattern",
+          "is_repeatable": true,
+          "args": [
+            {
+              "name": "pattern"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--verbose"
+          ],
+          "description": "Enable verbose output"
+        },
+        {
+          "names": [
+            "--preserve-fixtures"
+          ],
+          "description": "Preserve the fixture tables in the testing database, useful for debugging"
+        }
+      ],
+      "args": [
+        {
+          "name": "tests",
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "audit"
+      ],
+      "description": "Run audits for the target model(s)",
+      "options": [
+        {
+          "names": [
+            "--model"
+          ],
+          "description": "A model to audit",
+          "is_repeatable": true,
+          "args": [
+            {
+              "name": "model"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--start"
+          ],
+          "description": "Start time for the audit",
+          "args": [
+            {
+              "name": "start"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--end"
+          ],
+          "description": "End time for the audit",
+          "args": [
+            {
+              "name": "end"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--execution-time"
+          ],
+          "description": "Execution time for the audit",
+          "args": [
+            {
+              "name": "time"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "ui"
+      ],
+      "description": "Start a browser-based SQLMesh UI",
+      "options": [
+        {
+          "names": [
+            "--host"
+          ],
+          "description": "Bind socket to this host",
+          "args": [
+            {
+              "name": "host",
+              "default": "127.0.0.1"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--port"
+          ],
+          "description": "Bind socket to this port",
+          "args": [
+            {
+              "name": "port",
+              "default": "8000"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--mode"
+          ],
+          "description": "Mode to start the UI in",
+          "args": [
+            {
+              "name": "mode",
+              "default": "ide",
+              "suggestions": [
+                {
+                  "name": "ide"
+                },
+                {
+                  "name": "catalog"
+                },
+                {
+                  "name": "docs"
+                },
+                {
+                  "name": "plan"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "migrate"
+      ],
+      "description": "Migrate SQLMesh to the current running version"
+    },
+    {
+      "names": [
+        "rollback"
+      ],
+      "description": "Rollback SQLMesh to the previous migration"
+    },
+    {
+      "names": [
+        "create_external_models"
+      ],
+      "description": "Create a schema file containing external model schemas",
+      "options": [
+        {
+          "names": [
+            "--strict"
+          ],
+          "description": "Raise an error if the external model is missing in the database"
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "--paths"
+      ],
+      "description": "Paths to SQLMesh project files",
+      "args": [
+        {
+          "name": "paths",
+          "is_variadic": true,
+          "templates": [
+            "folders"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--config"
+      ],
+      "description": "Path to config file",
+      "args": [
+        {
+          "name": "config",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--gateway"
+      ],
+      "description": "The name of the gateway",
+      "args": [
+        {
+          "name": "gateway"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--ignore-warnings"
+      ],
+      "description": "Ignore warnings"
+    },
+    {
+      "names": [
+        "--debug"
+      ],
+      "description": "Enable debug mode"
+    },
+    {
+      "names": [
+        "--log-to-stdout"
+      ],
+      "description": "Display logs in stdout"
+    },
+    {
+      "names": [
+        "--log-file-dir"
+      ],
+      "description": "The directory to write log files to",
+      "args": [
+        {
+          "name": "directory",
+          "templates": [
+            "folders"
+          ]
+        }
+      ]
+    }
+  ]
+}

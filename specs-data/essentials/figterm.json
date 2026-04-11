@@ -1,0 +1,22 @@
+{
+  "names": [
+    "figterm"
+  ],
+  "description": "Fig's terminal layer",
+  "options": [
+    {
+      "names": [
+        "--help",
+        "-h"
+      ],
+      "description": "Print help information"
+    },
+    {
+      "names": [
+        "--version",
+        "-V"
+      ],
+      "description": "Print version information"
+    }
+  ]
+}

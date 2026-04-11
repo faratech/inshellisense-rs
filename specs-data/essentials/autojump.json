@@ -1,0 +1,82 @@
+{
+  "names": [
+    "autojump"
+  ],
+  "description": "A faster way to navigate your filesystem",
+  "options": [
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Show the help message and exit"
+    },
+    {
+      "names": [
+        "-a",
+        "--add"
+      ],
+      "description": "Add path",
+      "args": [
+        {
+          "name": "directory",
+          "templates": [
+            "folders"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-i",
+        "--increase"
+      ],
+      "description": "Increase current directory weight",
+      "args": [
+        {
+          "name": "weight",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "-d",
+        "--decrease"
+      ],
+      "description": "Decrease current directory weight",
+      "args": [
+        {
+          "name": "weight",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "--complete"
+      ],
+      "description": "Used for tab completion"
+    },
+    {
+      "names": [
+        "--purge"
+      ],
+      "description": "Remove non-existent paths from database"
+    },
+    {
+      "names": [
+        "-s",
+        "--stat"
+      ],
+      "description": "Show database entries and their key weights"
+    },
+    {
+      "names": [
+        "-v",
+        "--version"
+      ],
+      "description": "Show version information"
+    }
+  ]
+}

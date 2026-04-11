@@ -1,0 +1,22 @@
+{
+  "names": [
+    "vi"
+  ],
+  "description": "Vi[m] is an one of two powerhouse text editors in the Unix world, the other being EMACS",
+  "options": [
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Print help message for vi and exit"
+    }
+  ],
+  "args": [
+    {
+      "templates": [
+        "filepaths"
+      ]
+    }
+  ]
+}

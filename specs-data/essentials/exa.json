@@ -1,0 +1,388 @@
+{
+  "names": [
+    "exa"
+  ],
+  "description": "A modern replacement for ls",
+  "options": [
+    {
+      "names": [
+        "-?",
+        "--help"
+      ],
+      "description": "Show list of command-line options"
+    },
+    {
+      "names": [
+        "-v",
+        "--version"
+      ],
+      "description": "Show version of exa"
+    },
+    {
+      "names": [
+        "-1",
+        "--oneline"
+      ],
+      "description": "Display one entry per line"
+    },
+    {
+      "names": [
+        "-l",
+        "--long"
+      ],
+      "description": "Display extended file metadata as a table"
+    },
+    {
+      "names": [
+        "-G",
+        "--grid"
+      ],
+      "description": "Display entries as a grid (default)"
+    },
+    {
+      "names": [
+        "-x",
+        "--across"
+      ],
+      "description": "Sort the grid across, rather than downwards"
+    },
+    {
+      "names": [
+        "-R",
+        "--recurse"
+      ],
+      "description": "Recurse into directories"
+    },
+    {
+      "names": [
+        "-T",
+        "--tree"
+      ],
+      "description": "Recurse into directories as a tree"
+    },
+    {
+      "names": [
+        "-F",
+        "--classify"
+      ],
+      "description": "Display type indicator by file names"
+    },
+    {
+      "names": [
+        "--colour",
+        "--color"
+      ],
+      "description": "When to use terminal colours (always, auto, never)",
+      "args": [
+        {
+          "name": "when",
+          "suggestions": [
+            {
+              "name": "always"
+            },
+            {
+              "name": "auto"
+            },
+            {
+              "name": "never"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--colour-scale",
+        "--color-scale"
+      ],
+      "description": "Highlight levels of file sizes distinctly"
+    },
+    {
+      "names": [
+        "-a",
+        "--all"
+      ],
+      "description": "Show hidden and 'dot' files"
+    },
+    {
+      "names": [
+        "-d",
+        "--list-dirs"
+      ],
+      "description": "List directories like regular files"
+    },
+    {
+      "names": [
+        "-L",
+        "--level"
+      ],
+      "description": "Limit the depth of recursion",
+      "args": [
+        {
+          "name": "DEPTH"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-r",
+        "--reverse"
+      ],
+      "description": "Reverse the sort order"
+    },
+    {
+      "names": [
+        "-s",
+        "--sort"
+      ],
+      "description": "Which field to sort by",
+      "args": [
+        {
+          "name": "sort field",
+          "suggestions": [
+            {
+              "name": "name"
+            },
+            {
+              "name": "Name"
+            },
+            {
+              "name": "extension"
+            },
+            {
+              "name": "Extension"
+            },
+            {
+              "name": "size"
+            },
+            {
+              "name": "type"
+            },
+            {
+              "name": "modified"
+            },
+            {
+              "name": "accessed"
+            },
+            {
+              "name": "created"
+            },
+            {
+              "name": "inode"
+            },
+            {
+              "name": "none"
+            },
+            {
+              "name": "date"
+            },
+            {
+              "name": "time"
+            },
+            {
+              "name": "old"
+            },
+            {
+              "name": "new"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--group-directories-first"
+      ],
+      "description": "List directories before other files"
+    },
+    {
+      "names": [
+        "-D",
+        "--only-dirs"
+      ],
+      "description": "List only directories"
+    },
+    {
+      "names": [
+        "-I",
+        "--ignore-glob"
+      ],
+      "description": "Glob patterns (pipe-separated) of files to ignore",
+      "args": [
+        {
+          "name": "GLOB"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--git-ignore"
+      ],
+      "description": "Ignore files mentioned in '.gitignore'"
+    },
+    {
+      "names": [
+        "-b",
+        "--binary"
+      ],
+      "description": "List file sizes with binary prefixes"
+    },
+    {
+      "names": [
+        "-B",
+        "--bytes"
+      ],
+      "description": "List file sizes in bytes, without any prefixes"
+    },
+    {
+      "names": [
+        "-g",
+        "--group"
+      ],
+      "description": "List each file's group"
+    },
+    {
+      "names": [
+        "-h",
+        "--header"
+      ],
+      "description": "Add a header row to each column"
+    },
+    {
+      "names": [
+        "-H",
+        "--links"
+      ],
+      "description": "List each file's number of hard links"
+    },
+    {
+      "names": [
+        "-i",
+        "--inode"
+      ],
+      "description": "List each file's inode number"
+    },
+    {
+      "names": [
+        "-m",
+        "--modified"
+      ],
+      "description": "Use the modified timestamp field"
+    },
+    {
+      "names": [
+        "-S",
+        "--blocks"
+      ],
+      "description": "Show number of file system blocks"
+    },
+    {
+      "names": [
+        "-t",
+        "--time"
+      ],
+      "description": "Which timestamp field to list (modified, accessed, created)",
+      "args": [
+        {
+          "name": "FIELD",
+          "suggestions": [
+            {
+              "name": "modified"
+            },
+            {
+              "name": "accessed"
+            },
+            {
+              "name": "created"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-u",
+        "--accessed"
+      ],
+      "description": "Use the accessed timestamp field"
+    },
+    {
+      "names": [
+        "-U",
+        "--created"
+      ],
+      "description": "Use the created timestamp field"
+    },
+    {
+      "names": [
+        "--time-style"
+      ],
+      "description": "How to format timestamps (default, iso, long-iso, full-iso)",
+      "args": [
+        {
+          "name": "style",
+          "suggestions": [
+            {
+              "name": "default"
+            },
+            {
+              "name": "iso"
+            },
+            {
+              "name": "long-iso"
+            },
+            {
+              "name": "full-iso"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--git"
+      ],
+      "description": "List each file's Git status, if tracked or ignored"
+    },
+    {
+      "names": [
+        "-@",
+        "--extended"
+      ],
+      "description": "List each file's extended attributes and sizes"
+    },
+    {
+      "names": [
+        "--icons"
+      ],
+      "description": "Shows icons before each folder or file",
+      "exclusive_on": [
+        "--no-icons"
+      ]
+    },
+    {
+      "names": [
+        "--no-icons"
+      ],
+      "description": "Does not display icons",
+      "exclusive_on": [
+        "--icons"
+      ]
+    },
+    {
+      "names": [
+        "--changed"
+      ],
+      "description": "Displays when a file or folder got changed instead of modified in the header"
+    }
+  ],
+  "args": [
+    {
+      "name": "files...",
+      "is_variadic": true,
+      "templates": [
+        "filepaths"
+      ]
+    }
+  ]
+}

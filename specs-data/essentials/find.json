@@ -1,0 +1,95 @@
+{
+  "names": [
+    "find"
+  ],
+  "description": "Walk a file hierarchy",
+  "options": [
+    {
+      "names": [
+        "-E"
+      ],
+      "description": "Interpret regular expressions followed by -regex and -iregex primaries as extended"
+    },
+    {
+      "names": [
+        "-H"
+      ],
+      "description": "Cause the file information and file type returned for each symbolic link specified to be those referenced by the link",
+      "exclusive_on": [
+        "-L",
+        "-P"
+      ]
+    },
+    {
+      "names": [
+        "-L"
+      ],
+      "description": "Cause the file information and file type returned for each symbolic link to be those of the file referenced by the link",
+      "exclusive_on": [
+        "-H",
+        "-P"
+      ]
+    },
+    {
+      "names": [
+        "-P"
+      ],
+      "description": "Cause the file information and file type returned for each symbolic link to be those for the link itself",
+      "exclusive_on": [
+        "-H",
+        "-L"
+      ]
+    },
+    {
+      "names": [
+        "-X"
+      ],
+      "description": "Permit find to be safely used in conjunction with xargs"
+    },
+    {
+      "names": [
+        "-d"
+      ],
+      "description": "Cause find to perform a depth-first traversal"
+    },
+    {
+      "names": [
+        "-f"
+      ],
+      "description": "Specify a file hierarch for find to traverse",
+      "args": [
+        {
+          "name": "path"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-s"
+      ],
+      "description": "Cause find to traverse the file hierarchies in lexicographical order"
+    },
+    {
+      "names": [
+        "-x"
+      ],
+      "description": "Prevent find from descending into directories that have a device number different than that of the file from which the descent began"
+    }
+  ],
+  "args": [
+    {
+      "name": "path",
+      "is_optional": true,
+      "is_variadic": true,
+      "templates": [
+        "folders"
+      ]
+    },
+    {
+      "name": "expression",
+      "description": "Composition of primaries and operands",
+      "is_optional": true,
+      "is_variadic": true
+    }
+  ]
+}

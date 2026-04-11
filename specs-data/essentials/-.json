@@ -1,0 +1,12 @@
+{
+  "names": [
+    "-"
+  ],
+  "description": "ZSH pre-command modifier that prepends a '-' to the argv[0] string",
+  "hidden": true,
+  "args": [
+    {
+      "is_command": true
+    }
+  ]
+}

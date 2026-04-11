@@ -184,13 +184,19 @@ pub enum FilterStrategy {
     Fuzzy,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum Repeatable {
-    #[default]
-    False,
-    True,
+    /// `true`/`false` literal.
+    Bool(bool),
+    /// Numeric repetition count from upstream `isRepeatable: 3` form.
     N(u16),
+}
+
+impl Default for Repeatable {
+    fn default() -> Self {
+        Repeatable::Bool(false)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]

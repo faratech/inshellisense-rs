@@ -1,0 +1,11 @@
+{
+  "names": [
+    "exec"
+  ],
+  "description": "Replace the current shell with a program",
+  "args": [
+    {
+      "is_command": true
+    }
+  ]
+}

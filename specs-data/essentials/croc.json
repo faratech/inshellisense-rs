@@ -1,0 +1,317 @@
+{
+  "names": [
+    "croc"
+  ],
+  "description": "Croc is a tool that allows any two computers to simply and securely transfer files and folders",
+  "subcommands": [
+    {
+      "names": [
+        "send"
+      ],
+      "description": "Send file(s), or folder",
+      "options": [
+        {
+          "names": [
+            "--code",
+            "-c"
+          ],
+          "description": "Codephrase used to connect to relay",
+          "args": [
+            {
+              "name": "codephrase"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--hash"
+          ],
+          "description": "Hash algorithm",
+          "args": [
+            {
+              "suggestions": [
+                {
+                  "name": "xxhash"
+                },
+                {
+                  "name": "imohash"
+                },
+                {
+                  "name": "md5"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--text",
+            "-t"
+          ],
+          "description": "Send some text",
+          "args": [
+            {
+              "name": "text"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--no-local"
+          ],
+          "description": "Disable local relay when sending"
+        },
+        {
+          "names": [
+            "--no-multi"
+          ],
+          "description": "Disable multiplexing"
+        },
+        {
+          "names": [
+            "--ports"
+          ],
+          "description": "Ports of the local relay"
+        }
+      ],
+      "args": [
+        {
+          "templates": [
+            "filepaths",
+            "folders"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "relay"
+      ],
+      "description": "Start your own relay",
+      "options": [
+        {
+          "names": [
+            "--host"
+          ],
+          "description": "Host of the relay",
+          "args": [
+            {
+              "name": "value"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--ports"
+          ],
+          "description": "Ports of the local relay",
+          "args": [
+            {
+              "name": "ports"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "help",
+        "h"
+      ],
+      "description": "Shows a list of commands or help for one command",
+      "args": [
+        {
+          "name": "command",
+          "templates": [
+            "help"
+          ]
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "--help",
+        "-h"
+      ],
+      "description": "Show help for croc",
+      "is_persistent": true
+    },
+    {
+      "names": [
+        "--internal-dns"
+      ],
+      "description": "Use a built-in DNS stub resolver rather than the host operating system"
+    },
+    {
+      "names": [
+        "--remember"
+      ],
+      "description": "Save these settings to reuse next time"
+    },
+    {
+      "names": [
+        "--debug"
+      ],
+      "description": "Toggle debug mode"
+    },
+    {
+      "names": [
+        "--yes"
+      ],
+      "description": "Automatically agree to all prompts"
+    },
+    {
+      "names": [
+        "--stdout"
+      ],
+      "description": "Redirect file to stdout"
+    },
+    {
+      "names": [
+        "--no-compress"
+      ],
+      "description": "Disable compression"
+    },
+    {
+      "names": [
+        "--ask"
+      ],
+      "description": "Make sure sender and recipient are prompted"
+    },
+    {
+      "names": [
+        "--local"
+      ],
+      "description": "Force to use only local connections"
+    },
+    {
+      "names": [
+        "--ignore-stdin"
+      ],
+      "description": "Ignore piped stdin"
+    },
+    {
+      "names": [
+        "--overwrite"
+      ],
+      "description": "Do not prompt to overwrite"
+    },
+    {
+      "names": [
+        "--curve"
+      ],
+      "description": "Choose an encryption curve",
+      "args": [
+        {
+          "name": "value",
+          "suggestions": [
+            {
+              "name": "p521"
+            },
+            {
+              "name": "p256"
+            },
+            {
+              "name": "p384"
+            },
+            {
+              "name": "siec"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--ip"
+      ],
+      "description": "Set sender ip if known",
+      "args": [
+        {
+          "name": "value"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--relay"
+      ],
+      "description": "Address of the relay",
+      "args": [
+        {
+          "name": "ipv4 address"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--relay6"
+      ],
+      "description": "Ipv6 address of the relay",
+      "args": [
+        {
+          "name": "ipv6 address"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--out"
+      ],
+      "description": "Specify an output folder to receive the file",
+      "args": [
+        {
+          "name": "output folder"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--pass"
+      ],
+      "description": "Password for the relay (default: \"pass123\")",
+      "args": [
+        {
+          "name": "password"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--socks5"
+      ],
+      "description": "Add a socks5 proxy",
+      "args": [
+        {
+          "name": "value"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--throttleUpload"
+      ],
+      "description": "Throttle the upload speed e.g. 500k",
+      "args": [
+        {
+          "name": "value"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--version",
+        "-v"
+      ],
+      "description": "Print the version"
+    }
+  ],
+  "args": [
+    {
+      "name": "secret-code",
+      "description": "Receive a file using code"
+    }
+  ]
+}

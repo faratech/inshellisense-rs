@@ -1,0 +1,82 @@
+{
+  "names": [
+    "hx"
+  ],
+  "description": "A post-modern text editor",
+  "options": [
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Show help"
+    },
+    {
+      "names": [
+        "--tutor"
+      ],
+      "description": "Open the tutorial"
+    },
+    {
+      "names": [
+        "--health"
+      ],
+      "description": "Check for errors in editor setup",
+      "args": [
+        {
+          "name": "language",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "-v"
+      ],
+      "description": "Increases logging verbosity",
+      "is_repeatable": true
+    },
+    {
+      "names": [
+        "-g",
+        "--grammar"
+      ],
+      "description": "Fetch or build tree-sitter grammars",
+      "args": [
+        {
+          "name": "action",
+          "suggestions": [
+            {
+              "name": "fetch",
+              "icon": "fig://icon?type=command"
+            },
+            {
+              "name": "build",
+              "icon": "fig://icon?type=command"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-V",
+        "--version"
+      ],
+      "description": "Print version information"
+    }
+  ],
+  "args": [
+    {
+      "name": "files",
+      "is_variadic": true,
+      "templates": [
+        "filepaths",
+        "folders"
+      ]
+    }
+  ],
+  "parser_directives": {
+    "flags_are_posix_noncompliant": true
+  }
+}
