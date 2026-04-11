@@ -1,31 +1,18 @@
-//! Render a ghost-text tail suggestion to the real terminal.
+//! Grey ghost-text renderer — the default UI, preserved from phase 0.
 //!
-//! We emit: save-cursor, erase-to-eol, grey+italic, <tail>, reset,
-//! restore-cursor. That way bash's next echo of the user's keystroke lands at
-//! the real cursor position and overwrites the ghost — we redraw each pass.
+//! Emits: save-cursor, erase-to-eol, grey, <tail>, reset, restore-cursor.
+//! On the next user keystroke, bash echoes into the same position and
+//! overwrites the ghost; the next draw re-paints.
 
 use crate::ansi;
-use crate::spec::model::Suggestion;
 use std::io::{self, Write};
 
-/// Pick the top suggestion for ghost-text rendering. Assumes the Vec is
-/// already sorted by priority DESC / type precedence / name length ASC.
-/// Returns the tail of the top suggestion's name relative to `partial`,
-/// or None if there's nothing to show.
-pub fn pick_top(suggestions: &[Suggestion], partial: &str) -> Option<String> {
-    let top = suggestions.first()?;
-    if top.name.len() <= partial.len() || !top.name.starts_with(partial) {
-        return None;
-    }
-    Some(top.name[partial.len()..].to_string())
-}
-
-pub struct Renderer<W: Write> {
+pub struct GhostRenderer<W: Write> {
     out: W,
     last: Option<String>,
 }
 
-impl<W: Write> Renderer<W> {
+impl<W: Write> GhostRenderer<W> {
     pub fn new(out: W) -> Self {
         Self { out, last: None }
     }
@@ -36,7 +23,6 @@ impl<W: Write> Renderer<W> {
             return Ok(());
         }
         self.last = new.clone();
-        // Erase any previous ghost, then draw fresh one.
         self.out.write_all(ansi::save_cursor().as_bytes())?;
         self.out.write_all(ansi::ERASE_LINE_RIGHT.as_bytes())?;
         if let Some(tail) = tail {

@@ -121,8 +121,16 @@ pub fn run_wrapped(shell: Shell, login: bool) -> Result<()> {
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
     let mut tracker = TermTracker::new(rows, cols);
-    let mut renderer = Renderer::new(std::io::stdout());
+    // Popup / ghost dispatch is driven by the loaded config. Since the
+    // wrapper is invoked from `Cmd::Start` which resolves the UI mode
+    // upstream of this call, we simply re-load the config here (fast —
+    // no I/O if the file is absent) so we don't have to thread a Config
+    // argument through a public API that exists before the config
+    // system did.
+    let cfg = crate::config::load();
+    let mut renderer = Renderer::new(std::io::stdout(), cfg.ui, cfg.max_suggestions);
     let mut pending_suggestion: Option<String> = None;
+    let mut last_blob: Vec<crate::spec::model::Suggestion> = Vec::new();
 
     loop {
         if let Ok(Some(status)) = child.try_wait() {
@@ -172,11 +180,14 @@ pub fn run_wrapped(shell: Shell, login: bool) -> Result<()> {
             let state = tracker.state().clone();
             let cwd = tracker.cwd().to_string();
             if !state.command.is_empty() {
+                let blob = engine.suggest_blob(&state.command, &cwd);
                 let tail = engine.suggest(&state.command, &cwd);
                 pending_suggestion = tail.clone();
-                renderer.draw(tail.as_deref()).ok();
+                last_blob = blob;
+                renderer.draw(tail.as_deref(), &last_blob).ok();
             } else {
                 pending_suggestion = None;
+                last_blob.clear();
                 renderer.clear().ok();
             }
         } else {
