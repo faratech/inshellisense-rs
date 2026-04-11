@@ -1,0 +1,3230 @@
+{
+  "names": [
+    "tmux"
+  ],
+  "description": "A terminal multiplexer",
+  "subcommands": [
+    {
+      "names": [
+        "a",
+        "at",
+        "attach",
+        "attach-session"
+      ],
+      "description": "Attach to last session",
+      "options": [
+        {
+          "names": [
+            "-d"
+          ],
+          "description": "Detach all others clients to the session"
+        },
+        {
+          "names": [
+            "-x"
+          ],
+          "description": "Send SIGHUP to the parent process and detach the client"
+        },
+        {
+          "names": [
+            "-f"
+          ],
+          "description": "Set client flags",
+          "args": [
+            {
+              "name": "flags",
+              "description": "Comma-separated list of flags",
+              "suggestions": [
+                {
+                  "name": "active-pane"
+                },
+                {
+                  "name": "ignore-size"
+                },
+                {
+                  "name": "no-output"
+                },
+                {
+                  "name": "pause-after"
+                },
+                {
+                  "name": "read-only"
+                },
+                {
+                  "name": "wait-exit"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-c"
+          ],
+          "description": "Set the session's working directory",
+          "args": [
+            {
+              "name": "working-directory",
+              "description": "The session's working directory",
+              "templates": [
+                "folders"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-E"
+          ],
+          "description": "Don't use update-environment option"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "Attach to a session with the given name"
+        }
+      ]
+    },
+    {
+      "names": [
+        "bind",
+        "bind-key"
+      ],
+      "description": "Bind a key to a command",
+      "options": [
+        {
+          "names": [
+            "-n"
+          ],
+          "description": "Alias for -T root"
+        },
+        {
+          "names": [
+            "-r"
+          ],
+          "description": "Indicate that this key may repeat"
+        },
+        {
+          "names": [
+            "-N"
+          ],
+          "description": "Attach a note to the key",
+          "args": [
+            {
+              "name": "note"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-T"
+          ],
+          "description": "The key table to use",
+          "args": [
+            {
+              "name": "key-table"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "key",
+          "description": "The key to bind"
+        },
+        {
+          "name": "command",
+          "description": "The command to bind to the key"
+        },
+        {
+          "name": "arguments",
+          "description": "Arguments for the command",
+          "is_optional": true,
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "breakp",
+        "break-pane"
+      ],
+      "description": "Break a pane from an exiting into a new window",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Move the window to the next index after"
+        },
+        {
+          "names": [
+            "-b"
+          ],
+          "description": "Move the window to the next index before"
+        },
+        {
+          "names": [
+            "-d"
+          ],
+          "description": "The new windows does not become the current window"
+        },
+        {
+          "names": [
+            "-P"
+          ],
+          "description": "Print information about the new window"
+        },
+        {
+          "names": [
+            "-F"
+          ],
+          "description": "Format output",
+          "args": [
+            {
+              "name": "format",
+              "description": "The format for the output of this command"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-n"
+          ],
+          "description": "The target window"
+        },
+        {
+          "names": [
+            "-s"
+          ],
+          "description": "The source pane"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The destination window"
+        }
+      ]
+    },
+    {
+      "names": [
+        "capturep",
+        "capture-pane"
+      ],
+      "description": "Capture the contents of a pane to a buffer",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Use the alternate screen and history is not accessible"
+        },
+        {
+          "names": [
+            "-e"
+          ],
+          "description": "Include escape sequences for text and background attributes"
+        },
+        {
+          "names": [
+            "-p"
+          ],
+          "description": "Redirect output to stdout"
+        },
+        {
+          "names": [
+            "-P"
+          ],
+          "description": "Capture only outputs that is the beginning of an as-yet incomplete escape sequence"
+        },
+        {
+          "names": [
+            "-q"
+          ],
+          "description": "Do not throw an error if not alternate screen is found"
+        },
+        {
+          "names": [
+            "-C"
+          ],
+          "description": "Escape non-printable characters as octal"
+        },
+        {
+          "names": [
+            "-J"
+          ],
+          "description": "Preserve trailing spaces and join any wrapped lines"
+        },
+        {
+          "names": [
+            "-N"
+          ],
+          "description": "Preserve trailing spaces at each line's end"
+        },
+        {
+          "names": [
+            "-b"
+          ],
+          "description": "The buffer name"
+        },
+        {
+          "names": [
+            "-E"
+          ],
+          "description": "Ending line number",
+          "args": [
+            {
+              "name": "end-line"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-S"
+          ],
+          "description": "Starting line number",
+          "args": [
+            {
+              "name": "start-line"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        }
+      ]
+    },
+    {
+      "names": [
+        "choose-buffer"
+      ],
+      "description": "Put a pane into buffer choice mode",
+      "options": [
+        {
+          "names": [
+            "-N"
+          ],
+          "description": "Start without the preview"
+        },
+        {
+          "names": [
+            "-Z"
+          ],
+          "description": "Zoom the pane"
+        },
+        {
+          "names": [
+            "-r"
+          ],
+          "description": "Reverse the sort order"
+        },
+        {
+          "names": [
+            "-F"
+          ],
+          "description": "Format output",
+          "args": [
+            {
+              "name": "format",
+              "description": "The format for the output of this command"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-f"
+          ],
+          "description": "Specify an initial filter",
+          "args": [
+            {
+              "name": "filter"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-O"
+          ],
+          "description": "Specify the sort order",
+          "args": [
+            {
+              "name": "sort-order",
+              "suggestions": [
+                {
+                  "name": "time"
+                },
+                {
+                  "name": "name"
+                },
+                {
+                  "name": "size"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        }
+      ],
+      "args": [
+        {
+          "name": "template",
+          "is_optional": true,
+          "default": "paste-buffer -b '%%'"
+        }
+      ]
+    },
+    {
+      "names": [
+        "choose-client"
+      ],
+      "description": "Put a pane into buffer client mode",
+      "options": [
+        {
+          "names": [
+            "-N"
+          ],
+          "description": "Start without the preview"
+        },
+        {
+          "names": [
+            "-r"
+          ],
+          "description": "Reserve the sort order"
+        },
+        {
+          "names": [
+            "-Z"
+          ],
+          "description": "Zoom the pane"
+        },
+        {
+          "names": [
+            "-F"
+          ],
+          "description": "Format output",
+          "args": [
+            {
+              "name": "format",
+              "description": "The format for the output of this command"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-f"
+          ],
+          "description": "Specify an initial filter",
+          "args": [
+            {
+              "name": "filter"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-O"
+          ],
+          "description": "Specify the initial sort field",
+          "args": [
+            {
+              "name": "sort",
+              "suggestions": [
+                {
+                  "name": "name"
+                },
+                {
+                  "name": "size"
+                },
+                {
+                  "name": "creation"
+                },
+                {
+                  "name": "activity"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        }
+      ],
+      "args": [
+        {
+          "name": "template",
+          "is_optional": true,
+          "default": "detach-client -t '%%'"
+        }
+      ]
+    },
+    {
+      "names": [
+        "choose-tree"
+      ],
+      "description": "Put a pane into buffer tree mode",
+      "options": [
+        {
+          "names": [
+            "-G"
+          ],
+          "description": "Include all sessions in any session group in the tree"
+        },
+        {
+          "names": [
+            "-N"
+          ],
+          "description": "Start without the preview"
+        },
+        {
+          "names": [
+            "-r"
+          ],
+          "description": "Reserve the sort order"
+        },
+        {
+          "names": [
+            "-s"
+          ],
+          "description": "Start with sessions collapsed"
+        },
+        {
+          "names": [
+            "-w"
+          ],
+          "description": "Start with windows collapsed"
+        },
+        {
+          "names": [
+            "-Z"
+          ],
+          "description": "Zoom the pane"
+        },
+        {
+          "names": [
+            "-F"
+          ],
+          "description": "Format output",
+          "args": [
+            {
+              "name": "format",
+              "description": "The format for the output of this command"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-f"
+          ],
+          "description": "Specify an initial filter",
+          "args": [
+            {
+              "name": "filter"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-O"
+          ],
+          "description": "Specify the initial sort field",
+          "args": [
+            {
+              "name": "sort",
+              "suggestions": [
+                {
+                  "name": "name"
+                },
+                {
+                  "name": "size"
+                },
+                {
+                  "name": "creation"
+                },
+                {
+                  "name": "activity"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        }
+      ],
+      "args": [
+        {
+          "name": "template",
+          "is_optional": true,
+          "default": "switch-client -t '%%'"
+        }
+      ]
+    },
+    {
+      "names": [
+        "clearhist",
+        "clear-history"
+      ],
+      "description": "Remove and clear history for a pane"
+    },
+    {
+      "names": [
+        "clock-mode"
+      ],
+      "description": "Enter clock mode"
+    },
+    {
+      "names": [
+        "command-prompt"
+      ],
+      "description": "Open the tmux command prompt in a client",
+      "options": [
+        {
+          "names": [
+            "-l"
+          ],
+          "description": "The prompt only accept one key press"
+        },
+        {
+          "names": [
+            "-i"
+          ],
+          "description": "Execute the command every time the prompt input changes"
+        },
+        {
+          "names": [
+            "-k"
+          ],
+          "description": "Like -l but the key press is translated to a key name"
+        },
+        {
+          "names": [
+            "-N"
+          ],
+          "description": "The prompt only accept numeric key press"
+        },
+        {
+          "names": [
+            "-T"
+          ],
+          "description": "Tell that the prompt is for a target"
+        },
+        {
+          "names": [
+            "-W"
+          ],
+          "description": "Tell that the prompt is for a window"
+        },
+        {
+          "names": [
+            "-I"
+          ],
+          "description": "Comma-separated list of the initial text for each prompt",
+          "args": [
+            {
+              "name": "inputs"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-p"
+          ],
+          "description": "Comma-separated list of prompts which are displayed in order",
+          "args": [
+            {
+              "name": "prompts"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target client"
+        }
+      ],
+      "args": [
+        {
+          "name": "template",
+          "description": "If specified, used as a command",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "confirm",
+        "confirm-before"
+      ],
+      "description": "Run a command but ask for confirmation before",
+      "options": [
+        {
+          "names": [
+            "-p"
+          ],
+          "description": "A prompt to display for confirmation",
+          "args": [
+            {
+              "name": "prompt"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target client"
+        }
+      ],
+      "args": [
+        {
+          "name": "command",
+          "description": "The command to run",
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "copy-mode"
+      ],
+      "description": "Enter copy mode",
+      "options": [
+        {
+          "names": [
+            "-e"
+          ],
+          "description": "Scrolling to the bottom should exit copy mode"
+        },
+        {
+          "names": [
+            "-H"
+          ],
+          "description": "Hide the position indicator"
+        },
+        {
+          "names": [
+            "-M"
+          ],
+          "description": "Begin a mouse drag"
+        },
+        {
+          "names": [
+            "-q"
+          ],
+          "description": "Cancel copy mode and any other modes"
+        },
+        {
+          "names": [
+            "-u"
+          ],
+          "description": "Scroll one page up"
+        },
+        {
+          "names": [
+            "-s"
+          ],
+          "description": "The source pane"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        }
+      ]
+    },
+    {
+      "names": [
+        "deleteb",
+        "delete-buffer"
+      ],
+      "description": "Delete a paste buffer",
+      "options": [
+        {
+          "names": [
+            "-b"
+          ],
+          "description": "The target buffer"
+        }
+      ]
+    },
+    {
+      "names": [
+        "detach",
+        "detach-client"
+      ],
+      "description": "Detach a client from the server",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Kills all but the client given with -t"
+        },
+        {
+          "names": [
+            "-P"
+          ],
+          "description": "Send SIGHUP to the parent process"
+        },
+        {
+          "names": [
+            "-E"
+          ],
+          "description": "Run the given shell-command to replace the client",
+          "args": [
+            {
+              "name": "shell-command",
+              "description": "The shell-command to run"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target client"
+        },
+        {
+          "names": [
+            "-s"
+          ],
+          "description": "Detach all clients attached to the specified session"
+        }
+      ]
+    },
+    {
+      "names": [
+        "menu",
+        "display-menu"
+      ],
+      "description": "Display menu on target-client",
+      "options": [
+        {
+          "names": [
+            "-O"
+          ],
+          "description": "Do not close the menu when the mouse button is released"
+        },
+        {
+          "names": [
+            "-c"
+          ],
+          "description": "The target client"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        },
+        {
+          "names": [
+            "-T"
+          ],
+          "description": "Specify a title",
+          "args": [
+            {
+              "name": "title"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-x"
+          ],
+          "description": "Give the x position of the menu",
+          "args": [
+            {
+              "name": "position"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-y"
+          ],
+          "description": "Give the y position of the menu",
+          "args": [
+            {
+              "name": "position"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "description": "The name of the menu"
+        },
+        {
+          "name": "key",
+          "description": "The key to press to open the menu"
+        },
+        {
+          "name": "command",
+          "description": "Commands to execute",
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "display",
+        "display-message"
+      ],
+      "description": "Display a message in the status line",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "List the format variables and their values"
+        },
+        {
+          "names": [
+            "-I"
+          ],
+          "description": "Forward any input read from stdin to the empty pane target-pane"
+        },
+        {
+          "names": [
+            "-p"
+          ],
+          "description": "Print output to stdout"
+        },
+        {
+          "names": [
+            "-v"
+          ],
+          "description": "Print verbose logging as the format is parsed"
+        },
+        {
+          "names": [
+            "-d"
+          ],
+          "description": "A delay for the message",
+          "args": [
+            {
+              "name": "delay"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        }
+      ],
+      "args": [
+        {
+          "name": "message",
+          "description": "The message to display",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "displayp",
+        "display-panes"
+      ],
+      "description": "Display an indicator for each visible pane",
+      "options": [
+        {
+          "names": [
+            "-b"
+          ],
+          "description": "Do not block other commands from running until the indicator is closed"
+        },
+        {
+          "names": [
+            "-N"
+          ],
+          "description": "Do not close the indicator when a key is pressed"
+        },
+        {
+          "names": [
+            "-d"
+          ],
+          "description": "Specify the duration",
+          "args": [
+            {
+              "name": "duration",
+              "description": "The duration to close the indicator after in milliseconds"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target client"
+        }
+      ],
+      "args": [
+        {
+          "name": "template",
+          "is_optional": true,
+          "default": "'select-pane -t %%'"
+        }
+      ]
+    },
+    {
+      "names": [
+        "findw",
+        "find-window"
+      ],
+      "description": "Search for a pattern in windows",
+      "options": [
+        {
+          "names": [
+            "-i"
+          ],
+          "description": "Make the search ignore cases"
+        },
+        {
+          "names": [
+            "-C"
+          ],
+          "description": "Match only visible window contents"
+        },
+        {
+          "names": [
+            "-N"
+          ],
+          "description": "Match only the window name"
+        },
+        {
+          "names": [
+            "-r"
+          ],
+          "description": "Search a regular expression"
+        },
+        {
+          "names": [
+            "-T"
+          ],
+          "description": "Match only the window's title"
+        },
+        {
+          "names": [
+            "-Z"
+          ],
+          "description": "Zoom the pane"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        }
+      ],
+      "args": [
+        {
+          "name": "match-string",
+          "description": "A string to search for"
+        }
+      ]
+    },
+    {
+      "names": [
+        "has",
+        "has-session"
+      ],
+      "description": "Check and report if a session exists on the server",
+      "options": [
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "Specify the target session"
+        }
+      ]
+    },
+    {
+      "names": [
+        "if",
+        "if-shell"
+      ],
+      "description": "Execute a tmux command if a shell-command succeeded"
+    },
+    {
+      "names": [
+        "joinp",
+        "join-pane",
+        "movep",
+        "move-pane"
+      ],
+      "description": "Split a pane and move an existing one into the new space",
+      "options": [
+        {
+          "names": [
+            "-b"
+          ],
+          "description": "Src-pane will be joined to left of or above dst-pane"
+        },
+        {
+          "names": [
+            "-l"
+          ],
+          "description": "Set the size of the new space",
+          "args": [
+            {
+              "name": "size",
+              "description": "The size of the new space"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-s"
+          ],
+          "description": "The source pane"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The destination pane"
+        }
+      ]
+    },
+    {
+      "names": [
+        "killp",
+        "kill-pane"
+      ],
+      "description": "Destroy a given pane",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Kill all but the target-pane"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        }
+      ]
+    },
+    {
+      "names": [
+        "kill-server"
+      ],
+      "description": "Kill clients, session and server"
+    },
+    {
+      "names": [
+        "kill-ses",
+        "kill-session"
+      ],
+      "description": "Kill/delete sessions",
+      "options": [
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "Kill/delete session with the given name"
+        },
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Kill/delete all session but the current"
+        },
+        {
+          "names": [
+            "-C"
+          ],
+          "description": "Clear alerts (bell, activity, or silence) in all windows linked to the session"
+        }
+      ]
+    },
+    {
+      "names": [
+        "killw",
+        "kill-window"
+      ],
+      "description": "Destroy a given window",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Kill all but the target-window"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target window"
+        }
+      ]
+    },
+    {
+      "names": [
+        "lastp",
+        "last-pane"
+      ],
+      "description": "Select the previously selected pane",
+      "options": [
+        {
+          "names": [
+            "-d"
+          ],
+          "description": "Disable input to the pane"
+        },
+        {
+          "names": [
+            "-e"
+          ],
+          "description": "Enable input to the pane"
+        },
+        {
+          "names": [
+            "-Z"
+          ],
+          "description": "Keep the window zoomed if it was zoomed"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target window"
+        }
+      ]
+    },
+    {
+      "names": [
+        "last",
+        "last-window"
+      ],
+      "description": "Select the previously selected window",
+      "options": [
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "Select the previously select window of the target-session"
+        }
+      ]
+    },
+    {
+      "names": [
+        "linkw",
+        "link-window"
+      ],
+      "description": "Link a window to another",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Move the window to the next index after dst-window"
+        },
+        {
+          "names": [
+            "-b"
+          ],
+          "description": "Move the window to the next index before dst-window"
+        },
+        {
+          "names": [
+            "-d"
+          ],
+          "description": "Do not select the newly linked window"
+        },
+        {
+          "names": [
+            "-k"
+          ],
+          "description": "Kill dst-window if exist"
+        },
+        {
+          "names": [
+            "-s"
+          ],
+          "description": "The source window"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The destination window"
+        }
+      ]
+    },
+    {
+      "names": [
+        "lsb",
+        "list-buffers"
+      ],
+      "description": "List paste buffers of a session"
+    },
+    {
+      "names": [
+        "lsc",
+        "list-clients"
+      ],
+      "description": "List clients attached to a server",
+      "options": [
+        {
+          "names": [
+            "-F"
+          ],
+          "description": "Format output",
+          "args": [
+            {
+              "name": "format",
+              "description": "The format for the output of this command"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "List only clients connected to that session"
+        }
+      ]
+    },
+    {
+      "names": [
+        "lscm",
+        "list-commands"
+      ],
+      "description": "List supported sub-commands",
+      "options": [
+        {
+          "names": [
+            "-F"
+          ],
+          "description": "Format output",
+          "args": [
+            {
+              "name": "format",
+              "description": "The format for the output of this command"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "command",
+          "description": "The command to list syntax of",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "lsk",
+        "list-keys"
+      ],
+      "description": "List all key-bindings"
+    },
+    {
+      "names": [
+        "lsp",
+        "list-panes"
+      ],
+      "description": "List panes of a window",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Ignore target-window and list all panes"
+        },
+        {
+          "names": [
+            "-s"
+          ],
+          "description": "Target-window becomes a session"
+        },
+        {
+          "names": [
+            "-F"
+          ],
+          "description": "Format output",
+          "args": [
+            {
+              "name": "format",
+              "description": "The format for the output of this command"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-f"
+          ],
+          "description": "Specify a filter",
+          "args": [
+            {
+              "name": "filter"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target window"
+        }
+      ]
+    },
+    {
+      "names": [
+        "ls",
+        "list-sessions"
+      ],
+      "description": "List sessions managed by a server",
+      "options": [
+        {
+          "names": [
+            "-F"
+          ],
+          "description": "Format output",
+          "args": [
+            {
+              "name": "format",
+              "description": "The format for the output of this command"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-f"
+          ],
+          "description": "Filter the sessions",
+          "args": [
+            {
+              "name": "filter"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "lsw",
+        "list-windows"
+      ],
+      "description": "List windows of a session",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Ignore target-session and list all windows"
+        },
+        {
+          "names": [
+            "-F"
+          ],
+          "description": "Format output",
+          "args": [
+            {
+              "name": "format",
+              "description": "The format for the output of this command"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-f"
+          ],
+          "description": "Specify a filter",
+          "args": [
+            {
+              "name": "filter"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target session"
+        }
+      ]
+    },
+    {
+      "names": [
+        "loadb",
+        "load-buffer"
+      ],
+      "description": "Load a file into a paste buffer",
+      "options": [
+        {
+          "names": [
+            "-w"
+          ],
+          "description": "Send the buffer to the clipboard"
+        },
+        {
+          "names": [
+            "-b"
+          ],
+          "description": "The target buffer"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target client"
+        }
+      ],
+      "args": [
+        {
+          "name": "path",
+          "description": "Load from this path"
+        }
+      ]
+    },
+    {
+      "names": [
+        "lockc",
+        "lock-client"
+      ],
+      "description": "Lock a client",
+      "options": [
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target client"
+        }
+      ]
+    },
+    {
+      "names": [
+        "lock",
+        "lock-server"
+      ],
+      "description": "Lock all clients attached to the server"
+    },
+    {
+      "names": [
+        "locks",
+        "lock-session"
+      ],
+      "description": "Lock all clients attached to a session",
+      "options": [
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "Lock all clients attached to target-session"
+        }
+      ]
+    },
+    {
+      "names": [
+        "movew",
+        "move-window"
+      ],
+      "description": "Move a window to another",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Move the window to the next index after dst-window"
+        },
+        {
+          "names": [
+            "-b"
+          ],
+          "description": "Move the window to the next index before dst-window"
+        },
+        {
+          "names": [
+            "-r"
+          ],
+          "description": "Renumber all windows in the session in sequential order"
+        },
+        {
+          "names": [
+            "-d"
+          ],
+          "description": "Do not select the newly linked window"
+        },
+        {
+          "names": [
+            "-k"
+          ],
+          "description": "Kill dst-window if exist"
+        },
+        {
+          "names": [
+            "-s"
+          ],
+          "description": "The source window"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The destination window"
+        }
+      ]
+    },
+    {
+      "names": [
+        "new",
+        "new-session"
+      ],
+      "description": "Create a new session",
+      "options": [
+        {
+          "names": [
+            "-A"
+          ],
+          "description": "Behave like attach-session if session-name already exist"
+        },
+        {
+          "names": [
+            "-d"
+          ],
+          "description": "Use the initial size from default-size"
+        },
+        {
+          "names": [
+            "-D"
+          ],
+          "description": "Behave like -d if -A is set"
+        },
+        {
+          "names": [
+            "-E"
+          ],
+          "description": "Do not use update-environment option"
+        },
+        {
+          "names": [
+            "-P"
+          ],
+          "description": "Print information about the new session"
+        },
+        {
+          "names": [
+            "-X"
+          ],
+          "description": "Behave like -x if -A is set"
+        },
+        {
+          "names": [
+            "-c"
+          ],
+          "description": "Specify a start directory for the session",
+          "args": [
+            {
+              "name": "start-directory",
+              "description": "The start directory",
+              "templates": [
+                "folders"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-e"
+          ],
+          "description": "Set environment variables",
+          "args": [
+            {
+              "name": "environment",
+              "description": "Environment variables with the form VARIABLE=VALUE"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-f"
+          ],
+          "description": "Set client flags",
+          "args": [
+            {
+              "name": "flags",
+              "description": "Comma-separated list of flags",
+              "suggestions": [
+                {
+                  "name": "active-pane"
+                },
+                {
+                  "name": "ignore-size"
+                },
+                {
+                  "name": "no-output"
+                },
+                {
+                  "name": "pause-after"
+                },
+                {
+                  "name": "read-only"
+                },
+                {
+                  "name": "wait-exit"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-F"
+          ],
+          "description": "Format output",
+          "args": [
+            {
+              "name": "format",
+              "description": "The format for the output of this command"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-n"
+          ],
+          "description": "Start a new session with the given name",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-s"
+          ],
+          "description": "Start a new session with the given name",
+          "args": [
+            {
+              "name": "session-name"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The name of the group",
+          "args": [
+            {
+              "name": "group-name"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-x"
+          ],
+          "description": "The width of the session",
+          "args": [
+            {
+              "name": "width"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-y"
+          ],
+          "description": "The height of the session",
+          "args": [
+            {
+              "name": "height"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "shell-command",
+          "description": "A shell command to run when creating the session"
+        }
+      ]
+    },
+    {
+      "names": [
+        "neww",
+        "new-window"
+      ],
+      "description": "Create a new window",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Insert the new window at the next index after target-window"
+        },
+        {
+          "names": [
+            "-b"
+          ],
+          "description": "Insert the new window at the next index before target-window"
+        },
+        {
+          "names": [
+            "-d"
+          ],
+          "description": "The session does not make the new window the current window"
+        },
+        {
+          "names": [
+            "-k"
+          ],
+          "description": "Kill the target-window if exist"
+        },
+        {
+          "names": [
+            "-P"
+          ],
+          "description": "Print information about the new window"
+        },
+        {
+          "names": [
+            "-S"
+          ],
+          "description": "Select window-name if exist"
+        },
+        {
+          "names": [
+            "-c"
+          ],
+          "description": "Specify a start directory for the window",
+          "args": [
+            {
+              "name": "start-directory",
+              "description": "The start directory",
+              "templates": [
+                "folders"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-e"
+          ],
+          "description": "Set environment variables",
+          "args": [
+            {
+              "name": "environment",
+              "description": "Environment variables with the form VARIABLE=VALUE"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-F"
+          ],
+          "description": "Format output",
+          "args": [
+            {
+              "name": "format",
+              "description": "The format for the output of this command"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-n"
+          ],
+          "description": "Start a new window with the given name",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target window"
+        }
+      ],
+      "args": [
+        {
+          "name": "shell-command",
+          "description": "A shell command to run when creating the window"
+        }
+      ]
+    },
+    {
+      "names": [
+        "nextl",
+        "next-layout"
+      ],
+      "description": "Move a window to the next layout",
+      "options": [
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        }
+      ]
+    },
+    {
+      "names": [
+        "next",
+        "next-window"
+      ],
+      "description": "Move to the next window in a session",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Move to the next window with an alert"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "Move to the next window of the target-session"
+        }
+      ]
+    },
+    {
+      "names": [
+        "pasteb",
+        "paste-buffer"
+      ],
+      "description": "Insert a paste buffer into the window"
+    },
+    {
+      "names": [
+        "pipep",
+        "pipe-pane"
+      ],
+      "description": "Pipe output from a pane to a shell command",
+      "options": [
+        {
+          "names": [
+            "-I"
+          ],
+          "description": "Connect stdout to shell-command"
+        },
+        {
+          "names": [
+            "-O"
+          ],
+          "description": "Connect stdin to shell-command"
+        },
+        {
+          "names": [
+            "-o"
+          ],
+          "description": "Only open a new pipe if no previous pipe exists"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        }
+      ],
+      "args": [
+        {
+          "name": "shell-command",
+          "description": "The shell-command to run",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "prevl",
+        "previous-layout"
+      ],
+      "description": "Move a window to the previous layout",
+      "options": [
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target window"
+        }
+      ]
+    },
+    {
+      "names": [
+        "prev",
+        "previous-window"
+      ],
+      "description": "Move to the previous window in a session",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Move with an alert"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "Move to the previous window of the target-session"
+        }
+      ]
+    },
+    {
+      "names": [
+        "refresh",
+        "refresh-client"
+      ],
+      "description": "Refresh a client",
+      "options": [
+        {
+          "names": [
+            "-c"
+          ],
+          "description": "Return the tracking cursor"
+        },
+        {
+          "names": [
+            "-D"
+          ],
+          "description": "Allow the visible portion of a window to be changed"
+        },
+        {
+          "names": [
+            "-l"
+          ],
+          "description": "Request the clipboard from the client"
+        },
+        {
+          "names": [
+            "-L"
+          ],
+          "description": "Allow the visible portion of a window to be changed"
+        },
+        {
+          "names": [
+            "-R"
+          ],
+          "description": "Allow the visible portion of a window to be changed"
+        },
+        {
+          "names": [
+            "-S"
+          ],
+          "description": "Only update the client's status line"
+        },
+        {
+          "names": [
+            "-U"
+          ],
+          "description": "Allow the visible portion of a window to be changed"
+        },
+        {
+          "names": [
+            "-A"
+          ],
+          "description": "The target pane"
+        },
+        {
+          "names": [
+            "-B"
+          ],
+          "description": "A subscription to a format for a control mode",
+          "args": [
+            {
+              "name": "subscription"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-C"
+          ],
+          "description": "Set the width and height",
+          "args": [
+            {
+              "name": "XxY"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-f"
+          ],
+          "description": "Set client flags",
+          "args": [
+            {
+              "name": "flags",
+              "description": "Comma-separated list of flags",
+              "suggestions": [
+                {
+                  "name": "active-pane"
+                },
+                {
+                  "name": "ignore-size"
+                },
+                {
+                  "name": "no-output"
+                },
+                {
+                  "name": "pause-after"
+                },
+                {
+                  "name": "read-only"
+                },
+                {
+                  "name": "wait-exit"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target client"
+        }
+      ],
+      "args": [
+        {
+          "name": "adjustment",
+          "description": "An adjustment value to use",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "rename",
+        "rename-session"
+      ],
+      "description": "Rename a session",
+      "options": [
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "Rename the target-session"
+        }
+      ],
+      "args": [
+        {
+          "name": "new-name",
+          "description": "The new name of the session"
+        }
+      ]
+    },
+    {
+      "names": [
+        "renamew",
+        "rename-window"
+      ],
+      "description": "Rename a window",
+      "options": [
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target window"
+        }
+      ],
+      "args": [
+        {
+          "name": "new-name",
+          "description": "The new name of the window"
+        }
+      ]
+    },
+    {
+      "names": [
+        "resizep",
+        "resize-pane"
+      ],
+      "description": "Resize a pane",
+      "options": [
+        {
+          "names": [
+            "-D"
+          ],
+          "description": "Resize down by adjustment"
+        },
+        {
+          "names": [
+            "-L"
+          ],
+          "description": "Resize left by adjustment"
+        },
+        {
+          "names": [
+            "-M"
+          ],
+          "description": "Begin mouse resizing"
+        },
+        {
+          "names": [
+            "-R"
+          ],
+          "description": "Resize right by adjustment"
+        },
+        {
+          "names": [
+            "-T"
+          ],
+          "description": "Trim all lines below the current cursor position"
+        },
+        {
+          "names": [
+            "-U"
+          ],
+          "description": "Resize up by adjustment"
+        },
+        {
+          "names": [
+            "-Z"
+          ],
+          "description": "Toggle the active pane between zoomed and unzoomed"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        },
+        {
+          "names": [
+            "-x"
+          ],
+          "description": "The width of the pane",
+          "args": [
+            {
+              "name": "width"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-y"
+          ],
+          "description": "The height of the pane",
+          "args": [
+            {
+              "name": "height"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "adjustment",
+          "description": "Adjustment used with -ULDR"
+        }
+      ]
+    },
+    {
+      "names": [
+        "resizew",
+        "resize-window"
+      ],
+      "description": "Resize a window",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Set the size of the smallest session containing the window"
+        },
+        {
+          "names": [
+            "-A"
+          ],
+          "description": "Set the size of the largest session containing the window"
+        },
+        {
+          "names": [
+            "-D"
+          ],
+          "description": "Resize down by adjustment"
+        },
+        {
+          "names": [
+            "-L"
+          ],
+          "description": "Resize left by adjustment"
+        },
+        {
+          "names": [
+            "-R"
+          ],
+          "description": "Resize right by adjustment"
+        },
+        {
+          "names": [
+            "-U"
+          ],
+          "description": "Resize up by adjustment"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target window"
+        },
+        {
+          "names": [
+            "-x"
+          ],
+          "description": "The width of the pane",
+          "args": [
+            {
+              "name": "width"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-y"
+          ],
+          "description": "The height of the pane",
+          "args": [
+            {
+              "name": "height"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "adjustment",
+          "description": "Adjustment used with -ULDR"
+        }
+      ]
+    },
+    {
+      "names": [
+        "respawnp",
+        "respawn-pane"
+      ],
+      "description": "Reactivate a pane in which a command has exited",
+      "options": [
+        {
+          "names": [
+            "-k"
+          ],
+          "description": "Kill the target-pane if exist"
+        },
+        {
+          "names": [
+            "-c"
+          ],
+          "description": "Specify a start directory for the pane",
+          "args": [
+            {
+              "name": "start-directory",
+              "description": "The start directory",
+              "templates": [
+                "folders"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-e"
+          ],
+          "description": "Set environment variables",
+          "args": [
+            {
+              "name": "environment",
+              "description": "Environment variables with the form VARIABLE=VALUE"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        }
+      ],
+      "args": [
+        {
+          "name": "shell-command",
+          "description": "A shell command to run when creating the pane",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "respawnw",
+        "respawn-window"
+      ],
+      "description": "Reactivate a window in which a command has exited",
+      "options": [
+        {
+          "names": [
+            "-k"
+          ],
+          "description": "Kill the target-window if exist"
+        },
+        {
+          "names": [
+            "-c"
+          ],
+          "description": "Specify a start directory for the window",
+          "args": [
+            {
+              "name": "start-directory",
+              "description": "The start directory",
+              "templates": [
+                "folders"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-e"
+          ],
+          "description": "Set environment variables",
+          "args": [
+            {
+              "name": "environment",
+              "description": "Environment variables with the form VARIABLE=VALUE"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target window"
+        }
+      ],
+      "args": [
+        {
+          "name": "shell-command",
+          "description": "A shell command to run when creating the window",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "rotatew",
+        "rotate-window"
+      ],
+      "description": "Rotate positions of panes in a window",
+      "options": [
+        {
+          "names": [
+            "-D"
+          ],
+          "description": "Rotate upward"
+        },
+        {
+          "names": [
+            "-U"
+          ],
+          "description": "Rotate downward"
+        },
+        {
+          "names": [
+            "-Z"
+          ],
+          "description": "Keep the window zoomed if it was zoomed"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target window"
+        }
+      ]
+    },
+    {
+      "names": [
+        "run",
+        "run-shell"
+      ],
+      "description": "Execute a command without create a new window"
+    },
+    {
+      "names": [
+        "saveb",
+        "save-buffer"
+      ],
+      "description": "Save a paste buffer to a file"
+    },
+    {
+      "names": [
+        "selectl",
+        "select-layout"
+      ],
+      "description": "Choose a layout for a pane",
+      "options": [
+        {
+          "names": [
+            "-E"
+          ],
+          "description": "Spread the current pane and any panes next to it evenly"
+        },
+        {
+          "names": [
+            "-n"
+          ],
+          "description": "Equivalent to next-layout"
+        },
+        {
+          "names": [
+            "-o"
+          ],
+          "description": "Apply the last set layout if possible"
+        },
+        {
+          "names": [
+            "-p"
+          ],
+          "description": "Equivalent to previous-layout"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        }
+      ],
+      "args": [
+        {
+          "name": "layout-name",
+          "description": "Use the last preset layout used if not specified",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "selectp",
+        "select-pane"
+      ],
+      "description": "Make a pane the active one in the window",
+      "options": [
+        {
+          "names": [
+            "-D"
+          ],
+          "description": "Use the down pane"
+        },
+        {
+          "names": [
+            "-d"
+          ],
+          "description": "Disable input to the pane"
+        },
+        {
+          "names": [
+            "-e"
+          ],
+          "description": "Enable input to the pane"
+        },
+        {
+          "names": [
+            "-L"
+          ],
+          "description": "Use the left pane"
+        },
+        {
+          "names": [
+            "-l"
+          ],
+          "description": "Same as last-pane command"
+        },
+        {
+          "names": [
+            "-M"
+          ],
+          "description": "Clear the marked pane"
+        },
+        {
+          "names": [
+            "-m"
+          ],
+          "description": "Set the market pane"
+        },
+        {
+          "names": [
+            "-R"
+          ],
+          "description": "Use the right pane"
+        },
+        {
+          "names": [
+            "-U"
+          ],
+          "description": "Use the up pane"
+        },
+        {
+          "names": [
+            "-Z"
+          ],
+          "description": "Set the pane's title"
+        },
+        {
+          "names": [
+            "-T"
+          ],
+          "description": "Set the pane title",
+          "args": [
+            {
+              "name": "title"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        }
+      ]
+    },
+    {
+      "names": [
+        "selectw",
+        "select-window"
+      ],
+      "description": "Select a window",
+      "options": [
+        {
+          "names": [
+            "-l"
+          ],
+          "description": "Same as last-window"
+        },
+        {
+          "names": [
+            "-n"
+          ],
+          "description": "Same as next-window"
+        },
+        {
+          "names": [
+            "-p"
+          ],
+          "description": "Same as previous-window"
+        },
+        {
+          "names": [
+            "-T"
+          ],
+          "description": "Same as last-window if the selected window is already the current window"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target window"
+        }
+      ]
+    },
+    {
+      "names": [
+        "send",
+        "send-keys"
+      ],
+      "description": "Send key(s) to a window"
+    },
+    {
+      "names": [
+        "send-prefix"
+      ],
+      "description": "Send the prefix key to a window"
+    },
+    {
+      "names": [
+        "info",
+        "server-info"
+      ],
+      "description": "Show every session, window, pane, etc"
+    },
+    {
+      "names": [
+        "setb",
+        "set-buffer"
+      ],
+      "description": "Set content of a paste buffer",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Append to rather than overwriting the buffer"
+        },
+        {
+          "names": [
+            "-w"
+          ],
+          "description": "Send the buffer to the clipboard"
+        },
+        {
+          "names": [
+            "-b"
+          ],
+          "description": "The name of the buffer"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target client"
+        },
+        {
+          "names": [
+            "-n"
+          ],
+          "description": "The new name of the buffer",
+          "args": [
+            {
+              "name": "new-buffer-name"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "data",
+          "description": "The data to set in the buffer"
+        }
+      ]
+    },
+    {
+      "names": [
+        "setenv",
+        "set-environment"
+      ],
+      "description": "(Un)set an environment variable"
+    },
+    {
+      "names": [
+        "set-hook"
+      ],
+      "description": "Set a hook to a command"
+    },
+    {
+      "names": [
+        "set",
+        "set-option"
+      ],
+      "description": "Set a session option"
+    },
+    {
+      "names": [
+        "setw",
+        "set-window-option"
+      ],
+      "description": "Set a window option"
+    },
+    {
+      "names": [
+        "showb",
+        "show-buffer"
+      ],
+      "description": "Display the contents of a paste buffer"
+    },
+    {
+      "names": [
+        "showenv",
+        "show-environment"
+      ],
+      "description": "Display the environment",
+      "options": [
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "Display the environment of the target-session"
+        }
+      ]
+    },
+    {
+      "names": [
+        "show-hooks"
+      ],
+      "description": "Show the global list of hooks"
+    },
+    {
+      "names": [
+        "showmsgs",
+        "show-messages"
+      ],
+      "description": "Show client's message log",
+      "options": [
+        {
+          "names": [
+            "-T"
+          ],
+          "description": "Show debugging information about terminals"
+        },
+        {
+          "names": [
+            "-J"
+          ],
+          "description": "Show debugging information about jobs"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target client"
+        }
+      ]
+    },
+    {
+      "names": [
+        "show",
+        "show-options"
+      ],
+      "description": "Show session options"
+    },
+    {
+      "names": [
+        "showw",
+        "show-winsow-options"
+      ],
+      "description": "Show window options"
+    },
+    {
+      "names": [
+        "source",
+        "source-file"
+      ],
+      "description": "Execute tmux commands from a file",
+      "options": [
+        {
+          "names": [
+            "-F"
+          ],
+          "description": "Expand path as a format"
+        },
+        {
+          "names": [
+            "-n"
+          ],
+          "description": "Parse the file but don't run commands"
+        },
+        {
+          "names": [
+            "-q"
+          ],
+          "description": "Don't return any error if path does not exist"
+        },
+        {
+          "names": [
+            "-v"
+          ],
+          "description": "Show the parsed command and line numbers if possible"
+        }
+      ],
+      "args": [
+        {
+          "name": "path",
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "splitw",
+        "split-window"
+      ],
+      "description": "Splits a pane into two",
+      "options": [
+        {
+          "names": [
+            "-b"
+          ],
+          "description": "Create the new pane to the left of or above target-pane"
+        },
+        {
+          "names": [
+            "-f"
+          ],
+          "description": "Create a new pane spanning the full window height with -h or width with -v"
+        },
+        {
+          "names": [
+            "-h"
+          ],
+          "description": "Set the pane take full height"
+        },
+        {
+          "names": [
+            "-I"
+          ],
+          "description": "Create an empty pane and forward stdin to it"
+        },
+        {
+          "names": [
+            "-v"
+          ],
+          "description": "Set the pane take full width"
+        },
+        {
+          "names": [
+            "-Z"
+          ],
+          "description": "Zoom if the window is not zoomed"
+        },
+        {
+          "names": [
+            "-c"
+          ],
+          "description": "Specify a start directory for the pane",
+          "args": [
+            {
+              "name": "start-directory",
+              "description": "The start directory",
+              "templates": [
+                "folders"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-e"
+          ],
+          "description": "Set environment variables",
+          "args": [
+            {
+              "name": "environment",
+              "description": "Environment variables with the form VARIABLE=VALUE"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-l"
+          ],
+          "description": "Set the size in columns (horizontal split) or rows (vertical split)",
+          "args": [
+            {
+              "name": "size"
+            }
+          ]
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target pane"
+        },
+        {
+          "names": [
+            "-F"
+          ],
+          "description": "Format output",
+          "args": [
+            {
+              "name": "format",
+              "description": "The format for the output of this command"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "shell-command",
+          "description": "A shell command to run when creating the pane",
+          "is_optional": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "start",
+        "start-server"
+      ],
+      "description": "Start a tmux server"
+    },
+    {
+      "names": [
+        "suspendc",
+        "suspend-client"
+      ],
+      "description": "Suspend a client",
+      "options": [
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target client"
+        }
+      ]
+    },
+    {
+      "names": [
+        "swapp",
+        "swap-pane"
+      ],
+      "description": "Swap two panes",
+      "options": [
+        {
+          "names": [
+            "-d"
+          ],
+          "description": "Do not change the active pane"
+        },
+        {
+          "names": [
+            "-D"
+          ],
+          "description": "Swap with the next pane"
+        },
+        {
+          "names": [
+            "-U"
+          ],
+          "description": "Swap dst-pane with the previous pane"
+        },
+        {
+          "names": [
+            "-Z"
+          ],
+          "description": "Keep the window zoomed if it was zoomed"
+        },
+        {
+          "names": [
+            "-s"
+          ],
+          "description": "The source pane"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The destination pane"
+        }
+      ]
+    },
+    {
+      "names": [
+        "swapw",
+        "swap-window"
+      ],
+      "description": "Swap two windows",
+      "options": [
+        {
+          "names": [
+            "-d"
+          ],
+          "description": "The new window does not become the current window"
+        },
+        {
+          "names": [
+            "-s"
+          ],
+          "description": "The source window"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The destination window"
+        }
+      ]
+    },
+    {
+      "names": [
+        "switchc",
+        "switch-client"
+      ],
+      "description": "Switch the client to another session",
+      "options": [
+        {
+          "names": [
+            "-E"
+          ],
+          "description": "Do not use update-environment option"
+        },
+        {
+          "names": [
+            "-l"
+          ],
+          "description": "Move the client to the last session"
+        },
+        {
+          "names": [
+            "-n"
+          ],
+          "description": "Move the client to the next session"
+        },
+        {
+          "names": [
+            "-p"
+          ],
+          "description": "Move the client to the previous session"
+        },
+        {
+          "names": [
+            "-r"
+          ],
+          "description": "Toggle the client read-only and ignore-size flags"
+        },
+        {
+          "names": [
+            "-Z"
+          ],
+          "description": "Keep the window zoomed if it was zoomed"
+        },
+        {
+          "names": [
+            "-c"
+          ],
+          "description": "The target client"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "Switch the client to the target-session"
+        },
+        {
+          "names": [
+            "-T"
+          ],
+          "description": "Set the client's key table",
+          "args": [
+            {
+              "name": "key-table"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "unbind",
+        "unbind-key"
+      ],
+      "description": "Unbind a key",
+      "options": [
+        {
+          "names": [
+            "-a"
+          ],
+          "description": "Remove all key-bindings"
+        },
+        {
+          "names": [
+            "-n"
+          ],
+          "description": "Alias for -T root"
+        },
+        {
+          "names": [
+            "-q"
+          ],
+          "description": "Prevent errors being returned"
+        },
+        {
+          "names": [
+            "-T"
+          ],
+          "description": "The key table to use",
+          "args": [
+            {
+              "name": "key-table"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "key",
+          "description": "The key to unbind"
+        }
+      ]
+    },
+    {
+      "names": [
+        "unlinkw",
+        "unlink-window"
+      ],
+      "description": "Unlink a window",
+      "options": [
+        {
+          "names": [
+            "-k"
+          ],
+          "description": "Destroy the window"
+        },
+        {
+          "names": [
+            "-t"
+          ],
+          "description": "The target window"
+        }
+      ]
+    },
+    {
+      "names": [
+        "wait",
+        "wait-for"
+      ],
+      "description": "Wait for an event or trigger it",
+      "options": [
+        {
+          "names": [
+            "-L"
+          ],
+          "description": "Lock the channel",
+          "exclusive_on": [
+            "-U"
+          ]
+        },
+        {
+          "names": [
+            "-U"
+          ],
+          "description": "Unlock the channel",
+          "exclusive_on": [
+            "-L"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "channel",
+          "description": "Wait for this channel"
+        }
+      ]
+    }
+  ]
+}

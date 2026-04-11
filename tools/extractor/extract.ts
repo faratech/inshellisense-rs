@@ -95,6 +95,36 @@ type ExtractCtx = {
 /// callback into a named PostProcessKind.  Returns the kind descriptor
 /// on a hit, null on a miss (caller should fall back to marking the
 /// containing spec as having functions).
+/// Recognize calls to @fig/autocomplete-generators helpers and emit the
+/// Rust-native generator descriptor directly.
+function classifyFigHelper(name: string, args: Node[]): any | null {
+  switch (name) {
+    case "filepaths": {
+      // filepaths() or filepaths({ extensions: [...], ... })
+      // We emit a Template::Filepaths generator. Extension filtering
+      // requires runtime support that isn't wired yet, so we just
+      // produce the plain filepaths template.
+      return { kind: "template", template: "filepaths" };
+    }
+    case "folders": {
+      return { kind: "template", template: "folders" };
+    }
+    case "keyValue":
+    case "keyValueList": {
+      // These produce key/value pairs from a script. Without the script
+      // argument being statically extractable we can't emit a generator.
+      // Conservative: return null so the arg still extracts without it.
+      return null;
+    }
+    default:
+      return null;
+  }
+}
+
+/// Attempt to classify a function expression used as a postProcess
+/// callback into a named PostProcessKind. Returns the kind descriptor
+/// on a hit, null on a miss (caller should fall back to marking the
+/// containing spec as having functions).
 function classifyPostProcess(
   fn: ArrowFunction | FunctionExpression
 ): any | null {
@@ -161,6 +191,10 @@ function classifyPostProcess(
   } else {
     mapExpr = mapBody;
   }
+  // `(x) => ({...})` wraps the object literal in parens. Unwrap.
+  while (mapExpr && Node.isParenthesizedExpression(mapExpr)) {
+    mapExpr = mapExpr.getExpression();
+  }
   if (!mapExpr || !Node.isObjectLiteralExpression(mapExpr)) return null;
   const mapObj = mapExpr;
   const props = mapObj.getProperties();
@@ -172,9 +206,12 @@ function classifyPostProcess(
   );
   if (!hasName) return null;
 
-  // All property values must be simple: identifiers, string literals,
-  // or property-access off the iteration variable. Anything else (e.g.
-  // template literals, conditional, regex) bails.
+  // Property values must be "tolerable": identifiers, string/number
+  // literals, template literals, property-access, or type-assertion
+  // wrappers. Anything else (conditional, regex, nested call) bails.
+  // Template literals are allowed even with interpolations — we drop
+  // those fields at runtime; the `name` field is the only one we need
+  // to be correct, and we already verified it's present above.
   for (const p of props) {
     if (!Node.isPropertyAssignment(p)) return null;
     const v = p.getInitializer();
@@ -183,7 +220,10 @@ function classifyPostProcess(
       !Node.isIdentifier(v) &&
       !Node.isStringLiteral(v) &&
       !Node.isNoSubstitutionTemplateLiteral(v) &&
-      !Node.isPropertyAccessExpression(v)
+      !Node.isTemplateExpression(v) &&
+      !Node.isPropertyAccessExpression(v) &&
+      !Node.isNumericLiteral(v) &&
+      !Node.isElementAccessExpression(v)
     ) {
       return null;
     }
@@ -191,6 +231,34 @@ function classifyPostProcess(
 
   // Emit SplitLines DSL descriptor.
   return { kind: "pattern", inner: { kind: "split_lines" } };
+}
+
+/// Second postProcess pattern: JSON.parse(out) + Object.keys(...).map(...)
+/// or array.map(...) shape. Emits JsonParse.
+function classifyJsonParsePostProcess(
+  fn: ArrowFunction | FunctionExpression
+): any | null {
+  const body = fn.getBody();
+  if (!Node.isBlock(body)) return null;
+  const stmts = body.getStatements();
+  // Expect: const x = JSON.parse(out); return ...;
+  if (stmts.length < 2) return null;
+  const firstStmt = stmts[0];
+  if (!Node.isVariableStatement(firstStmt)) return null;
+  const decl = firstStmt.getDeclarationList().getDeclarations()[0];
+  if (!decl) return null;
+  const init = decl.getInitializer();
+  if (!init || !Node.isCallExpression(init)) return null;
+  const callee = init.getExpression();
+  if (!Node.isPropertyAccessExpression(callee)) return null;
+  if (callee.getName() !== "parse") return null;
+  const obj = callee.getExpression();
+  if (!Node.isIdentifier(obj) || obj.getText() !== "JSON") return null;
+  // Got `const x = JSON.parse(out);`. Last statement should be a return.
+  const lastStmt = stmts[stmts.length - 1];
+  if (!Node.isReturnStatement(lastStmt)) return null;
+  // Success — emit JsonParse.
+  return { kind: "pattern", inner: { kind: "json_parse" } };
 }
 
 function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
@@ -221,18 +289,35 @@ function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
     return extractObject(node, ctx);
   }
   if (Node.isIdentifier(node)) {
-    // Reference to an imported/top-level identifier. We can't resolve these
-    // without full semantic analysis — mark as impure.
+    // Resolve the identifier to its declaration. If it points at a
+    // top-level const with an initializer we can extract, treat the
+    // reference as if it were the initializer inlined.
+    const sym = node.getSymbol();
+    if (sym) {
+      const aliased = sym.getAliasedSymbol?.();
+      const target = aliased ?? sym;
+      for (const decl of target.getDeclarations()) {
+        if (Node.isVariableDeclaration(decl)) {
+          const init = decl.getInitializer();
+          if (init) {
+            // Recurse. If the initializer contains functions, the ctx
+            // flag flips naturally.
+            return extractValue(init, ctx);
+          }
+        }
+      }
+    }
     ctx.has_functions = true;
     return null;
   }
   if (Node.isFunctionExpression(node) || Node.isArrowFunction(node)) {
     // If we're inside a generator's postProcess field, try to classify.
     if (ctx.post_process_in_progress) {
-      const kind = classifyPostProcess(node as ArrowFunction | FunctionExpression);
-      if (kind) {
-        return { __post_process_kind: kind };
-      }
+      const fn = node as ArrowFunction | FunctionExpression;
+      const splitKind = classifyPostProcess(fn);
+      if (splitKind) return { __post_process_kind: splitKind };
+      const jsonKind = classifyJsonParsePostProcess(fn);
+      if (jsonKind) return { __post_process_kind: jsonKind };
     }
     ctx.has_functions = true;
     return { __fn: true };
@@ -249,8 +334,43 @@ function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
     ctx.has_functions = true;
     return null;
   }
+  if (Node.isPropertyAccessExpression(node)) {
+    // Resolve `obj.prop` — look up obj's declaration, navigate the
+    // declared object literal for `prop`. Handles patterns like
+    // `sharedCommands.run` and `gitGenerators.commits`.
+    const obj = node.getExpression();
+    const propName = node.getName();
+    if (Node.isIdentifier(obj)) {
+      const sym = obj.getSymbol();
+      if (sym) {
+        const target = sym.getAliasedSymbol?.() ?? sym;
+        for (const decl of target.getDeclarations()) {
+          if (Node.isVariableDeclaration(decl)) {
+            const init = decl.getInitializer();
+            if (init && Node.isObjectLiteralExpression(init)) {
+              for (const p of init.getProperties()) {
+                if (Node.isPropertyAssignment(p) && p.getName() === propName) {
+                  return extractValue(p.getInitializer(), ctx);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ctx.has_functions = true;
+    return null;
+  }
   if (Node.isCallExpression(node)) {
-    // A function call result (e.g. helper(...)) is not statically knowable.
+    // Known @fig/autocomplete-generators helpers that we hand-port in
+    // Rust to first-class Template/Generator variants.
+    const callee = node.getExpression();
+    if (Node.isIdentifier(callee)) {
+      const name = callee.getText();
+      const helper = classifyFigHelper(name, node.getArguments());
+      if (helper) return helper;
+    }
+    // Any other call result is not statically knowable.
     ctx.has_functions = true;
     return null;
   }
@@ -260,21 +380,67 @@ function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
   return null;
 }
 
+/// Fields where individual element failures are tolerable — we drop the
+/// impure element and keep the rest. This is what lets specs survive when
+/// e.g. one `custom` generator is complex but their sibling static options
+/// are fine.
+const TOLERANT_LIST_FIELDS = new Set([
+  "subcommands",
+  "options",
+  "args",
+  "generators",
+  "suggestions",
+]);
+
+/// Extract a value with an "isolation barrier" — if anything in its
+/// subtree sets has_functions, the flag is reset and the function returns
+/// null instead of polluting the outer ctx.
+function extractValueIsolated(node: Node | undefined, ctx: ExtractCtx): any {
+  const saved = ctx.has_functions;
+  ctx.has_functions = false;
+  const v = extractValue(node, ctx);
+  const wasImpure = ctx.has_functions;
+  ctx.has_functions = saved;
+  if (wasImpure) return null;
+  return v;
+}
+
 function extractObject(obj: ObjectLiteralExpression, ctx: ExtractCtx): any {
   const out: Record<string, any> = {};
   for (const prop of obj.getProperties()) {
     if (Node.isPropertyAssignment(prop)) {
       const pa = prop as PropertyAssignment;
       const name = pa.getName();
-      // Toggle postProcess classifier when descending into that field.
       const isPostProcess = name === "postProcess";
       const savedFlag = ctx.post_process_in_progress;
       if (isPostProcess) ctx.post_process_in_progress = true;
-      const value = extractValue(pa.getInitializer(), ctx);
-      if (isPostProcess) ctx.post_process_in_progress = savedFlag;
-      if (value !== undefined) {
-        out[name] = value;
+
+      // Tolerant-list field: extract each element in isolation and drop
+      // failures. If the init is a single (non-array) value, isolate at
+      // the whole-field level.
+      if (TOLERANT_LIST_FIELDS.has(name)) {
+        const init = pa.getInitializer();
+        if (init && Node.isArrayLiteralExpression(init)) {
+          const arr: any[] = [];
+          for (const el of init.getElements()) {
+            const v = extractValueIsolated(el, ctx);
+            if (v !== null && v !== undefined) arr.push(v);
+          }
+          out[name] = arr;
+        } else {
+          const v = extractValueIsolated(init, ctx);
+          if (v !== null && v !== undefined) {
+            out[name] = v;
+          }
+        }
+      } else {
+        const value = extractValue(pa.getInitializer(), ctx);
+        if (value !== undefined) {
+          out[name] = value;
+        }
       }
+
+      if (isPostProcess) ctx.post_process_in_progress = savedFlag;
     } else if (Node.isShorthandPropertyAssignment(prop)) {
       ctx.has_functions = true;
     } else if (Node.isSpreadAssignment(prop)) {

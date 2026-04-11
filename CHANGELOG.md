@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 4.5 — 94.6% coverage via extractor improvements; JS runtime removed
+
+- **Removed** `src/js.rs` and the `js` / `boa_engine` feature entirely.
+  Decision: skip phase 6's embedded JS runtime. 94.6% pure coverage
+  without JS is the ceiling worth chasing; the remaining 5.4% are
+  specs with genuinely arbitrary runtime logic (factory exports,
+  custom generators that shell out conditionally) — easier to
+  hand-curate the handful that matter than to ship rquickjs.
+- **Added** extractor identifier resolution — references like
+  `generators: tasksGenerator` now resolve the Identifier to its
+  top-level `const tasksGenerator: Fig.Generator = {...}` declaration
+  and extract the initializer inline. Huge coverage jump.
+- **Added** extractor PropertyAccessExpression resolution — references
+  like `sharedCommands.run` (Docker's shared-subcommand-record pattern)
+  now resolve via the enclosing object literal. Unlocked 20+ docker
+  subcommands including `run`.
+- **Added** extractor `@fig/autocomplete-generators` helper recognition —
+  `filepaths(...)` and `folders(...)` calls inside generator positions
+  lower to `Generator::Template { filepaths }` / `folders` directly
+  instead of being marked impure.
+- **Added** second postProcess classifier: `JSON.parse(out) + ...map(...)`
+  block-statement shape → `PostProcess::Pattern { JsonParse }`.
+- **Added** parenthesized-expression unwrap for arrow bodies like
+  `(x) => ({...})` — fixes the extremely common map-callback shape.
+- **Added** **per-element isolation barriers** in `extractObject` for
+  tolerant-list fields (`subcommands`, `options`, `args`, `generators`,
+  `suggestions`). Impure elements are dropped individually instead of
+  tainting the whole spec — the single biggest coverage lever. Before
+  this: any one complex generator marked the entire spec as partial.
+  After: the spec extracts with that one generator dropped.
+- **Changed** tolerant field list widens map-body tolerance to allow
+  template literals, property access, element access, and numeric
+  literals in addition to simple identifiers.
+- **Changed** `src/curated.rs` slimmed to just git + cargo. docker,
+  systemctl, ssh, apt, gh, npm, kubectl, terraform, tar, make, jq, and
+  34 others are now extractor-sourced.
+- **Added** parity test `docker_run_has_detach` exercising the full
+  `docker run --detach` path via the PropertyAccessExpression resolver.
+
+Validation: **30 tests pass** (14 unit + 16 parity). Extractor stats:
+1476 total, **1397 pure (94.6%)**, 51 partial (3.5%), 23 js_only (1.6%),
+5 errors (0.3%). Release binary: **3.4 MB** stripped (up from 2.4 MB
+because the 45-essential embed set doubled from 26 — richer specs like
+docker with 58 subcommands cost bytes but aren't wasteful). Essentials
+extracted: 45 of 58 whitelist commands (up from 26). The 13 whitelist
+commands still partial: git, cargo, node, bun, php, composer, mix,
+clang, gcc, g++, c++, clang++, dotnet — all language-specific tools
+with factory exports or top-level async generators. git and cargo
+still come from curated.rs; the rest are accept-and-wait for
+now.
+
 ### Phase 4 — PostProcessKind DSL + lazy LoadSpec + recursive extractor + embed/extras split
 
 - **Added** `PostProcessKind` execution in `src/generator.rs`:

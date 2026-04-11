@@ -1,0 +1,1627 @@
+{
+  "names": [
+    "tar"
+  ],
+  "description": "Manipulating archive files",
+  "subcommands": [
+    {
+      "names": [
+        "A",
+        "-A",
+        "--catenate",
+        "--concatenate"
+      ],
+      "description": "Append archive to the end of another archive",
+      "args": [
+        {
+          "name": "ARCHIVE",
+          "is_variadic": true,
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "c",
+        "-c",
+        "--create"
+      ],
+      "description": "Create a new archive",
+      "options": [
+        {
+          "names": [
+            "--check-device"
+          ],
+          "description": "Check device numbers when creating incremental archives",
+          "exclusive_on": [
+            "--no-check-device"
+          ],
+          "depends_on": [
+            "g",
+            "-g",
+            "--listed-incremental"
+          ]
+        },
+        {
+          "names": [
+            "--level"
+          ],
+          "description": "Set dump level for created listed-incremental archive",
+          "depends_on": [
+            "g",
+            "-g",
+            "--listed-incremental"
+          ],
+          "args": [
+            {
+              "name": "NUMBER",
+              "default": "0"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--no-check-device"
+          ],
+          "description": "Do not check device numbers when creating incremental archives",
+          "exclusive_on": [
+            "--check-device"
+          ],
+          "depends_on": [
+            "g",
+            "-g",
+            "--listed-incremental"
+          ]
+        },
+        {
+          "names": [
+            "b",
+            "-b",
+            "--blocking-factor"
+          ],
+          "description": "Set record size to BLOCKSx512 bytes",
+          "args": [
+            {
+              "name": "BLOCKS"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--record-size"
+          ],
+          "description": "Set record size",
+          "args": [
+            {
+              "name": "NUMBER",
+              "description": "The number of bytes per record",
+              "suggestions": [
+                {
+                  "name": "Blocks",
+                  "insert_value": "{cursor}b"
+                },
+                {
+                  "name": "Bytes",
+                  "insert_value": "{cursor}c"
+                },
+                {
+                  "name": "Gigabytes",
+                  "insert_value": "{cursor}G"
+                },
+                {
+                  "name": "Kilobytes",
+                  "insert_value": "{cursor}K"
+                },
+                {
+                  "name": "Megabytes",
+                  "insert_value": "{cursor}M"
+                },
+                {
+                  "name": "Petabytes",
+                  "insert_value": "{cursor}P"
+                },
+                {
+                  "name": "Terabytes",
+                  "insert_value": "{cursor}T"
+                },
+                {
+                  "name": "Words",
+                  "insert_value": "{cursor}w"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "H",
+            "-H",
+            "--format"
+          ],
+          "description": "Create archive of the given format",
+          "exclusive_on": [
+            "--old-archive",
+            "--portability",
+            "--posix",
+            "o",
+            "-o"
+          ],
+          "args": [
+            {
+              "name": "FORMAT",
+              "suggestions": [
+                {
+                  "name": "gnu",
+                  "description": "GNU tar 1.13.x format"
+                },
+                {
+                  "name": "oldgnu",
+                  "description": "GNU format as per tar <= 1.12"
+                },
+                {
+                  "name": "pax",
+                  "all_names": [
+                    "pax",
+                    "posix"
+                  ],
+                  "description": "POSIX 1003.1-2001 (pax) format"
+                },
+                {
+                  "name": "ustar",
+                  "description": "POSIX 1003.1-1988 (ustar) format"
+                },
+                {
+                  "name": "v7",
+                  "description": "Old V7 tar format"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--old-archive",
+            "--portability"
+          ],
+          "description": "Same as --format=v7",
+          "exclusive_on": [
+            "H",
+            "-H",
+            "--format",
+            "--pax-option",
+            "--posix",
+            "o",
+            "-o"
+          ]
+        },
+        {
+          "names": [
+            "--pax-option"
+          ],
+          "description": "Control pax keywords when creating PAX archives",
+          "exclusive_on": [
+            "--old-archive",
+            "--portability",
+            "--old-archive",
+            "--portability",
+            "--posix",
+            "o",
+            "-o"
+          ],
+          "depends_on": [
+            "H",
+            "-H",
+            "--format"
+          ],
+          "args": [
+            {
+              "name": "keyword[[:]=value][,keyword[[:]=value]]..."
+            }
+          ]
+        },
+        {
+          "names": [
+            "--posix"
+          ],
+          "description": "Same as --format=posix",
+          "exclusive_on": [
+            "H",
+            "-H",
+            "--format",
+            "--old-archive",
+            "--portability",
+            "--pax-option"
+          ]
+        },
+        {
+          "names": [
+            "V",
+            "-V",
+            "--label"
+          ],
+          "description": "Create archive with volume name TEXT",
+          "args": [
+            {
+              "name": "TEXT"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--warning"
+          ],
+          "description": "Enable or disable warning messages identified by KEYWORD",
+          "is_persistent": true,
+          "is_repeatable": true,
+          "args": [
+            {
+              "name": "KEYWORD",
+              "default": "all",
+              "suggestions": [
+                {
+                  "name": "cachedir",
+                  "description": "\"%s: contains a cache directory tag %s; %s\""
+                },
+                {
+                  "name": "no-cachedir",
+                  "description": "No \"%s: contains a cache directory tag %s; %s\""
+                },
+                {
+                  "name": "file-shrank",
+                  "description": "\"%s: File shrank by %s bytes; padding with zeros\""
+                },
+                {
+                  "name": "no-file-shrank",
+                  "description": "No \"%s: File shrank by %s bytes; padding with zeros\""
+                },
+                {
+                  "name": "xdev",
+                  "description": "\"%s: file is on a different filesystem; not dumped\""
+                },
+                {
+                  "name": "no-xdev",
+                  "description": "No \"%s: file is on a different filesystem; not dumped\""
+                },
+                {
+                  "name": "file-ignored",
+                  "description": "\"%s: Unknown file type; file ignored\", \"%s: socket ignored\", \"%s: door ignored\""
+                },
+                {
+                  "name": "no-file-ignored",
+                  "description": "No \"%s: Unknown file type; file ignored\", \"%s: socket ignored\", \"%s: door ignored\""
+                },
+                {
+                  "name": "file-unchanged",
+                  "description": "\"%s: file is unchanged; not dumped\""
+                },
+                {
+                  "name": "no-file-unchanged",
+                  "description": "No \"%s: file is unchanged; not dumped\""
+                },
+                {
+                  "name": "ignore-archive",
+                  "description": "\"%s: file is the archive; not dumped\""
+                },
+                {
+                  "name": "no-ignore-archive",
+                  "description": "No \"%s: file is the archive; not dumped\""
+                },
+                {
+                  "name": "file-removed",
+                  "description": "\"%s: File removed before we read it\""
+                },
+                {
+                  "name": "no-file-removed",
+                  "description": "No \"%s: File removed before we read it\""
+                },
+                {
+                  "name": "file-changed",
+                  "description": "\"%s: file changed as we read it\""
+                },
+                {
+                  "name": "no-file-changed",
+                  "description": "No \"%s: file changed as we read it\""
+                },
+                {
+                  "name": "failed-read",
+                  "description": "Enables warnings about unreadable files or directories"
+                },
+                {
+                  "name": "no-failed-read",
+                  "description": "Suppresses warnings about unreadable files or directories"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "o",
+            "-o"
+          ],
+          "description": "Same as --old-archive",
+          "exclusive_on": [
+            "H",
+            "-H",
+            "--format",
+            "--old-archive",
+            "--portability",
+            "--posix",
+            "o",
+            "-o"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "FILE",
+          "is_variadic": true,
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "d",
+        "-d",
+        "--diff",
+        "--compare"
+      ],
+      "description": "Find differences between archive and file system",
+      "options": [
+        {
+          "names": [
+            "--occurrence"
+          ],
+          "description": "Process only the Nth occurrence of each file in the archive",
+          "args": [
+            {
+              "name": "N",
+              "is_optional": true,
+              "default": "1"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "FILE",
+          "is_optional": true,
+          "is_variadic": true,
+          "default": ".",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "t",
+        "-t",
+        "--list"
+      ],
+      "description": "List the contents of an archive",
+      "options": [],
+      "args": [
+        {
+          "name": "MEMBER",
+          "is_optional": true,
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "r",
+        "-r",
+        "--append"
+      ],
+      "description": "Append files to the end of an archive",
+      "options": [],
+      "args": [
+        {
+          "name": "FILE",
+          "is_variadic": true,
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "u",
+        "-u",
+        "--update"
+      ],
+      "description": "Append files which are newer than the corresponding copy in  the archive",
+      "options": [],
+      "args": [
+        {
+          "name": "FILE",
+          "is_variadic": true,
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "x",
+        "-x",
+        "--extract",
+        "--get"
+      ],
+      "description": "Extract files from an archive",
+      "options": [
+        {
+          "names": [
+            "--keep-newer-files"
+          ],
+          "description": "Don't replace existing files that are newer than their archive copies",
+          "exclusive_on": [
+            "k",
+            "-k",
+            "--keep-old-files",
+            "--overwrite",
+            "--overwrite-dir",
+            "--recursive-unlink",
+            "--skip-old-files",
+            "U",
+            "-U",
+            "--unlink-first",
+            "O",
+            "-O",
+            "--to-stdout"
+          ]
+        },
+        {
+          "names": [
+            "--keep-directory-symlink"
+          ],
+          "description": "Don't replace existing symlinks to directories when extracting",
+          "exclusive_on": [
+            "k",
+            "-k",
+            "--keep-old-files",
+            "--overwrite",
+            "--overwrite-dir",
+            "--recursive-unlink",
+            "--skip-old-files",
+            "U",
+            "-U",
+            "--unlink-first",
+            "O",
+            "-O",
+            "--to-stdout"
+          ]
+        },
+        {
+          "names": [
+            "--no-overwrite-dir"
+          ],
+          "description": "Preserve metadata of existing directories",
+          "exclusive_on": [
+            "k",
+            "-k",
+            "--keep-old-files",
+            "--overwrite",
+            "--overwrite-dir",
+            "--recursive-unlink",
+            "--skip-old-files",
+            "U",
+            "-U",
+            "--unlink-first",
+            "O",
+            "-O",
+            "--to-stdout"
+          ]
+        },
+        {
+          "names": [
+            "--one-top-level"
+          ],
+          "description": "Extract all files into DIR",
+          "args": [
+            {
+              "name": "DIR"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--overwrite-dir"
+          ],
+          "description": "Overwrite metadata of existing directories when extracting",
+          "exclusive_on": [
+            "k",
+            "-k",
+            "--keep-old-files",
+            "--keep-newer-files",
+            "--keep-directory-symlink",
+            "--no-overwrite-dir",
+            "--overwrite",
+            "--skip-old-files",
+            "U",
+            "-U",
+            "--unlink-first",
+            "O",
+            "-O",
+            "--to-stdout"
+          ]
+        },
+        {
+          "names": [
+            "--recursive-unlink"
+          ],
+          "description": "Recursively remove all files in the directory prior to extracting it",
+          "exclusive_on": [
+            "k",
+            "-k",
+            "--keep-old-files",
+            "--keep-newer-files",
+            "--keep-directory-symlink",
+            "--no-overwrite-dir",
+            "--overwrite",
+            "--skip-old-files",
+            "U",
+            "-U",
+            "--unlink-first",
+            "O",
+            "-O",
+            "--to-stdout"
+          ]
+        },
+        {
+          "names": [
+            "--to-command"
+          ],
+          "description": "Pipe extracted files to COMMAND",
+          "args": [
+            {
+              "name": "COMMAND",
+              "templates": [
+                "filepaths"
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "--delay-directory-restore"
+          ],
+          "description": "Delay setting modification times and permissions of extracted directories until the end of extraction",
+          "exclusive_on": [
+            "--no-delay-directory-restore"
+          ]
+        },
+        {
+          "names": [
+            "m",
+            "-m",
+            "--touch"
+          ],
+          "description": "Don't extract file modified time"
+        },
+        {
+          "names": [
+            "--no-delay-directory-restore"
+          ],
+          "description": "Cancel the effect of the prior --delay-directory-restore option",
+          "exclusive_on": [
+            "--delay-directory-restore"
+          ]
+        },
+        {
+          "names": [
+            "--no-same-owner"
+          ],
+          "description": "Extract files as yourself",
+          "exclusive_on": [
+            "--same-owner"
+          ]
+        },
+        {
+          "names": [
+            "--no-same-permissions"
+          ],
+          "description": "Apply the user's umask when extracting permissions from the archive",
+          "exclusive_on": [
+            "p",
+            "-p",
+            "--preserve-permissions",
+            "--same-permissions"
+          ]
+        },
+        {
+          "names": [
+            "p",
+            "-p",
+            "--preserve-permissions",
+            "--same-permissions"
+          ],
+          "description": "Extract information about file permissions",
+          "exclusive_on": [
+            "--no-same-permissions"
+          ]
+        },
+        {
+          "names": [
+            "--preserve"
+          ],
+          "description": "Same as both -p and -s"
+        },
+        {
+          "names": [
+            "--same-owner"
+          ],
+          "description": "Try extracting files with the same ownership as exists in the archive",
+          "exclusive_on": [
+            "--no-same-owner"
+          ]
+        },
+        {
+          "names": [
+            "s",
+            "-s",
+            "--preserve-order",
+            "--same-order"
+          ],
+          "description": "Sort names to extract to match archive"
+        },
+        {
+          "names": [
+            "--strip-components"
+          ],
+          "description": "Strip NUMBER leading components from file names on extraction",
+          "args": [
+            {
+              "name": "NUMBER"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--warning"
+          ],
+          "description": "Enable or disable warning messages identified by KEYWORD",
+          "is_persistent": true,
+          "is_repeatable": true,
+          "args": [
+            {
+              "name": "KEYWORD",
+              "default": "all",
+              "suggestions": [
+                {
+                  "name": "existing-file",
+                  "description": "\"%s: skipping existing file\""
+                },
+                {
+                  "name": "no-existing-file",
+                  "description": "No \"%s: skipping existing file\""
+                },
+                {
+                  "name": "timestamp",
+                  "description": "\"%s: implausibly old time stamp %s\", \"%s: time stamp %s is %s s in the future\""
+                },
+                {
+                  "name": "no-timestamp",
+                  "description": "No \"%s: implausibly old time stamp %s\", \"%s: time stamp %s is %s s in the future\""
+                },
+                {
+                  "name": "contiguous-cast",
+                  "description": "\"Extracting contiguous files as regular files\""
+                },
+                {
+                  "name": "no-contiguous-cast",
+                  "description": "No \"Extracting contiguous files as regular files\""
+                },
+                {
+                  "name": "symlink-cast",
+                  "description": "\"Attempting extraction of symbolic links as hard links\""
+                },
+                {
+                  "name": "no-symlink-cast",
+                  "description": "No \"Attempting extraction of symbolic links as hard links\""
+                },
+                {
+                  "name": "unknown-cast",
+                  "description": "\"%s: Unknown file type '%c', extracted as normal file\""
+                },
+                {
+                  "name": "no-unknown-cast",
+                  "description": "No \"%s: Unknown file type '%c', extracted as normal file\""
+                },
+                {
+                  "name": "ignore-newer",
+                  "description": "\"Current %s is newer or same age\""
+                },
+                {
+                  "name": "no-ignore-newer",
+                  "description": "No \"Current %s is newer or same age\""
+                },
+                {
+                  "name": "unknown-keyword",
+                  "description": "\"Ignoring unknown extended header keyword '%s'\""
+                },
+                {
+                  "name": "no-unknown-keyword",
+                  "description": "No \"Ignoring unknown extended header keyword '%s'\""
+                },
+                {
+                  "name": "decompress-program",
+                  "description": "Enables verbose description of failures occurring when trying to run alternative decompressor programs"
+                },
+                {
+                  "name": "no-decompress-program",
+                  "description": "Suppresses verbose description of failures occurring when trying to run alternative decompressor programs"
+                },
+                {
+                  "name": "record-size",
+                  "description": "\"Record size = %lu blocks\""
+                },
+                {
+                  "name": "no-record-size",
+                  "description": "No \"Record size = %lu blocks\""
+                },
+                {
+                  "name": "rename-directory",
+                  "description": "\"%s: Directory has been renamed from %s\", \"%s: Directory has been renamed\""
+                },
+                {
+                  "name": "no-rename-directory",
+                  "description": "No \"%s: Directory has been renamed from %s\", \"%s: Directory has been renamed\""
+                },
+                {
+                  "name": "new-directory",
+                  "description": "\"%s: Directory is new\""
+                },
+                {
+                  "name": "no-new-directory",
+                  "description": "No \"%s: Directory is new\""
+                },
+                {
+                  "name": "xdev",
+                  "description": "\"%s: directory is on a different device: not purging\""
+                },
+                {
+                  "name": "no-xdev",
+                  "description": "No \"%s: directory is on a different device: not purging\""
+                },
+                {
+                  "name": "bad-dumpdir",
+                  "description": "\"Malformed dumpdir: 'X' never used\""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "o",
+            "-o"
+          ],
+          "description": "Same as --no-same-owner",
+          "exclusive_on": [
+            "--no-same-owner",
+            "--same-owner"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "MEMBER",
+          "is_optional": true,
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "--delete"
+      ],
+      "description": "Delete from the archive",
+      "options": [
+        {
+          "names": [
+            "--occurrence"
+          ],
+          "description": "Process only the Nth occurrence of each file in the archive",
+          "args": [
+            {
+              "name": "N",
+              "is_optional": true,
+              "default": "1"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "MEMBER",
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "--test-label"
+      ],
+      "description": "Test the archive volume label and exit",
+      "options": [
+        {
+          "names": [
+            "f",
+            "-f",
+            "--file"
+          ],
+          "description": "Use archive file or device ARCHIVE",
+          "is_required": true,
+          "args": [
+            {
+              "name": "ARCHIVE"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--force-local"
+          ],
+          "description": "Archive file is local even if it has a colon",
+          "depends_on": [
+            "f",
+            "-f",
+            "--file"
+          ]
+        },
+        {
+          "names": [
+            "F",
+            "-F",
+            "--info-script",
+            "--new-volume-script"
+          ],
+          "description": "Run  COMMAND  at the end of each tape",
+          "args": [
+            {
+              "name": "COMMAND"
+            }
+          ]
+        },
+        {
+          "names": [
+            "L",
+            "-L",
+            "--tape-length"
+          ],
+          "description": "Change tape after writing Nx1024 bytes",
+          "args": [
+            {
+              "name": "N",
+              "suggestions": [
+                {
+                  "name": "Blocks",
+                  "insert_value": "{cursor}b"
+                },
+                {
+                  "name": "Bytes",
+                  "insert_value": "{cursor}c"
+                },
+                {
+                  "name": "Gigabytes",
+                  "insert_value": "{cursor}G"
+                },
+                {
+                  "name": "Kilobytes",
+                  "insert_value": "{cursor}K"
+                },
+                {
+                  "name": "Megabytes",
+                  "insert_value": "{cursor}M"
+                },
+                {
+                  "name": "Petabytes",
+                  "insert_value": "{cursor}P"
+                },
+                {
+                  "name": "Terabytes",
+                  "insert_value": "{cursor}T"
+                },
+                {
+                  "name": "Words",
+                  "insert_value": "{cursor}w"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "M",
+            "-M",
+            "--multi-volume"
+          ],
+          "description": "Create/list/extract multi-volume archive"
+        },
+        {
+          "names": [
+            "--rmt-command"
+          ],
+          "description": "Use  COMMAND instead of rmt when accessing remote archives",
+          "args": [
+            {
+              "name": "COMMAND"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--rsh-command"
+          ],
+          "description": "Use  COMMAND instead of rsh when accessing remote archives",
+          "args": [
+            {
+              "name": "COMMAND"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--volno-file"
+          ],
+          "description": "Tar will keep track of which volume of a multi-volume archive it is working in FILE",
+          "depends_on": [
+            "M",
+            "-M",
+            "--multi-volume"
+          ],
+          "args": [
+            {
+              "name": "FILE"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "LABEL",
+          "is_optional": true,
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "--show-defaults"
+      ],
+      "description": "Show built-in defaults for various tar options and exit"
+    },
+    {
+      "names": [
+        "?",
+        "-?",
+        "--help"
+      ],
+      "description": "Display a short option summary and exit"
+    },
+    {
+      "names": [
+        "--usage"
+      ],
+      "description": "Display a list of available options and exit"
+    },
+    {
+      "names": [
+        "--version"
+      ],
+      "description": "Print program version and copyright information and exit"
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "g",
+        "-g",
+        "--listed-incremental"
+      ],
+      "description": "Handle new GNU-format incremental backups",
+      "is_persistent": true,
+      "exclusive_on": [
+        "G",
+        "-G",
+        "--incremental"
+      ],
+      "args": [
+        {
+          "name": "FILE",
+          "description": "The name of a snapshot file"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--hole-detection"
+      ],
+      "description": "Use METHOD to detect holes in sparse files",
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "METHOD",
+          "is_optional": true,
+          "default": "seek",
+          "suggestions": [
+            {
+              "name": "seek"
+            },
+            {
+              "name": "raw"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "G",
+        "-G",
+        "--incremental"
+      ],
+      "description": "Handle old GNU-format incremental backups",
+      "is_persistent": true,
+      "exclusive_on": [
+        "g",
+        "-g",
+        "--listed-incremental"
+      ]
+    },
+    {
+      "names": [
+        "--sparse-version"
+      ],
+      "description": "Set version of the sparse format to use",
+      "is_persistent": true,
+      "depends_on": [
+        "S",
+        "-S",
+        "--sparse"
+      ],
+      "args": [
+        {
+          "name": "MAJOR[.MINOR]",
+          "suggestions": [
+            {
+              "name": "0"
+            },
+            {
+              "name": "0.1"
+            },
+            {
+              "name": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "S",
+        "-S",
+        "--sparse"
+      ],
+      "description": "Handle sparse files efficiently",
+      "is_persistent": true
+    },
+    {
+      "names": [
+        "--ignore-command-error"
+      ],
+      "description": "Ignore subprocess exit codes",
+      "is_persistent": true,
+      "exclusive_on": [
+        "--no-ignore-command-error"
+      ]
+    },
+    {
+      "names": [
+        "--no-ignore-command-error"
+      ],
+      "description": "Treat non-zero exit codes of children as error",
+      "is_persistent": true,
+      "exclusive_on": [
+        "--ignore-command-error"
+      ]
+    },
+    {
+      "names": [
+        "--numeric-owner"
+      ],
+      "description": "Always use numbers for user/group names",
+      "is_persistent": true
+    },
+    {
+      "names": [
+        "--acls"
+      ],
+      "description": "Enable POSIX ACLs support",
+      "is_persistent": true,
+      "exclusive_on": [
+        "--no-acls"
+      ]
+    },
+    {
+      "names": [
+        "--no-acls"
+      ],
+      "description": "Disable POSIX ACLs support",
+      "is_persistent": true,
+      "exclusive_on": [
+        "--acls"
+      ]
+    },
+    {
+      "names": [
+        "--selinux"
+      ],
+      "description": "Enable SELinux context support",
+      "is_persistent": true,
+      "exclusive_on": [
+        "--no-selinux"
+      ]
+    },
+    {
+      "names": [
+        "--no-selinux"
+      ],
+      "description": "Disable SELinux context support",
+      "is_persistent": true,
+      "exclusive_on": [
+        "--selinux"
+      ]
+    },
+    {
+      "names": [
+        "--xattrs"
+      ],
+      "description": "Enable extended attributes support",
+      "is_persistent": true,
+      "exclusive_on": [
+        "--no-xattrs"
+      ]
+    },
+    {
+      "names": [
+        "--no-xattrs"
+      ],
+      "description": "Disable extended attributes support",
+      "is_persistent": true,
+      "exclusive_on": [
+        "--xattrs",
+        "--xattrs-exclude",
+        "--xattrs-include"
+      ]
+    },
+    {
+      "names": [
+        "--xattrs-exclude"
+      ],
+      "description": "Specify the exclude pattern for xattr keys",
+      "is_persistent": true,
+      "exclusive_on": [
+        "--no-xattrs"
+      ],
+      "args": [
+        {
+          "name": "PATTERN",
+          "description": "A POSIX regular expression"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--xattrs-include"
+      ],
+      "description": "Specify the include pattern for xattr keys",
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "PATTERN",
+          "description": "A POSIX regular expression"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--backup"
+      ],
+      "description": "Backup before removal",
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "CONTROL",
+          "is_optional": true,
+          "default": "existing",
+          "suggestions": [
+            {
+              "name": "none",
+              "all_names": [
+                "none",
+                "off"
+              ],
+              "description": "Never make backups"
+            },
+            {
+              "name": "t",
+              "all_names": [
+                "t",
+                "numbered"
+              ],
+              "description": "Make numbered backups"
+            },
+            {
+              "name": "nil",
+              "all_names": [
+                "nil",
+                "existing"
+              ],
+              "description": "Make numbered backups if numbered backups  exist"
+            },
+            {
+              "name": "never",
+              "all_names": [
+                "never",
+                "simple"
+              ],
+              "description": "Always make simple backups"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "C",
+        "-C",
+        "--directory"
+      ],
+      "description": "Change to DIR before performing any operations",
+      "is_persistent": true,
+      "is_repeatable": true,
+      "args": [
+        {
+          "name": "DIR",
+          "templates": [
+            "folders"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--newer-mtime"
+      ],
+      "description": "Work on files whose data changed after the DATE",
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "DATE",
+          "description": "If DATE starts with / or . it is taken to be a file name",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--no-null"
+      ],
+      "description": "Disable the effect of the previous --null option",
+      "is_persistent": true,
+      "depends_on": [
+        "T",
+        "-T",
+        "--files-from"
+      ]
+    },
+    {
+      "names": [
+        "--no-recursion"
+      ],
+      "description": "Avoid descending automatically in directories",
+      "is_persistent": true,
+      "exclusive_on": [
+        "--recursion"
+      ]
+    },
+    {
+      "names": [
+        "--no-unquote"
+      ],
+      "description": "Do not unquote input file or member names",
+      "is_persistent": true,
+      "exclusive_on": [
+        "--unquote"
+      ]
+    },
+    {
+      "names": [
+        "--no-verbatim-files-from"
+      ],
+      "description": "Treat each line read from a file list as if it were supplied in the command line",
+      "is_persistent": true,
+      "is_repeatable": true,
+      "depends_on": [
+        "T",
+        "-T",
+        "--files-from"
+      ]
+    },
+    {
+      "names": [
+        "-null"
+      ],
+      "description": "Instruct subsequent -T options to read null-terminated names verbatim",
+      "is_persistent": true,
+      "depends_on": [
+        "T",
+        "-T",
+        "--files-from"
+      ]
+    },
+    {
+      "names": [
+        "--recursion"
+      ],
+      "description": "Recurse into directories",
+      "is_persistent": true,
+      "exclusive_on": [
+        "--no-recursion"
+      ]
+    },
+    {
+      "names": [
+        "--suffix"
+      ],
+      "description": "Backup before removal, override usual suffix",
+      "is_persistent": true,
+      "depends_on": [
+        "--backup"
+      ],
+      "args": [
+        {
+          "name": "STRING",
+          "default": "~"
+        }
+      ]
+    },
+    {
+      "names": [
+        "T",
+        "-T",
+        "--files-from"
+      ],
+      "description": "Get names to extract or create from FILE",
+      "is_persistent": true,
+      "is_repeatable": true,
+      "args": [
+        {
+          "name": "FILE",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--unquote"
+      ],
+      "description": "Unquote file or member names",
+      "is_persistent": true,
+      "exclusive_on": [
+        "--no-unquote"
+      ]
+    },
+    {
+      "names": [
+        "--verbatim-files-from"
+      ],
+      "description": "Treat each line obtained from a file list as a file name, even if it starts with a dash",
+      "is_persistent": true,
+      "is_repeatable": true,
+      "depends_on": [
+        "T",
+        "-T",
+        "--files-from"
+      ]
+    },
+    {
+      "names": [
+        "X",
+        "-X",
+        "--exclude-from"
+      ],
+      "description": "Exclude files matching patterns listed in FILE",
+      "is_persistent": true,
+      "is_repeatable": true,
+      "args": [
+        {
+          "name": "FILE",
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "--index-file"
+      ],
+      "description": "Send verbose output to FILE",
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "FILE"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--no-quote-chars"
+      ],
+      "description": "Disable quoting for characters from STRING",
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "STRING"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--quote-chars"
+      ],
+      "description": "Additionally quote characters from STRING",
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "STRING"
+        }
+      ]
+    },
+    {
+      "names": [
+        "--quoting-style"
+      ],
+      "description": "Set quoting style for file and member names",
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "STYLE",
+          "suggestions": [
+            {
+              "name": "literal"
+            },
+            {
+              "name": "shell"
+            },
+            {
+              "name": "shell-always"
+            },
+            {
+              "name": "c"
+            },
+            {
+              "name": "c-maybe"
+            },
+            {
+              "name": "escape"
+            },
+            {
+              "name": "locale"
+            },
+            {
+              "name": "clocale"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "R",
+        "-R",
+        "--block-number"
+      ],
+      "description": "Show block number within archive with each message",
+      "is_persistent": true
+    },
+    {
+      "names": [
+        "--show-transformed-names",
+        "--show-stored-names"
+      ],
+      "description": "Show file or archive names after transformation by --strip and --transform options",
+      "is_persistent": true
+    },
+    {
+      "names": [
+        "--totals"
+      ],
+      "description": "Print total bytes after processing the archive",
+      "is_persistent": true,
+      "args": [
+        {
+          "name": "SIGNAL",
+          "description": "Print total bytes when this signal is delivered",
+          "is_optional": true,
+          "suggestions": [
+            {
+              "name": "SIGHUP",
+              "all_names": [
+                "SIGHUP",
+                "HUP"
+              ]
+            },
+            {
+              "name": "SIGQUIT",
+              "all_names": [
+                "SIGQUIT",
+                "QUIT"
+              ]
+            },
+            {
+              "name": "SIGINT",
+              "all_names": [
+                "SIGINT",
+                "INT"
+              ]
+            },
+            {
+              "name": "SIGUSR1",
+              "all_names": [
+                "SIGUSR1",
+                "USR1"
+              ]
+            },
+            {
+              "name": "SIGUSR2",
+              "all_names": [
+                "SIGUSR2",
+                "USR2"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "v",
+        "-v",
+        "--verbose"
+      ],
+      "description": "Verbosely list files processed",
+      "is_persistent": true,
+      "is_repeatable": true
+    },
+    {
+      "names": [
+        "w",
+        "-w",
+        "--interactive",
+        "--confirmation"
+      ],
+      "description": "Ask for confirmation for every action"
+    }
+  ],
+  "parser_directives": {
+    "flags_are_posix_noncompliant": true
+  }
+}

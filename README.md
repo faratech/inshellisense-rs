@@ -13,10 +13,17 @@ $ git ch█eckout        ← grey suggestion ─ press → to accept
 
 ## Status
 
-**Alpha — phase 1 of 6 complete.** Works end-to-end on 5 hand-ported
-commands (git, docker, cargo, systemctl, ssh). Full `@withfig/autocomplete`
-spec coverage (715 commands) lands in phase 3. See
-[CHANGELOG.md](CHANGELOG.md) for the phase plan.
+**Beta — 94.6% of upstream `@withfig/autocomplete` coverage with pure
+Rust (no JS runtime).** 1397 of 1476 upstream specs fully extracted
+into JSON and consumed at runtime, with the top 45 essentials
+(git, docker, cargo, npm, ssh, kubectl, systemctl, apt, curl, wget,
+find, grep, tar, make, vim, nvim, tmux, fzf, rg, fd, bat, eza, jq,
+ffmpeg, and 20 others) embedded directly into the 3.4 MB binary. The
+1352-spec extras tree loads via `INSH_RS_SPECS_DIR` or a future
+`insh update-specs` tarball. Phase 5 (parity corpus + CI gate) and
+phase 6 (rquickjs JS runtime) are **not** in the plan — we got here
+with pure Rust and dropped phase 6 entirely. See
+[CHANGELOG.md](CHANGELOG.md) for the full phase history.
 
 ## Why another autocomplete tool
 
@@ -133,9 +140,9 @@ specs it covers. Where it differs:
 | Cold start | ~100 ms | ~5 ms |
 | Memory | ~60 MB | ~10 MB |
 | Binary size | 30+ MB (packaged) | 1.7 MB stripped |
-| Shell support | bash, zsh, fish, pwsh, nu, xonsh, cmd | bash only (phase 1) |
-| Fig spec coverage | ~715 specs via dynamic import | 5 curated specs (phase 1) → 715 via extractor (phase 3+) |
-| JS runtime for opaque closures | always on (Node) | opt-in via `--features js` (phase 6) |
+| Shell support | bash, zsh, fish, pwsh, nu, xonsh, cmd | bash only |
+| Fig spec coverage | ~715 specs via dynamic import | **1397/1476 (94.6%)** via the static extractor |
+| JS runtime for opaque closures | always on (Node) | **none** — pure Rust static extraction only |
 | Ghost-text rendering | yes | yes |
 | Right-arrow to accept | yes | yes |
 
@@ -148,11 +155,12 @@ in phase 5.
 | Phase | Goal | Status |
 |---|---|---|
 | 1 | Schema v2 + tokenizer + resolver | ✅ done |
-| 2 | `Vec<Suggestion>` output + concurrent multi-generator exec | pending |
-| 3 | Extractor tool + msgpack loader + 715-spec coverage | pending |
-| 4 | `PostProcessKind` DSL + lazy `LoadSpec` + `parserDirectives` | pending |
+| 2 | `Vec<Suggestion>` output + concurrent multi-generator exec | ✅ done |
+| 3 | Extractor tool + spec loader + 715+ spec coverage | ✅ done |
+| 4 | `PostProcessKind` DSL + lazy `LoadSpec` + extractor isolation | ✅ done |
+| 4.5 | Extractor identifier + property-access resolution | ✅ done |
 | 5 | Parity corpus + CI gate vs inshellisense | pending |
-| 6 | `rquickjs` JS runtime for opaque closures | pending |
+| ~~6~~ | ~~`rquickjs` JS runtime for opaque closures~~ | dropped — pure Rust path covers 94.6% |
 
 ## Credits
 

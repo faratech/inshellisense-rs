@@ -57,10 +57,7 @@ fn doctor() -> Result<()> {
     println!("  bash history entries: {}", history::load().len());
     let specs = spec::Registry::new_with_defaults();
     println!("  curated specs loaded: {}", specs.len());
-    #[cfg(feature = "js")]
-    println!("  js runtime: boa_engine (enabled)");
-    #[cfg(not(feature = "js"))]
-    println!("  js runtime: disabled (build with --features js)");
+    println!("  js runtime: none (pure Rust build)");
     Ok(())
 }
 

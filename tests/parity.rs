@@ -41,8 +41,25 @@ fn git_branch_suggestion() {
 }
 
 #[test]
-fn docker_run_has_options() {
-    // After `docker run `, option suggestions should include --detach etc.
+fn docker_has_many_subcommands() {
+    // Sanity check on the extracted docker spec: a rich subcommand tree.
+    let blob = {
+        let registry = Registry::new_with_defaults();
+        let engine = Engine::new(registry, Vec::new());
+        engine.suggest_blob("docker ", ".")
+    };
+    assert!(
+        blob.len() >= 40,
+        "expected ≥40 docker subcommands, got {}",
+        blob.len()
+    );
+}
+
+#[test]
+fn docker_run_has_detach() {
+    // After `docker run `, option suggestions should include --detach.
+    // This exercises the PropertyAccessExpression resolver: the run
+    // subcommand comes from sharedCommands.run in upstream docker.ts.
     let blob = {
         let registry = Registry::new_with_defaults();
         let engine = Engine::new(registry, Vec::new());

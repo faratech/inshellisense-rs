@@ -25,13 +25,8 @@ libc = "0.2"
 bytes = "1"
 include_dir = "0.7"
 
-[dependencies.boa_engine]
-version = "0.20"
-optional = true
-
 [features]
 default = []
-js = ["boa_engine"]
 
 [profile.release]
 lto = "thin"

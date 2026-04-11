@@ -1,0 +1,37 @@
+{
+  "names": [
+    "kill"
+  ],
+  "description": "Terminate or signal a process",
+  "options": [
+    {
+      "names": [
+        "-s"
+      ],
+      "description": "A symbolic signal name specifying the signal to be sent",
+      "args": [
+        {
+          "name": "signal_name"
+        }
+      ]
+    },
+    {
+      "names": [
+        "-l"
+      ],
+      "description": "If no operand is given, list the signal names; otherwise, write the signal name corresponding to exit_status",
+      "args": [
+        {
+          "name": "exit_status",
+          "is_optional": true
+        }
+      ]
+    }
+  ],
+  "args": [
+    {
+      "name": "pid",
+      "is_variadic": true
+    }
+  ]
+}

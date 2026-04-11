@@ -78,7 +78,7 @@ fn run_generator(g: &Generator, cwd: &str, prefix: &str) -> Vec<Suggestion> {
         ),
         Generator::Template { template } => template_suggestions(*template, cwd, prefix),
         Generator::Glob { pattern } => glob_paths(pattern, cwd),
-        Generator::Custom { .. } => Vec::new(),
+        Generator::Custom { .. } => Vec::new(), // always empty without JS
     }
 }
 

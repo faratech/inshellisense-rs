@@ -2,12 +2,12 @@
   "version": "upstream-unknown",
   "stats": {
     "total": 1476,
-    "pure": 1032,
-    "partial": 416,
+    "pure": 1397,
+    "partial": 51,
     "js_only": 23,
     "error": 5,
-    "essentials_extracted": 26,
-    "function_skips": 416
+    "essentials_extracted": 45,
+    "function_skips": 51
   },
   "entries": [
     {
@@ -25,8 +25,8 @@
     {
       "name": "adb",
       "file": "adb.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "adr",
@@ -61,20 +61,20 @@
     {
       "name": "airflow",
       "file": "airflow.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aliases",
       "file": "aliases.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "amplify",
       "file": "amplify.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ampx",
@@ -97,32 +97,32 @@
     {
       "name": "ansible-doc",
       "file": "ansible-doc.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ansible-galaxy",
       "file": "ansible-galaxy.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ansible-lint",
       "file": "ansible-lint.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ansible-playbook",
       "file": "ansible-playbook.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ant",
       "file": "ant.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "appwrite",
@@ -133,26 +133,26 @@
     {
       "name": "apt",
       "file": "apt.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "arch",
       "file": "arch.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "arduino-cli",
       "file": "arduino-cli.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "argo",
       "file": "argo.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "asar",
@@ -169,20 +169,20 @@
     {
       "name": "asdf",
       "file": "asdf.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "asr",
       "file": "asr.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "assimp",
       "file": "assimp.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "astro",
@@ -199,8 +199,8 @@
     {
       "name": "atuin",
       "file": "atuin.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "authchanger",
@@ -223,8 +223,8 @@
     {
       "name": "aws",
       "file": "aws.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws-vault",
@@ -247,8 +247,8 @@
     {
       "name": "aws/acm",
       "file": "aws/acm.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws/acm-pca",
@@ -271,8 +271,8 @@
     {
       "name": "aws/amplify",
       "file": "aws/amplify.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws/amplifybackend",
@@ -607,8 +607,8 @@
     {
       "name": "aws/cloudformation",
       "file": "aws/cloudformation.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws/cloudfront",
@@ -661,8 +661,8 @@
     {
       "name": "aws/cloudwatch",
       "file": "aws/cloudwatch.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws/codeartifact",
@@ -997,8 +997,8 @@
     {
       "name": "aws/ec2",
       "file": "aws/ec2.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws/ec2-instance-connect",
@@ -1021,8 +1021,8 @@
     {
       "name": "aws/ecs",
       "file": "aws/ecs.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws/efs",
@@ -1033,8 +1033,8 @@
     {
       "name": "aws/eks",
       "file": "aws/eks.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws/eks-auth",
@@ -1057,8 +1057,8 @@
     {
       "name": "aws/elasticbeanstalk",
       "file": "aws/elasticbeanstalk.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws/elastictranscoder",
@@ -1279,8 +1279,8 @@
     {
       "name": "aws/iam",
       "file": "aws/iam.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws/identitystore",
@@ -1537,8 +1537,8 @@
     {
       "name": "aws/lambda",
       "file": "aws/lambda.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws/launch-wizard",
@@ -2269,14 +2269,14 @@
     {
       "name": "aws/s3",
       "file": "aws/s3.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws/s3api",
       "file": "aws/s3api.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws/s3control",
@@ -2365,8 +2365,8 @@
     {
       "name": "aws/secretsmanager",
       "file": "aws/secretsmanager.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "aws/security-ir",
@@ -4171,14 +4171,14 @@
     {
       "name": "bat",
       "file": "bat.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "bazel",
       "file": "bazel.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "bc",
@@ -4201,20 +4201,20 @@
     {
       "name": "black",
       "file": "black.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "blitz",
       "file": "blitz.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "bosh",
       "file": "bosh.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "br",
@@ -4225,8 +4225,8 @@
     {
       "name": "brew",
       "file": "brew.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "broot",
@@ -4237,8 +4237,8 @@
     {
       "name": "browser-sync",
       "file": "browser-sync.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "btop",
@@ -4249,8 +4249,8 @@
     {
       "name": "build-storybook",
       "file": "build-storybook.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "bun",
@@ -4261,32 +4261,32 @@
     {
       "name": "bundle",
       "file": "bundle.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "bunx",
       "file": "bunx.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "bw",
       "file": "bw.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "bwdc",
       "file": "bwdc.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "bws",
       "file": "bws.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "c++",
@@ -4303,8 +4303,8 @@
     {
       "name": "cal",
       "file": "cal.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "cap",
@@ -4315,8 +4315,8 @@
     {
       "name": "capacitor",
       "file": "capacitor.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "cargo",
@@ -4339,8 +4339,8 @@
     {
       "name": "cd",
       "file": "cd.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "cdk",
@@ -4357,8 +4357,8 @@
     {
       "name": "cf",
       "file": "cf.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "charm",
@@ -4369,14 +4369,14 @@
     {
       "name": "checkov",
       "file": "checkov.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "chezmoi",
       "file": "chezmoi.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "chmod",
@@ -4387,14 +4387,14 @@
     {
       "name": "chown",
       "file": "chown.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "chsh",
       "file": "chsh.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "cicada",
@@ -4435,8 +4435,8 @@
     {
       "name": "cliff-jumper",
       "file": "cliff-jumper.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "clilol",
@@ -4453,14 +4453,14 @@
     {
       "name": "clojure",
       "file": "clojure.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "cloudflared",
       "file": "cloudflared.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "cmake",
@@ -4471,14 +4471,14 @@
     {
       "name": "coda",
       "file": "coda.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "code",
       "file": "code.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "code-insiders",
@@ -4489,8 +4489,8 @@
     {
       "name": "codesign",
       "file": "codesign.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "command",
@@ -4513,14 +4513,14 @@
     {
       "name": "conda",
       "file": "conda.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "copilot",
       "file": "copilot.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "copyfile",
@@ -4537,8 +4537,8 @@
     {
       "name": "cordova",
       "file": "cordova.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "cosign",
@@ -4573,20 +4573,20 @@
     {
       "name": "create-nx-workspace",
       "file": "create-nx-workspace.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "create-react-app",
       "file": "create-react-app.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "create-react-native-app",
       "file": "create-react-native-app.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "create-redwood-app",
@@ -4603,8 +4603,8 @@
     {
       "name": "create-t3-app",
       "file": "create-t3-app.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "create-video",
@@ -4615,8 +4615,8 @@
     {
       "name": "create-vite",
       "file": "create-vite.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "create-web3-frontend",
@@ -4663,14 +4663,14 @@
     {
       "name": "dapr",
       "file": "dapr.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dart",
       "file": "dart.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "date",
@@ -4687,8 +4687,8 @@
     {
       "name": "datree",
       "file": "datree.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dbt",
@@ -4699,14 +4699,14 @@
     {
       "name": "dcli",
       "file": "dcli.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dd",
       "file": "dd.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ddev",
@@ -4723,38 +4723,38 @@
     {
       "name": "defaultbrowser",
       "file": "defaultbrowser.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "defaults",
       "file": "defaults.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "degit",
       "file": "degit.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "deno",
       "file": "deno.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "deployctl",
       "file": "deployctl.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "deta",
       "file": "deta.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "df",
@@ -4765,8 +4765,8 @@
     {
       "name": "diff",
       "file": "diff.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dig",
@@ -4777,8 +4777,8 @@
     {
       "name": "direnv",
       "file": "direnv.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dirname",
@@ -4795,8 +4795,8 @@
     {
       "name": "django-admin",
       "file": "django-admin.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "do",
@@ -4807,20 +4807,20 @@
     {
       "name": "do-release-upgrade",
       "file": "do-release-upgrade.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "docker",
       "file": "docker.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "docker-compose",
       "file": "docker-compose.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "doctl",
@@ -4843,8 +4843,8 @@
     {
       "name": "doppler",
       "file": "doppler.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dos2unix",
@@ -4861,8 +4861,8 @@
     {
       "name": "dotenv-vault",
       "file": "dotenv-vault.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet",
@@ -4873,14 +4873,14 @@
     {
       "name": "dotnet/dotnet-add",
       "file": "dotnet/dotnet-add.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-build",
       "file": "dotnet/dotnet-build.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-build-server",
@@ -4891,14 +4891,14 @@
     {
       "name": "dotnet/dotnet-clean",
       "file": "dotnet/dotnet-clean.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-format",
       "file": "dotnet/dotnet-format.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-help",
@@ -4909,14 +4909,14 @@
     {
       "name": "dotnet/dotnet-list",
       "file": "dotnet/dotnet-list.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-migrate",
       "file": "dotnet/dotnet-migrate.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-msbuild",
@@ -4927,68 +4927,68 @@
     {
       "name": "dotnet/dotnet-new",
       "file": "dotnet/dotnet-new.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-nuget",
       "file": "dotnet/dotnet-nuget.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-pack",
       "file": "dotnet/dotnet-pack.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-publish",
       "file": "dotnet/dotnet-publish.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-remove",
       "file": "dotnet/dotnet-remove.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-restore",
       "file": "dotnet/dotnet-restore.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-run",
       "file": "dotnet/dotnet-run.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-sln",
       "file": "dotnet/dotnet-sln.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-store",
       "file": "dotnet/dotnet-store.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-test",
       "file": "dotnet/dotnet-test.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotnet/dotnet-tool",
       "file": "dotnet/dotnet-tool.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dotslash",
@@ -5005,8 +5005,8 @@
     {
       "name": "dprint",
       "file": "dprint.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "drush",
@@ -5017,20 +5017,20 @@
     {
       "name": "dscacheutil",
       "file": "dscacheutil.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dscl",
       "file": "dscl.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "dtm",
       "file": "dtm.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "du",
@@ -5047,20 +5047,20 @@
     {
       "name": "eas",
       "file": "eas.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "eb",
       "file": "eb.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "echo",
       "file": "echo.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "electron",
@@ -5083,32 +5083,32 @@
     {
       "name": "elixir",
       "file": "elixir.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "elm",
       "file": "elm.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "elm-format",
       "file": "elm-format.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "elm-json",
       "file": "elm-json.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "elm-review",
       "file": "elm-review.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "else",
@@ -5137,14 +5137,14 @@
     {
       "name": "env",
       "file": "env.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "envchain",
       "file": "envchain.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "esbuild",
@@ -5155,8 +5155,8 @@
     {
       "name": "eslint",
       "file": "eslint.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "exa",
@@ -5173,8 +5173,8 @@
     {
       "name": "example/trigger",
       "file": "example/trigger.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "exec",
@@ -5191,14 +5191,14 @@
     {
       "name": "expo",
       "file": "expo.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "expo-cli",
       "file": "expo-cli.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "export",
@@ -5209,8 +5209,8 @@
     {
       "name": "expressots",
       "file": "expressots.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "eza",
@@ -5245,20 +5245,20 @@
     {
       "name": "ffmpeg",
       "file": "ffmpeg.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "fig/1.0.0",
       "file": "fig/1.0.0.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "fig/2.0.0",
       "file": "fig/2.0.0.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "fig/index",
@@ -5275,8 +5275,8 @@
     {
       "name": "file",
       "file": "file.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "fin",
@@ -5293,26 +5293,26 @@
     {
       "name": "firebase",
       "file": "firebase.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "firefox",
       "file": "firefox.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "fisher",
       "file": "fisher.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "flutter",
       "file": "flutter.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "fly",
@@ -5323,8 +5323,8 @@
     {
       "name": "flyctl",
       "file": "flyctl.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "fmt",
@@ -5335,8 +5335,8 @@
     {
       "name": "fnm",
       "file": "fnm.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "fold",
@@ -5365,8 +5365,8 @@
     {
       "name": "fvm",
       "file": "fvm.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "fzf",
@@ -5395,8 +5395,8 @@
     {
       "name": "gatsby",
       "file": "gatsby.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "gcc",
@@ -5821,14 +5821,14 @@
     {
       "name": "gem",
       "file": "gem.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "gh",
       "file": "gh.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ghq",
@@ -5839,8 +5839,8 @@
     {
       "name": "gibo",
       "file": "gibo.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "git",
@@ -5851,20 +5851,20 @@
     {
       "name": "git-cliff",
       "file": "git-cliff.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "git-flow",
       "file": "git-flow.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "git-profile",
       "file": "git-profile.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "git-quick-stats",
@@ -5881,8 +5881,8 @@
     {
       "name": "glow",
       "file": "glow.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "gltfjsx",
@@ -5893,8 +5893,8 @@
     {
       "name": "go",
       "file": "go.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "goctl",
@@ -5923,32 +5923,32 @@
     {
       "name": "goto",
       "file": "goto.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "gource",
       "file": "gource.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "gpg",
       "file": "gpg.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "gradle",
       "file": "gradle.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "graphcdn",
       "file": "graphcdn.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "grep",
@@ -5971,14 +5971,14 @@
     {
       "name": "gt",
       "file": "gt.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "gum",
       "file": "gum.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "hardhat",
@@ -5989,8 +5989,8 @@
     {
       "name": "hasura",
       "file": "hasura.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "hb-service",
@@ -6019,20 +6019,20 @@
     {
       "name": "herd",
       "file": "herd.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "heroku/8.0.0",
       "file": "heroku/8.0.0.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "heroku/8.6.0",
       "file": "heroku/8.6.0.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "heroku/index",
@@ -6043,8 +6043,8 @@
     {
       "name": "hexo",
       "file": "hexo.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "homey",
@@ -6097,8 +6097,8 @@
     {
       "name": "hugo",
       "file": "hugo.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "hx",
@@ -6121,20 +6121,20 @@
     {
       "name": "ibus",
       "file": "ibus.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "iconv",
       "file": "iconv.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "id",
       "file": "id.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "idea",
@@ -6157,8 +6157,8 @@
     {
       "name": "ignite-cli",
       "file": "ignite-cli.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "infracost/0.10.0",
@@ -6193,8 +6193,8 @@
     {
       "name": "ipatool",
       "file": "ipatool.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "j",
@@ -6205,14 +6205,14 @@
     {
       "name": "java",
       "file": "java.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "jenv",
       "file": "jenv.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "jest",
@@ -6235,32 +6235,32 @@
     {
       "name": "jq",
       "file": "jq.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "julia",
       "file": "julia.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "jupyter",
       "file": "jupyter.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "just",
       "file": "just.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "k3d",
       "file": "k3d.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "k6",
@@ -6271,8 +6271,8 @@
     {
       "name": "k9s",
       "file": "k9s.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "kafkactl",
@@ -6295,32 +6295,32 @@
     {
       "name": "keytool",
       "file": "keytool.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "kill",
       "file": "kill.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "killall",
       "file": "killall.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "kind",
       "file": "kind.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "kitty",
       "file": "kitty.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "klist",
@@ -6337,8 +6337,8 @@
     {
       "name": "kool",
       "file": "kool.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "kotlinc",
@@ -6355,32 +6355,32 @@
     {
       "name": "kubectl",
       "file": "kubectl.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "kubectx",
       "file": "kubectx.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "kubens",
       "file": "kubens.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "laravel",
       "file": "laravel.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "launchctl",
       "file": "launchctl.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ldd",
@@ -6397,8 +6397,8 @@
     {
       "name": "lerna",
       "file": "lerna.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "less",
@@ -6415,14 +6415,14 @@
     {
       "name": "limactl",
       "file": "limactl.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ln",
       "file": "ln.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "locust",
@@ -6433,14 +6433,14 @@
     {
       "name": "login",
       "file": "login.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "lp",
       "file": "lp.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "lpass",
@@ -6469,8 +6469,8 @@
     {
       "name": "lsof",
       "file": "lsof.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "luz",
@@ -6487,14 +6487,14 @@
     {
       "name": "m",
       "file": "m.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mackup",
       "file": "mackup.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "magento",
@@ -6517,20 +6517,20 @@
     {
       "name": "make",
       "file": "make.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mamba",
       "file": "mamba.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "man",
       "file": "man.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mas",
@@ -6547,8 +6547,8 @@
     {
       "name": "mdfind",
       "file": "mdfind.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mdls",
@@ -6565,20 +6565,20 @@
     {
       "name": "meteor",
       "file": "meteor.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mgnl",
       "file": "mgnl.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "micro",
       "file": "micro.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mikro-orm",
@@ -6595,14 +6595,14 @@
     {
       "name": "minikube",
       "file": "minikube.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mix",
       "file": "mix.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mkdir",
@@ -6613,8 +6613,8 @@
     {
       "name": "mkdocs",
       "file": "mkdocs.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mkfifo",
@@ -6625,8 +6625,8 @@
     {
       "name": "mkinitcpio",
       "file": "mkinitcpio.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mknod",
@@ -6643,8 +6643,8 @@
     {
       "name": "molecule",
       "file": "molecule.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mongocli",
@@ -6655,8 +6655,8 @@
     {
       "name": "mongoimport",
       "file": "mongoimport.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mongosh",
@@ -6673,20 +6673,20 @@
     {
       "name": "mosh",
       "file": "mosh.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mount",
       "file": "mount.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "multipass",
       "file": "multipass.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "mv",
@@ -6715,8 +6715,8 @@
     {
       "name": "n",
       "file": "n.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "nano",
@@ -6739,44 +6739,44 @@
     {
       "name": "ncal",
       "file": "ncal.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ncu",
       "file": "ncu.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "neofetch",
       "file": "neofetch.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "nest",
       "file": "nest.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "netlify",
       "file": "netlify.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "networkQuality",
       "file": "networkQuality.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "networksetup",
       "file": "networksetup.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "newman",
@@ -6787,20 +6787,20 @@
     {
       "name": "next",
       "file": "next.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "nextflow",
       "file": "nextflow.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ng",
       "file": "ng.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "nginx",
@@ -6811,8 +6811,8 @@
     {
       "name": "ngrok",
       "file": "ngrok.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "nhost",
@@ -6823,8 +6823,8 @@
     {
       "name": "ni",
       "file": "ni.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "nl",
@@ -6871,32 +6871,32 @@
     {
       "name": "npm",
       "file": "npm.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "npx",
       "file": "npx.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "nr",
       "file": "nr.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "nrm",
       "file": "nrm.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ns",
       "file": "ns.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "nu",
@@ -6907,8 +6907,8 @@
     {
       "name": "nuxi",
       "file": "nuxi.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "nuxt",
@@ -6925,8 +6925,8 @@
     {
       "name": "nvm",
       "file": "nvm.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "nx",
@@ -6955,8 +6955,8 @@
     {
       "name": "oh-my-posh",
       "file": "oh-my-posh.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "okta",
@@ -6967,14 +6967,14 @@
     {
       "name": "okteto",
       "file": "okteto.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ollama",
       "file": "ollama.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "omz",
@@ -7003,32 +7003,32 @@
     {
       "name": "open",
       "file": "open.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "osascript",
       "file": "osascript.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "osqueryi",
       "file": "osqueryi.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "oxlint",
       "file": "oxlint.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pac",
       "file": "pac.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pageres",
@@ -7045,8 +7045,8 @@
     {
       "name": "pandoc",
       "file": "pandoc.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "paper",
@@ -7057,14 +7057,14 @@
     {
       "name": "pass",
       "file": "pass.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "passwd",
       "file": "passwd.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "paste",
@@ -7081,8 +7081,8 @@
     {
       "name": "pdfunite",
       "file": "pdfunite.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pg_dump",
@@ -7135,8 +7135,8 @@
     {
       "name": "phpunit-watcher",
       "file": "phpunit-watcher.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pijul",
@@ -7153,8 +7153,8 @@
     {
       "name": "pip",
       "file": "pip.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pip3",
@@ -7165,14 +7165,14 @@
     {
       "name": "pipenv",
       "file": "pipenv.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pipx",
       "file": "pipx.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pkg-config",
@@ -7183,8 +7183,8 @@
     {
       "name": "pkgutil",
       "file": "pkgutil.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pkill",
@@ -7201,8 +7201,8 @@
     {
       "name": "playwright",
       "file": "playwright.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "plutil",
@@ -7213,14 +7213,14 @@
     {
       "name": "pm2",
       "file": "pm2.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pmset",
       "file": "pmset.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pnpm",
@@ -7243,32 +7243,32 @@
     {
       "name": "pod",
       "file": "pod.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "podman",
       "file": "podman.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "poetry",
       "file": "poetry.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pre-commit",
       "file": "pre-commit.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "premake",
       "file": "premake.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "preset",
@@ -7285,8 +7285,8 @@
     {
       "name": "prisma",
       "file": "prisma.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pro",
@@ -7303,8 +7303,8 @@
     {
       "name": "projj",
       "file": "projj.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pry",
@@ -7321,8 +7321,8 @@
     {
       "name": "pscale",
       "file": "pscale.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "psql",
@@ -7339,8 +7339,8 @@
     {
       "name": "pulumi",
       "file": "pulumi.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pushd",
@@ -7363,8 +7363,8 @@
     {
       "name": "pyenv",
       "file": "pyenv.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pytest",
@@ -7393,14 +7393,14 @@
     {
       "name": "q",
       "file": "q.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "qodana",
       "file": "qodana.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "quasar",
@@ -7411,14 +7411,14 @@
     {
       "name": "quickmail",
       "file": "quickmail.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "r",
       "file": "r.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rails",
@@ -7435,32 +7435,32 @@
     {
       "name": "rake",
       "file": "rake.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rancher",
       "file": "rancher.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rbenv",
       "file": "rbenv.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rclone",
       "file": "rclone.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "react-native",
       "file": "react-native.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "readlink",
@@ -7471,14 +7471,14 @@
     {
       "name": "redwood",
       "file": "redwood.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "remix",
       "file": "remix.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "remotion",
@@ -7495,14 +7495,14 @@
     {
       "name": "rg",
       "file": "rg.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rich",
       "file": "rich.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rm",
@@ -7519,20 +7519,20 @@
     {
       "name": "robot",
       "file": "robot.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rojo",
       "file": "rojo.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rollup",
       "file": "rollup.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rome",
@@ -7543,20 +7543,20 @@
     {
       "name": "rscript",
       "file": "rscript.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rsync",
       "file": "rsync.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rubocop",
       "file": "rubocop.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ruby",
@@ -7573,8 +7573,8 @@
     {
       "name": "ruff",
       "file": "ruff.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rugby",
@@ -7585,14 +7585,14 @@
     {
       "name": "rush",
       "file": "rush.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rushx",
       "file": "rushx.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rustc",
@@ -7615,8 +7615,8 @@
     {
       "name": "rvm",
       "file": "rvm.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "sake",
@@ -7627,8 +7627,8 @@
     {
       "name": "sam",
       "file": "sam.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "sanity",
@@ -7645,32 +7645,32 @@
     {
       "name": "scarb",
       "file": "scarb.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "scc",
       "file": "scc.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "scp",
       "file": "scp.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "screen",
       "file": "screen.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "sed",
       "file": "sed.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "seq",
@@ -7681,8 +7681,8 @@
     {
       "name": "sequelize",
       "file": "sequelize.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "serve",
@@ -7705,8 +7705,8 @@
     {
       "name": "sftp",
       "file": "sftp.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "sha1sum",
@@ -7717,8 +7717,8 @@
     {
       "name": "shadcn-ui",
       "file": "shadcn-ui.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "shasum",
@@ -7735,8 +7735,8 @@
     {
       "name": "shelve",
       "file": "shelve.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "shopify/2.0.0",
@@ -7759,8 +7759,8 @@
     {
       "name": "shortcuts",
       "file": "shortcuts.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "shred",
@@ -7771,8 +7771,8 @@
     {
       "name": "sidekiq",
       "file": "sidekiq.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "simctl",
@@ -7783,8 +7783,8 @@
     {
       "name": "sips",
       "file": "sips.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "sl",
@@ -7801,14 +7801,14 @@
     {
       "name": "snaplet",
       "file": "snaplet.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "softwareupdate",
       "file": "softwareupdate.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "sort",
@@ -7861,8 +7861,8 @@
     {
       "name": "spring",
       "file": "spring.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "sqlfluff",
@@ -7873,8 +7873,8 @@
     {
       "name": "sqlite3",
       "file": "sqlite3.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "sqlmesh",
@@ -7885,26 +7885,26 @@
     {
       "name": "src",
       "file": "src.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ssh",
       "file": "ssh.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ssh-keygen",
       "file": "ssh-keygen.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "st2",
       "file": "st2.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "sta",
@@ -7927,8 +7927,8 @@
     {
       "name": "start-storybook",
       "file": "start-storybook.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "stat",
@@ -7939,8 +7939,8 @@
     {
       "name": "steadybit",
       "file": "steadybit.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "stencil",
@@ -7951,8 +7951,8 @@
     {
       "name": "stepzen",
       "file": "stepzen.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "stow",
@@ -7963,14 +7963,14 @@
     {
       "name": "streamlit",
       "file": "streamlit.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "stripe",
       "file": "stripe.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "su",
@@ -7981,8 +7981,8 @@
     {
       "name": "subl",
       "file": "subl.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "sudo",
@@ -8005,14 +8005,14 @@
     {
       "name": "surreal",
       "file": "surreal.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "svn",
       "file": "svn.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "svokit",
@@ -8023,8 +8023,8 @@
     {
       "name": "svtplay-dl",
       "file": "svtplay-dl.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "sw_vers",
@@ -8047,8 +8047,8 @@
     {
       "name": "swift",
       "file": "swift.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "symfony",
@@ -8059,14 +8059,14 @@
     {
       "name": "sysctl",
       "file": "sysctl.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "systemctl",
       "file": "systemctl.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tac",
@@ -8089,14 +8089,14 @@
     {
       "name": "tailscale",
       "file": "tailscale.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tailwindcss",
       "file": "tailwindcss.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tangram",
@@ -8107,14 +8107,14 @@
     {
       "name": "taplo",
       "file": "taplo.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tar",
       "file": "tar.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "task",
@@ -8125,14 +8125,14 @@
     {
       "name": "task/go-task",
       "file": "task/go-task.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "task/taskwarrior",
       "file": "task/taskwarrior.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tb",
@@ -8143,8 +8143,8 @@
     {
       "name": "tccutil",
       "file": "tccutil.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tee",
@@ -8155,26 +8155,26 @@
     {
       "name": "terraform",
       "file": "terraform.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "terragrunt",
       "file": "terragrunt.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tfenv",
       "file": "tfenv.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tfsec",
       "file": "tfsec.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "then",
@@ -8197,8 +8197,8 @@
     {
       "name": "tldr",
       "file": "tldr.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tmutil",
@@ -8209,14 +8209,14 @@
     {
       "name": "tmux",
       "file": "tmux.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tmuxinator",
       "file": "tmuxinator.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tns",
@@ -8227,8 +8227,8 @@
     {
       "name": "tokei",
       "file": "tokei.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "top",
@@ -8245,8 +8245,8 @@
     {
       "name": "tr",
       "file": "tr.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "traceroute",
@@ -8257,8 +8257,8 @@
     {
       "name": "trap",
       "file": "trap.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "trash",
@@ -8275,20 +8275,20 @@
     {
       "name": "trex",
       "file": "trex.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "trivy",
       "file": "trivy.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "truffle",
       "file": "truffle.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "truncate",
@@ -8299,38 +8299,38 @@
     {
       "name": "trunk",
       "file": "trunk.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ts-node",
       "file": "ts-node.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tsc",
       "file": "tsc.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tsh",
       "file": "tsh.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tsuru",
       "file": "tsuru.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tsx",
       "file": "tsx.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tuist",
@@ -8341,8 +8341,8 @@
     {
       "name": "turbo",
       "file": "turbo.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "twiggy",
@@ -8359,8 +8359,8 @@
     {
       "name": "typeorm",
       "file": "typeorm.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "typos",
@@ -8371,8 +8371,8 @@
     {
       "name": "typst",
       "file": "typst.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ua",
@@ -8407,8 +8407,8 @@
     {
       "name": "unset",
       "file": "unset.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "until",
@@ -8431,8 +8431,8 @@
     {
       "name": "v",
       "file": "v.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "vale",
@@ -8443,20 +8443,20 @@
     {
       "name": "valet",
       "file": "valet.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "vapor",
       "file": "vapor.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "vault",
       "file": "vault.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "vela",
@@ -8497,32 +8497,32 @@
     {
       "name": "vite",
       "file": "vite.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "volta",
       "file": "volta.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "vr",
       "file": "vr.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "vsce",
       "file": "vsce.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "vtex",
       "file": "vtex.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "vue",
@@ -8533,8 +8533,8 @@
     {
       "name": "vultr-cli",
       "file": "vultr-cli.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "w",
@@ -8545,8 +8545,8 @@
     {
       "name": "wasm-bindgen",
       "file": "wasm-bindgen.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "wasm-pack",
@@ -8563,8 +8563,8 @@
     {
       "name": "watson",
       "file": "watson.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "wc",
@@ -8575,14 +8575,14 @@
     {
       "name": "wd",
       "file": "wd.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "webpack",
       "file": "webpack.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "webstorm",
@@ -8623,8 +8623,8 @@
     {
       "name": "which",
       "file": "which.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "while",
@@ -8647,8 +8647,8 @@
     {
       "name": "wifi-password",
       "file": "wifi-password.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "wing",
@@ -8659,14 +8659,14 @@
     {
       "name": "wp",
       "file": "wp.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "wrangler",
       "file": "wrangler.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "wrk",
@@ -8707,14 +8707,14 @@
     {
       "name": "xcodeproj",
       "file": "xcodeproj.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "xcodes",
       "file": "xcodes.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "xcrun",
@@ -8749,8 +8749,8 @@
     {
       "name": "yalc",
       "file": "yalc.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "yank",
@@ -8767,26 +8767,26 @@
     {
       "name": "ykman",
       "file": "ykman.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "yo",
       "file": "yo.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "yomo",
       "file": "yomo.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "youtube-dl",
       "file": "youtube-dl.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "z",
@@ -8797,8 +8797,8 @@
     {
       "name": "zapier",
       "file": "zapier.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "zed",
@@ -8809,8 +8809,8 @@
     {
       "name": "zellij",
       "file": "zellij.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "zig",

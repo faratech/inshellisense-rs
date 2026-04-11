@@ -14,6 +14,3 @@ pub mod shell_init;
 pub mod spec;
 pub mod suggest;
 pub mod term;
-
-#[cfg(feature = "js")]
-pub mod js;

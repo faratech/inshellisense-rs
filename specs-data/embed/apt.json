@@ -1,0 +1,326 @@
+{
+  "names": [
+    "apt"
+  ],
+  "description": "Package manager for Debian-based Linux distributions",
+  "subcommands": [
+    {
+      "names": [
+        "update"
+      ],
+      "description": "Update the package database",
+      "options": []
+    },
+    {
+      "names": [
+        "upgrade"
+      ],
+      "description": "Install all available upgrades",
+      "options": [],
+      "args": [
+        {
+          "name": "package",
+          "description": "Package(s) to upgrade",
+          "is_optional": true,
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "full-upgrade"
+      ],
+      "description": "Install available upgrades, removing currently installed packages if needed to upgrade the system as a whole",
+      "options": []
+    },
+    {
+      "names": [
+        "install"
+      ],
+      "description": "Install package(s)",
+      "options": [
+        {
+          "names": [
+            "--reinstall"
+          ],
+          "description": "Reinstall the package if it is already installed"
+        },
+        {
+          "names": [
+            "-f",
+            "--fix-broken"
+          ],
+          "description": "Attempt to fix broken packages"
+        }
+      ],
+      "args": [
+        {
+          "name": "package",
+          "description": "The package you want to install",
+          "is_variadic": true,
+          "generators": [
+            {
+              "kind": "template",
+              "template": "filepaths"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "reinstall"
+      ],
+      "description": "Reinstall package(s)",
+      "options": [],
+      "args": [
+        {
+          "name": "package",
+          "description": "The package you want to reinstall",
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "remove"
+      ],
+      "description": "Remove package(s)",
+      "options": [
+        {
+          "names": [
+            "-f",
+            "--fix-broken"
+          ],
+          "description": "Attempt to fix broken packages"
+        }
+      ],
+      "args": [
+        {
+          "name": "package",
+          "description": "The package you want to remove",
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "purge"
+      ],
+      "description": "Remove package(s) and their configuration files",
+      "options": [],
+      "args": [
+        {
+          "name": "package",
+          "description": "The package you want to purge",
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "autoremove",
+        "auto-remove"
+      ],
+      "description": "Remove unused packages",
+      "options": []
+    },
+    {
+      "names": [
+        "list"
+      ],
+      "description": "List packages",
+      "options": [
+        {
+          "names": [
+            "--installed"
+          ],
+          "description": "List installed packages"
+        },
+        {
+          "names": [
+            "--upgradable"
+          ],
+          "description": "List upgradable packages"
+        }
+      ]
+    },
+    {
+      "names": [
+        "search"
+      ],
+      "description": "Search for packages",
+      "options": [],
+      "args": [
+        {
+          "name": "query",
+          "description": "The query to search for"
+        }
+      ]
+    },
+    {
+      "names": [
+        "show"
+      ],
+      "description": "Show package details",
+      "args": [
+        {
+          "name": "package",
+          "description": "The package you want to show"
+        }
+      ]
+    },
+    {
+      "names": [
+        "satisfy"
+      ],
+      "description": "Satisfy package dependencies",
+      "options": [],
+      "args": [
+        {
+          "name": "package",
+          "description": "The package you want to satisfy",
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "clean"
+      ],
+      "description": "Remove downloaded package files",
+      "options": []
+    },
+    {
+      "names": [
+        "edit-sources"
+      ],
+      "description": "Edit the list of package sources",
+      "options": []
+    },
+    {
+      "names": [
+        "source"
+      ],
+      "description": "Fetch package source files",
+      "options": [
+        {
+          "names": [
+            "--compile"
+          ],
+          "description": "Compile the package to a binary using dpkg-buildpackage"
+        },
+        {
+          "names": [
+            "--only-source"
+          ]
+        },
+        {
+          "names": [
+            "--host-architecture"
+          ],
+          "description": "The architecture to build for",
+          "args": [
+            {
+              "name": "architecture",
+              "description": "The architecture to build for"
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "package",
+          "description": "The package you want to get source files for",
+          "is_variadic": true
+        }
+      ]
+    },
+    {
+      "names": [
+        "build-dep"
+      ],
+      "description": "Install/remove packages in an attempt to satisfy the build dependencies for a source package",
+      "options": [
+        {
+          "names": [
+            "--host-architecture"
+          ],
+          "description": "The architecture to build for",
+          "args": [
+            {
+              "name": "architecture",
+              "description": "The architecture to build for"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--only-source"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "package",
+          "description": "The package you want to build dependencies for"
+        }
+      ]
+    },
+    {
+      "names": [
+        "download"
+      ],
+      "description": "Download package binary into the current directory",
+      "options": [],
+      "args": [
+        {
+          "name": "package",
+          "description": "The package you want to download"
+        }
+      ]
+    },
+    {
+      "names": [
+        "autoclean",
+        "auto-clean"
+      ],
+      "description": "Like clean, but only removes package files that can no longer be downloaded",
+      "options": []
+    },
+    {
+      "names": [
+        "changelog"
+      ],
+      "description": "Show the changelog for a package",
+      "options": [],
+      "args": [
+        {
+          "name": "package",
+          "description": "The package you want to show the changelog for",
+          "is_variadic": true
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "names": [
+        "-h",
+        "--help"
+      ],
+      "description": "Print help message and exit",
+      "priority": 40,
+      "is_persistent": true
+    },
+    {
+      "names": [
+        "-v",
+        "--version"
+      ],
+      "description": "Print version information and exit",
+      "priority": 40,
+      "is_persistent": true
+    }
+  ]
+}

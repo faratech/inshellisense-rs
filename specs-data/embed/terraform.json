@@ -1,0 +1,37 @@
+{
+  "names": [
+    "terraform"
+  ],
+  "description": "Terraform CLI",
+  "subcommands": [],
+  "options": [
+    {
+      "names": [
+        "-help"
+      ],
+      "description": "Show this help output, or the help for a specified subcommand"
+    },
+    {
+      "names": [
+        "-chdir"
+      ],
+      "description": "Switch to a different working directory before executing the given subcommand",
+      "args": [
+        {
+          "templates": [
+            "filepaths"
+          ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "-version"
+      ],
+      "description": "Show the current Terraform version"
+    }
+  ],
+  "parser_directives": {
+    "flags_are_posix_noncompliant": true
+  }
+}
