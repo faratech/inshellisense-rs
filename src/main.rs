@@ -1,6 +1,8 @@
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
-use insh_rs::{commands, env as insh_env, pty, resources, shell::Shell, shell_init};
+use insh_rs::{
+    commands, config::UiMode, env as insh_env, pty, resources, shell::Shell, shell_init,
+};
 
 /// IDE-style shell autocomplete in Rust. Drop-in compatible with Microsoft's
 /// inshellisense (`is`) — insh-rs ships both `insh` and `is` binaries, reads
@@ -49,9 +51,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Start an interactive shell wrapped with ghost-text autocomplete
-    /// (default when no subcommand is given).
-    Start,
+    /// Start an interactive shell wrapped with autocomplete
+    /// (default when no subcommand is given). UI defaults to ghost
+    /// text; use `--ui popup` for the upstream-style popup TUI.
+    Start {
+        /// Override the suggestion UI mode. Defaults to the config
+        /// file's `ui` field (which defaults to `ghost`).
+        #[arg(long, value_enum)]
+        ui: Option<UiMode>,
+    },
 
     /// Print or install the init snippet for the given shell.
     Init {
@@ -129,12 +137,17 @@ pub fn main() -> Result<()> {
         std::process::exit(1);
     }
 
-    match cli.command.unwrap_or(Cmd::Start) {
-        Cmd::Start => {
+    match cli.command.unwrap_or(Cmd::Start { ui: None }) {
+        Cmd::Start { ui } => {
             // Eagerly unpack resources so the wrapped shell can find its
             // integration scripts under ~/.insh-rs/. Cheap: the unpacker
             // is version-gated and no-ops on second run.
             let _ = resources::unpack();
+            let cfg = insh_rs::config::load();
+            let effective_ui = ui.unwrap_or(cfg.ui);
+            if cli.verbose {
+                eprintln!("insh-rs: ui mode = {}", effective_ui.as_str());
+            }
             pty::run_wrapped_shell()
         }
         Cmd::Init { shell, install_rc } => {

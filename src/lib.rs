@@ -6,6 +6,7 @@
 
 pub mod ansi;
 pub mod commands;
+pub mod config;
 pub mod curated;
 pub mod doctor;
 pub mod env;
