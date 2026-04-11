@@ -7,6 +7,119 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 6.6 — Parity expansion + CI tightening + shared engine
+
+- **Added** shared test-engine via `OnceLock` — the 111-case parity
+  corpus test now reuses a single `Registry` across all cases instead
+  of rebuilding it 111 times (each build walks 1400+ spec files).
+  Runtime: **60+ s → 2 s** for the corpus test.
+- **Added** `INSH_RS_SPECS_DIR` env-var set inside the test so the
+  corpus exercises the full 1410-spec extras tree, not just the 53
+  embedded essentials.
+- **Expanded** parity corpus from 82 → **111 cases** covering phase
+  6.1/6.2 unlocks: pnpm/yarn/bun subcommand runners, git (now
+  extractor-sourced), heroku/shopify/infracost/az versioned specs,
+  composer/drush/magento/php/rails/nx static shells, rustup toolchain
+  subcommand, hub re-export. Pass rate: **109/111 = 98.2%**.
+- **Fixed** `Registry::load_disk_specs` key convention: nested files
+  like `extras/gcloud/docker.json` (whose primary name is "docker"
+  because it's the `gcloud docker` subspec) were overwriting the real
+  top-level docker entry when loaded. Now keyed by path-relative-to-
+  extras-root just like `walk_embedded` does for include_dir.
+- **Tightened** CI extractor-regression threshold from 95% → 99%
+  (matching the new 99.86% ceiling with ~0.9% drift margin).
+- **Updated** README + CHANGELOG coverage numbers.
+
+### Phase 6.2d — Always emit even partials → 100% loaded
+
+- Changed `extractFileAs` to ALWAYS emit the spec even when
+  `has_functions` is true. The 2 specs that still contain top-level
+  imperative spec construction (dotnet's `for ... of` loop building
+  `subcommands`, pnpm's top-level `subcommands.filter(...)` call) now
+  load with their static skeleton. Their dynamic bits drop cleanly.
+  Stats: **1468 pure + 2 partial = 1470/1470 loaded (100%)**.
+- Verified: `pnpm <TAB>` returns 28 subcommands (i, t, m, it, up, rm,
+  un, ln, rb, ls, -r, add, why, run, tst, ...); `dotnet <TAB>` under
+  `INSH_RS_SPECS_DIR` returns 19 (new, add, list, remove, build,
+  build-server, ...).
+
+### Phase 6.2 — ProjectFile + FileExistsThen generators + shorthand fix
+
+The single biggest phase — pushed coverage from 97.6% → 99.86%.
+
+**New Generator variants** (`src/spec/model.rs` + `src/generator.rs`):
+- `Generator::ProjectFile { reader: ProjectFileReader }` with four
+  readers implemented in Rust: `PackageJsonScripts` (read
+  package.json's scripts object), `PackageJsonNodeClis` (filter
+  deps/devDeps against a hardcoded NODE_CLIS set of 60+ tool names
+  like vite/jest/eslint/prettier/tsc/next/nuxt/remix/astro),
+  `NodeModulesBinaries` (walk up from cwd until `node_modules/.bin/`,
+  list entries filtered by NODE_CLIS), `CargoWorkspaceMembers` (read
+  Cargo.toml workspace members).
+- `Generator::FileExistsThen { path, content_contains, subcommand }`
+  — static alternative to many `generateSpec: async` idioms. Checks
+  for a marker file (and optionally a substring) and emits a
+  hardcoded subcommand if present.
+
+**Extractor improvements** (`tools/extractor/extract.ts`):
+- `TOLERANT_SCALAR_FIELDS` — new concept where `generateSpec`,
+  `getVersionCommand`, `loadSpec`, `isCommand`, `filterTerm`,
+  `getQueryTerm`, `shouldRedraw` drop silently if impure instead of
+  tainting the spec. **The single biggest coverage lever** — many
+  specs were partial only because of `generateSpec`, and now they
+  extract as pure with the dynamic part dropped.
+- Method shorthand handler: `postProcess(out) { return ...; }` is now
+  classified via the same postProcess pattern matchers as
+  `postProcess: function (out) { ... }`, by duck-typing the
+  `MethodDeclaration` node to the same `ArrowFunction`/`FunctionExpression`
+  shape.
+- **ShorthandPropertyAssignment value resolution fix** — previously
+  `prop.getNameNode().getSymbol()` returned the property's own symbol
+  (not the resolved variable), so shorthand references like
+  `{ subcommands }` silently failed. Now uses `prop.getValueSymbol()`
+  which follows to the actual top-level definition. **Unlocked many
+  specs** that use ES6 shorthand for top-level constant references
+  (aws-vault, many others).
+- Post-extraction injection table for known idioms: pnpm/yarn/bun get
+  a synthetic top-level args generator with `PackageJsonScripts` +
+  `PackageJsonNodeClis` + `NodeModulesBinaries` readers; python/
+  python3 get a Django marker check (`manage.py` contains "django");
+  node gets an AdonisJS `ace` check; php gets artisan/please/bin-
+  console checks.
+- Eager-load every spec file into the ts-morph project at startup so
+  cross-file symbol resolution (e.g. pnpm importing
+  `dependenciesGenerator` from `./yarn`) resolves cleanly through
+  `getAliasedSymbol`.
+
+**Cleanup** (`src/curated.rs`):
+- git, docker, cargo, systemctl, ssh, and every other essential is
+  now extractor-sourced. `curated.rs` is empty (kept as a documented
+  escape hatch for future Rust-native injection).
+
+Validation: 31 tests pass. Release binary **4.3 MB** (up from 3.7 MB
+— git alone is ~400 KB embedded, plus pnpm/node/yarn/bun additions).
+Extractor stats: 1470 total, 1468 pure, 2 partial, 0 js_only,
+0 errors. 53 of 58 whitelist essentials embedded (up from 46).
+
+### Phase 6.1 — createVersionedSpec handler + filter aws/regions
+
+- **Added** extractor pattern recognition for `export default
+  createVersionedSpec(name, versionFiles)`. Algorithm: evaluate both
+  args via existing `extractValue`, sort versions semver-wise
+  (lexicographic fallback), pick the highest, and recursively extract
+  the sibling `X.Y.Z.ts` file under the parent directory name. So
+  `heroku/index.ts` → `heroku.json` (not `heroku/index.json`).
+- **Added** default-import re-export handling (`import x from "./y";
+  export default x;`) via `ImportClause` resolution. Unlocked `cl`
+  (re-export of commercelayer).
+- **Filtered** `aws/regions.ts` at the walker — it's `export default
+  <string[]>` (a data helper, not a Fig.Spec) and shouldn't count as
+  a non-spec error.
+- **Unlocked** fig, heroku, infracost, shopify, az via the factory
+  handler, plus `cl` via the default-import fix.
+
+Stats: 1429/1471 (97.1%) → 1435/1470 (97.6%). js_only: 7 → 0.
+
 ### Phase 5 — Parity corpus + CI gate
 
 - **Added** `tests/parity-corpus.jsonl` — **82 hand-crafted parity

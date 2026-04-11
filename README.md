@@ -13,9 +13,12 @@ $ git ch█eckout        ← grey suggestion ─ press → to accept
 
 ## Status
 
-**Beta — 97.1% of upstream `@withfig/autocomplete` coverage with pure
-Rust (no JS runtime).** 1429 of 1471 upstream specs fully extracted
-into JSON and consumed at runtime, with the top 46 essentials
+**Beta — 100% of upstream `@withfig/autocomplete` specs load, 99.86%
+fully pure-extracted, with pure Rust (no JS runtime).** 1468 of 1470
+upstream specs fully extracted into JSON and consumed at runtime; the
+remaining 2 (pnpm, dotnet) load with their static structure and
+gracefully drop the ~1 dynamic generator each that can't be statically
+resolved. The top 53 essentials
 (git, docker, cargo, npm, ssh, kubectl, systemctl, apt, curl, wget,
 find, grep, tar, make, vim, nvim, tmux, fzf, rg, fd, bat, eza, jq,
 ffmpeg, and 20 others) embedded directly into the 3.4 MB binary. The
@@ -141,7 +144,7 @@ specs it covers. Where it differs:
 | Memory | ~60 MB | ~10 MB |
 | Binary size | 30+ MB (packaged) | 1.7 MB stripped |
 | Shell support | bash, zsh, fish, pwsh, nu, xonsh, cmd | bash only |
-| Fig spec coverage | ~715 specs via dynamic import | **1429/1471 (97.1%)** via the static extractor |
+| Fig spec coverage | ~715 specs via dynamic import | **1470/1470 loaded (99.86% pure)** via the static extractor |
 | JS runtime for opaque closures | always on (Node) | **none** — pure Rust static extraction only |
 | Ghost-text rendering | yes | yes |
 | Right-arrow to accept | yes | yes |
@@ -161,7 +164,10 @@ in phase 5.
 | 4.5 | Extractor identifier + property-access resolution | ✅ done |
 | 4.6 | Static factory evaluator + template folding → 97.1% coverage | ✅ done |
 | 5 | 82-case parity corpus + GitHub Actions CI gate | ✅ done |
-| ~~6~~ | ~~`rquickjs` JS runtime for opaque closures~~ | dropped — pure Rust path covers 97.1% |
+| 6.1 | `createVersionedSpec` handler → 97.6% | ✅ done |
+| 6.2 | `ProjectFile` + `FileExistsThen` generators + shorthand fix → 99.86% pure / 100% loaded | ✅ done |
+| 6.6 | Parity expansion to 111 cases + CI threshold tightening | ✅ done |
+| ~~6~~ | ~~`rquickjs` JS runtime for opaque closures~~ | dropped — pure Rust path reached 99.86% |
 
 ## Credits
 

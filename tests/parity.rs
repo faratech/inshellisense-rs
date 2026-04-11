@@ -18,6 +18,24 @@
 
 use insh_rs::{spec::Registry, suggest::Engine};
 use serde::Deserialize;
+use std::sync::OnceLock;
+
+/// Shared registry built once per test binary. Parity corpus runs 100+
+/// cases, and without this each case would rebuild a Registry from
+/// scratch — walking 1400+ spec files from disk for every case. The
+/// `INSH_RS_SPECS_DIR` env var must be set BEFORE first access so the
+/// singleton picks it up.
+fn shared_engine() -> &'static Engine {
+    static CELL: OnceLock<Engine> = OnceLock::new();
+    CELL.get_or_init(|| {
+        let extras_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("specs-data")
+            .join("extras");
+        std::env::set_var("INSH_RS_SPECS_DIR", &extras_dir);
+        let registry = Registry::new_with_defaults();
+        Engine::new(registry, Vec::new())
+    })
+}
 
 fn top_suggestion(line: &str) -> Option<String> {
     let registry = Registry::new_with_defaults();
@@ -200,8 +218,7 @@ struct CorpusCase {
 }
 
 fn run_case(case: &CorpusCase) -> Result<(), String> {
-    let registry = Registry::new_with_defaults();
-    let engine = Engine::new(registry, Vec::new());
+    let engine = shared_engine();
     let cwd = case.cwd.as_deref().unwrap_or(".");
 
     if let Some(tail) = &case.expect_tail {

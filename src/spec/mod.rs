@@ -54,18 +54,37 @@ impl Registry {
         }
     }
 
-    fn load_disk_specs(&mut self, dir: &std::path::Path) {
+    fn load_disk_specs(&mut self, root: &std::path::Path) {
+        Self::walk_disk(root, root, self);
+    }
+
+    fn walk_disk(root: &std::path::Path, dir: &std::path::Path, reg: &mut Registry) {
         let Ok(entries) = std::fs::read_dir(dir) else { return };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
-                self.load_disk_specs(&path);
+                Self::walk_disk(root, &path, reg);
             } else if path.extension().and_then(|e| e.to_str()) == Some("json") {
                 let Ok(bytes) = std::fs::read_to_string(&path) else { continue };
-                match serde_json::from_str::<Subcommand>(&bytes) {
-                    Ok(spec) => self.insert(spec),
-                    Err(e) => eprintln!("insh-rs: skipped {}: {}", path.display(), e),
+                let Ok(spec) = serde_json::from_str::<Subcommand>(&bytes) else {
+                    eprintln!("insh-rs: failed to parse {}", path.display());
+                    continue;
+                };
+                // Derive the registry key from the path relative to the
+                // extras root: `gcloud/docker.json` → `gcloud/docker`.
+                // Top-level files key by primary name so that
+                // `git.json` keys as "git" (not "git" path-key).
+                if let Ok(rel) = path.strip_prefix(root) {
+                    let key = rel.with_extension("").to_string_lossy().into_owned();
+                    if key.contains('/') {
+                        // Don't overwrite an existing top-level spec
+                        // with a nested subspec that happens to share
+                        // a primary name (e.g. gcloud/docker.json).
+                        reg.specs.insert(key, spec);
+                        continue;
+                    }
                 }
+                reg.insert(spec);
             }
         }
     }
