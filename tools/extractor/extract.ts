@@ -82,6 +82,8 @@ const manifest: ManifestEntry[] = [];
 // Value extraction
 // ---------------------------------------------------------------------------
 
+type ParamSubs = Map<string, any>;
+
 type ExtractCtx = {
   has_functions: boolean;
   file: string;
@@ -89,12 +91,124 @@ type ExtractCtx = {
   /// context of a generator's `postProcess` field — recognized shapes are
   /// converted to PostProcessKind variants instead of flagging the spec.
   post_process_in_progress: boolean;
+  /// A3 factory evaluator: when extractValue encounters an Identifier whose
+  /// name is in this map, substitute the mapped value. Used while walking
+  /// a function body whose parameters are bound to call arguments.
+  param_subs?: ParamSubs;
 };
 
 /// Attempt to classify a function expression used as a postProcess
 /// callback into a named PostProcessKind.  Returns the kind descriptor
 /// on a hit, null on a miss (caller should fall back to marking the
 /// containing spec as having functions).
+/// A3: Static factory evaluator. Given a CallExpression, try to find the
+/// callee's declaration, bind its parameters to the call arguments, and
+/// recursively extract the return expression. Supports:
+///   * top-level `const f = (a, b) => ({...})` then `f("x", "y")`
+///   * top-level `function f(a, b) { return {...}; }` then `f("x", "y")`
+///   * imported factories (via Identifier resolution through alias symbols)
+///   * default-param substitution: `function f(a = {}) { ... }`
+/// Returns the extracted value, or null on any failure (caller falls back
+/// to marking the spec impure).
+function tryEvaluateFactoryCall(call: Node, ctx: ExtractCtx): any | null {
+  if (!Node.isCallExpression(call)) return null;
+  const callee = call.getExpression();
+  if (!Node.isIdentifier(callee)) return null;
+  const sym = callee.getSymbol();
+  if (!sym) return null;
+  const target = sym.getAliasedSymbol?.() ?? sym;
+  if (process.env.DEBUG_A3) {
+    console.error(`A3: evaluating ${callee.getText()}(...) in ${ctx.file}`);
+  }
+
+  // Find the function/arrow declaration.
+  let fn: ArrowFunction | FunctionExpression | null = null;
+  let fnDecl: Node | null = null;
+  for (const decl of target.getDeclarations()) {
+    if (Node.isVariableDeclaration(decl)) {
+      const init = decl.getInitializer();
+      if (init && (Node.isArrowFunction(init) || Node.isFunctionExpression(init))) {
+        fn = init as ArrowFunction | FunctionExpression;
+        break;
+      }
+    }
+    if (Node.isFunctionDeclaration(decl)) {
+      fnDecl = decl;
+      break;
+    }
+  }
+  if (!fn && !fnDecl) {
+    if (process.env.DEBUG_A3) console.error(`  no declaration found`);
+    return null;
+  }
+
+  // Find the return expression.
+  let returnExpr: Node | undefined;
+  const getParams = () => (fn ? fn.getParameters() : (fnDecl as any).getParameters());
+  const getBody = () => (fn ? fn.getBody() : (fnDecl as any).getBody?.());
+  const body = getBody();
+  if (body) {
+    if (Node.isBlock(body)) {
+      for (const stmt of body.getStatements()) {
+        if (Node.isReturnStatement(stmt)) {
+          returnExpr = stmt.getExpression();
+          break;
+        }
+      }
+    } else {
+      returnExpr = body as Node;
+    }
+  }
+  if (!returnExpr) {
+    if (process.env.DEBUG_A3) console.error(`  no return expression`);
+    return null;
+  }
+  while (returnExpr && Node.isParenthesizedExpression(returnExpr)) {
+    returnExpr = returnExpr.getExpression();
+  }
+  if (!returnExpr) return null;
+
+  // Bind parameters to arguments (with default-param support).
+  const params = getParams();
+  const args = call.getArguments();
+  const subs: ParamSubs = new Map();
+  for (let i = 0; i < params.length; i++) {
+    const pname = params[i].getName?.() ?? params[i].getText();
+    if (i < args.length) {
+      const v = extractValue(args[i], ctx);
+      subs.set(pname, v);
+    } else {
+      const initializer = params[i].getInitializer?.();
+      if (initializer) {
+        const v = extractValue(initializer, ctx);
+        subs.set(pname, v);
+      } else {
+        subs.set(pname, undefined);
+      }
+    }
+  }
+
+  // Evaluate the return expression with the substitution map active.
+  // Note: we accept partial extractions — if a non-tolerant-list inner
+  // field flips has_functions, we still return what we have. Tolerant
+  // list fields are already handling their own isolation; scalar impure
+  // fields inside the body just become null and get dropped.
+  const savedSubs = ctx.param_subs;
+  ctx.param_subs = subs;
+  const savedFns = ctx.has_functions;
+  ctx.has_functions = false;
+  const value = extractValue(returnExpr, ctx);
+  ctx.has_functions = savedFns;
+  ctx.param_subs = savedSubs;
+
+  if (value == null) {
+    if (process.env.DEBUG_A3) console.error(`  extraction returned null`);
+    return null;
+  }
+  if (process.env.DEBUG_A3) console.error(`  OK`);
+  return value;
+}
+
 /// Recognize calls to @fig/autocomplete-generators helpers and emit the
 /// Rust-native generator descriptor directly.
 function classifyFigHelper(name: string, args: Node[]): any | null {
@@ -267,10 +381,45 @@ function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
   if (Node.isStringLiteral(node) || Node.isNoSubstitutionTemplateLiteral(node)) {
     return node.getLiteralText();
   }
-  if (Node.isTemplateExpression(node)) {
-    // Non-literal template — mark as function since we can't reliably
-    // stringify it without interpolation.
+  // A1: "foo" + "bar" — fold string/number concat at compile time.
+  if (Node.isBinaryExpression(node)) {
+    const op = node.getOperatorToken().getKind();
+    if (op === SyntaxKind.PlusToken) {
+      const left = extractValue(node.getLeft(), ctx);
+      const right = extractValue(node.getRight(), ctx);
+      if (typeof left === "string" && typeof right === "string") return left + right;
+      if (typeof left === "number" && typeof right === "number") return left + right;
+      if (typeof left === "string" && typeof right === "number") return left + String(right);
+      if (typeof left === "number" && typeof right === "string") return String(left) + right;
+    }
     ctx.has_functions = true;
+    return null;
+  }
+  if (Node.isTemplateExpression(node)) {
+    // `\`foo ${bar} baz\`` — fold if every interpolation resolves to a
+    // primitive value. Uses the same path as extractValue so parameter
+    // substitutions from a surrounding factory evaluation apply.
+    let out = node.getHead().getLiteralText();
+    let ok = true;
+    const savedFns = ctx.has_functions;
+    for (const span of node.getTemplateSpans()) {
+      const expr = span.getExpression();
+      ctx.has_functions = false;
+      const v = extractValue(expr, ctx);
+      const spanImpure = ctx.has_functions;
+      if (spanImpure || (typeof v !== "string" && typeof v !== "number" && typeof v !== "boolean")) {
+        ok = false;
+        break;
+      }
+      out += String(v);
+      const tail = span.getLiteral().getLiteralText();
+      out += tail;
+    }
+    ctx.has_functions = savedFns;
+    if (ok) return out;
+    // If we can't fold, don't taint the spec — return null and let the
+    // caller (usually an isolation barrier or tolerant list field) drop
+    // the property.
     return null;
   }
   if (Node.isNumericLiteral(node)) {
@@ -283,12 +432,35 @@ function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
 
   if (Node.isArrayLiteralExpression(node)) {
     const arr = node as ArrayLiteralExpression;
-    return arr.getElements().map((e) => extractValue(e, ctx));
+    const out: any[] = [];
+    for (const el of arr.getElements()) {
+      // A4: `[...commonOptions, { ... }]` — inline the spread if the
+      // spread expression resolves to an array at compile time.
+      if (Node.isSpreadElement(el)) {
+        const resolved = extractValue(el.getExpression(), ctx);
+        if (Array.isArray(resolved)) {
+          out.push(...resolved);
+          continue;
+        }
+        ctx.has_functions = true;
+        continue;
+      }
+      out.push(extractValue(el, ctx));
+    }
+    return out;
   }
   if (Node.isObjectLiteralExpression(node)) {
     return extractObject(node, ctx);
   }
   if (Node.isIdentifier(node)) {
+    // A3: parameter substitution — inside a factory body evaluation, an
+    // identifier matching a bound parameter name returns the mapped value.
+    if (ctx.param_subs) {
+      const name = node.getText();
+      if (ctx.param_subs.has(name)) {
+        return ctx.param_subs.get(name);
+      }
+    }
     // Resolve the identifier to its declaration. If it points at a
     // top-level const with an initializer we can extract, treat the
     // reference as if it were the initializer inlined.
@@ -300,8 +472,11 @@ function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
         if (Node.isVariableDeclaration(decl)) {
           const init = decl.getInitializer();
           if (init) {
-            // Recurse. If the initializer contains functions, the ctx
-            // flag flips naturally.
+            // If the initializer is itself a factory call, evaluate it.
+            if (Node.isCallExpression(init)) {
+              const v = tryEvaluateFactoryCall(init, ctx);
+              if (v !== null) return v;
+            }
             return extractValue(init, ctx);
           }
         }
@@ -370,6 +545,9 @@ function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
       const helper = classifyFigHelper(name, node.getArguments());
       if (helper) return helper;
     }
+    // A3: try evaluating the call as a pure factory that returns a literal.
+    const factoryResult = tryEvaluateFactoryCall(node, ctx);
+    if (factoryResult !== null) return factoryResult;
     // Any other call result is not statically knowable.
     ctx.has_functions = true;
     return null;
@@ -442,9 +620,23 @@ function extractObject(obj: ObjectLiteralExpression, ctx: ExtractCtx): any {
 
       if (isPostProcess) ctx.post_process_in_progress = savedFlag;
     } else if (Node.isShorthandPropertyAssignment(prop)) {
-      ctx.has_functions = true;
+      // `{ name }` is sugar for `{ name: name }` — resolve the
+      // identifier to its value (usually a factory parameter).
+      const name = prop.getName();
+      const ident = prop.getNameNode();
+      const v = extractValue(ident, ctx);
+      if (v !== undefined && v !== null) {
+        out[name] = v;
+      }
     } else if (Node.isSpreadAssignment(prop)) {
-      ctx.has_functions = true;
+      // A4: `{ ...commonFields, name: "foo" }` — resolve the spread's
+      // source and Object.assign its keys into the current object.
+      const resolved = extractValue(prop.getExpression(), ctx);
+      if (resolved && typeof resolved === "object" && !Array.isArray(resolved)) {
+        Object.assign(out, resolved);
+      } else {
+        ctx.has_functions = true;
+      }
     } else if (Node.isMethodDeclaration(prop)) {
       ctx.has_functions = true;
     }
@@ -675,6 +867,10 @@ function clamp0_100(n: number): number {
 
 function extractFile(project: Project, filePath: string, relName: string): void {
   stats.total++;
+  extractFileAs(project, filePath, relName);
+}
+
+function extractFileAs(project: Project, filePath: string, relName: string): void {
   const rel = relName;
   let sourceFile: SourceFile;
   try {
@@ -684,22 +880,64 @@ function extractFile(project: Project, filePath: string, relName: string): void 
     return;
   }
 
+  // A2: `export { default } from "./git"` — follow the re-export.
+  // ts-morph emits these as ExportDeclaration nodes, not as the default
+  // export symbol. Detect and recursively extract from the target file.
+  for (const decl of sourceFile.getExportDeclarations()) {
+    const spec = decl.getModuleSpecifierValue();
+    if (!spec) continue;
+    const hasDefault = decl
+      .getNamedExports()
+      .some((e) => e.getName() === "default");
+    if (!hasDefault) continue;
+    const targetRel = `${spec}.ts`;
+    const targetPath = path.resolve(path.dirname(filePath), targetRel);
+    if (!fs.existsSync(targetPath)) {
+      sourceFile.forget();
+      stats.error++;
+      console.error(`re-export target not found: ${targetPath} from ${filePath}`);
+      return;
+    }
+    // Recursively extract from the target, then rewrite the output's
+    // primary name to be this file's basename.
+    sourceFile.forget();
+    extractFileAs(project, targetPath, relName);
+    return;
+  }
+
   // Find the default export.
   const defaultExport = sourceFile.getDefaultExportSymbol();
   if (!defaultExport) {
     stats.error++;
+    console.error(`no default export in ${filePath}`);
     sourceFile.forget();
     return;
   }
 
   // Locate the object literal the default export resolves to.
   let specNode: ObjectLiteralExpression | null = null;
+  // A3 path: `export default factory()` — evaluate the factory and
+  // emit the result as raw JSON without going through specNode.
+  let rawFromFactory: any = null;
   for (const decl of defaultExport.getDeclarations()) {
     if (Node.isExportAssignment(decl)) {
       const expr = decl.getExpression();
       if (Node.isObjectLiteralExpression(expr)) {
         specNode = expr as ObjectLiteralExpression;
         break;
+      }
+      if (Node.isCallExpression(expr)) {
+        // A3: `export default completionSpec()`.
+        const ctxTmp: ExtractCtx = {
+          has_functions: false,
+          file: filePath,
+          post_process_in_progress: false,
+        };
+        const v = tryEvaluateFactoryCall(expr, ctxTmp);
+        if (v && !ctxTmp.has_functions) {
+          rawFromFactory = v;
+          break;
+        }
       }
       if (Node.isIdentifier(expr)) {
         const symbol = expr.getSymbol();
@@ -718,6 +956,19 @@ function extractFile(project: Project, filePath: string, relName: string): void 
                   break;
                 }
               }
+              // A3: `const completionSpec = generateXSpec("name", "Display")`
+              if (init && Node.isCallExpression(init)) {
+                const ctxTmp: ExtractCtx = {
+                  has_functions: false,
+                  file: filePath,
+                  post_process_in_progress: false,
+                };
+                const v = tryEvaluateFactoryCall(init, ctxTmp);
+                if (v && !ctxTmp.has_functions) {
+                  rawFromFactory = v;
+                  break;
+                }
+              }
             }
           }
         }
@@ -725,7 +976,7 @@ function extractFile(project: Project, filePath: string, relName: string): void 
     }
   }
 
-  if (!specNode) {
+  if (!specNode && rawFromFactory === null) {
     stats.js_only++;
     manifest.push({
       name: rel,
@@ -742,7 +993,7 @@ function extractFile(project: Project, filePath: string, relName: string): void 
     file: filePath,
     post_process_in_progress: false,
   };
-  const raw = extractObject(specNode, ctx);
+  const raw = rawFromFactory !== null ? rawFromFactory : extractObject(specNode!, ctx);
   sourceFile.forget();
 
   if (ctx.has_functions) {
@@ -760,7 +1011,14 @@ function extractFile(project: Project, filePath: string, relName: string): void 
   const rust = toRustSubcommand(raw);
   if (!rust || !Array.isArray(rust.names) || rust.names.length === 0) {
     stats.error++;
+    console.error(`empty/missing names after conversion: ${filePath}`);
     return;
+  }
+  // A2: when we recurse from a re-export, rewrite the primary name so
+  // the emitted spec is keyed under the file that aliased it (e.g.
+  // hub.json carries `names: ["hub"]`, not `["git"]`).
+  if (rust.names[0] !== path.basename(rel)) {
+    rust.names = [path.basename(rel), ...rust.names.filter((n: string) => n !== path.basename(rel))];
   }
 
   // Write the JSON. Top-level specs in the ESSENTIALS whitelist go to
@@ -798,6 +1056,13 @@ function walkSpecs(dir: string, prefix: string = ""): Array<{ path: string; rel:
       const sub = prefix ? `${prefix}/${entry.name}` : entry.name;
       out.push(...walkSpecs(full, sub));
     } else if (entry.isFile() && entry.name.endsWith(".ts")) {
+      // Skip TypeScript declaration files (.d.ts) — they're type
+      // definitions, not specs. Skip shared helper files (shared.ts)
+      // which are imported by sibling specs but have no default export.
+      // Skip known non-spec utility files from the upstream corpus.
+      if (entry.name.endsWith(".d.ts")) continue;
+      if (entry.name === "shared.ts") continue;
+      if (entry.name === "generators.ts") continue;
       const base = entry.name.slice(0, -3);
       const rel = prefix ? `${prefix}/${base}` : base;
       out.push({ path: full, rel });

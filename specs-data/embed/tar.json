@@ -462,6 +462,32 @@
       "options": [
         {
           "names": [
+            "k",
+            "-k",
+            "--keep-old-files"
+          ],
+          "description": "Don't replace existing files when extracting",
+          "exclusive_on": [
+            "--keep-newer-files",
+            "--keep-directory-symlink",
+            "--no-overwrite-dir",
+            "k",
+            "-k",
+            "--keep-old-files",
+            "--overwrite",
+            "--overwrite-dir",
+            "--recursive-unlink",
+            "--skip-old-files",
+            "U",
+            "-U",
+            "--unlink-first",
+            "O",
+            "-O",
+            "--to-stdout"
+          ]
+        },
+        {
+          "names": [
             "--keep-newer-files"
           ],
           "description": "Don't replace existing files that are newer than their archive copies",
@@ -536,6 +562,30 @@
         },
         {
           "names": [
+            "--overwrite"
+          ],
+          "description": "Overwrite existing files when extracting",
+          "exclusive_on": [
+            "--overwrite-dir",
+            "--recursive-unlink",
+            "k",
+            "-k",
+            "--keep-old-files",
+            "--keep-newer-files",
+            "--keep-directory-symlink",
+            "--no-overwrite-dir",
+            "--overwrite",
+            "--skip-old-files",
+            "U",
+            "-U",
+            "--unlink-first",
+            "O",
+            "-O",
+            "--to-stdout"
+          ]
+        },
+        {
+          "names": [
             "--overwrite-dir"
           ],
           "description": "Overwrite metadata of existing directories when extracting",
@@ -562,6 +612,115 @@
           ],
           "description": "Recursively remove all files in the directory prior to extracting it",
           "exclusive_on": [
+            "k",
+            "-k",
+            "--keep-old-files",
+            "--keep-newer-files",
+            "--keep-directory-symlink",
+            "--no-overwrite-dir",
+            "--overwrite",
+            "--skip-old-files",
+            "U",
+            "-U",
+            "--unlink-first",
+            "O",
+            "-O",
+            "--to-stdout"
+          ]
+        },
+        {
+          "names": [
+            "--skip-old-files"
+          ],
+          "description": "Don't replace existing files when extracting, silently skip over them",
+          "exclusive_on": [
+            "k",
+            "-k",
+            "--keep-old-files",
+            "--overwrite",
+            "--overwrite-dir",
+            "--recursive-unlink",
+            "--skip-old-files",
+            "U",
+            "-U",
+            "--unlink-first",
+            "O",
+            "-O",
+            "--to-stdout",
+            "k",
+            "-k",
+            "--keep-old-files",
+            "--keep-newer-files",
+            "--keep-directory-symlink",
+            "--no-overwrite-dir",
+            "--overwrite",
+            "--skip-old-files",
+            "U",
+            "-U",
+            "--unlink-first",
+            "O",
+            "-O",
+            "--to-stdout"
+          ]
+        },
+        {
+          "names": [
+            "U",
+            "-U",
+            "--unlink-first"
+          ],
+          "description": "Remove each file prior to extracting over it",
+          "exclusive_on": [
+            "k",
+            "-k",
+            "--keep-old-files",
+            "--overwrite",
+            "--overwrite-dir",
+            "--recursive-unlink",
+            "--skip-old-files",
+            "U",
+            "-U",
+            "--unlink-first",
+            "O",
+            "-O",
+            "--to-stdout",
+            "k",
+            "-k",
+            "--keep-old-files",
+            "--keep-newer-files",
+            "--keep-directory-symlink",
+            "--no-overwrite-dir",
+            "--overwrite",
+            "--skip-old-files",
+            "U",
+            "-U",
+            "--unlink-first",
+            "O",
+            "-O",
+            "--to-stdout"
+          ]
+        },
+        {
+          "names": [
+            "O",
+            "-O",
+            "--to-stdout"
+          ],
+          "description": "Extract files to standard output",
+          "exclusive_on": [
+            "k",
+            "-k",
+            "--keep-old-files",
+            "--overwrite",
+            "--overwrite-dir",
+            "--recursive-unlink",
+            "--skip-old-files",
+            "U",
+            "-U",
+            "--unlink-first",
+            "O",
+            "-O",
+            "--to-stdout",
             "k",
             "-k",
             "--keep-old-files",

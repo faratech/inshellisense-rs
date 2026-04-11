@@ -965,6 +965,115 @@
         "list"
       ],
       "description": "List installed packages",
+      "options": [
+        {
+          "names": [
+            "-a",
+            "-all"
+          ],
+          "description": "Show all outdated or installed packages"
+        },
+        {
+          "names": [
+            "--json"
+          ],
+          "description": "Show output in json format"
+        },
+        {
+          "names": [
+            "-l",
+            "--long"
+          ],
+          "description": "Show extended information"
+        },
+        {
+          "names": [
+            "-p",
+            "--parseable"
+          ],
+          "description": "Output parseable results from commands that write to standard output"
+        },
+        {
+          "names": [
+            "--depth"
+          ],
+          "description": "The depth to go when recursing packages",
+          "args": [
+            {
+              "name": "depth"
+            }
+          ]
+        },
+        {
+          "names": [
+            "--link"
+          ],
+          "description": "Limits output to only those packages that are linked"
+        },
+        {
+          "names": [
+            "--package-lock-only"
+          ],
+          "description": "Current operation will only use the package-lock.json, ignoring node_modules"
+        },
+        {
+          "names": [
+            "--no-unicode"
+          ],
+          "description": "Uses unicode characters in the tree output"
+        },
+        {
+          "names": [
+            "-g",
+            "--global"
+          ],
+          "description": "Operates in 'global' mode, so that packages are installed into the prefix folder instead of the current working directory"
+        },
+        {
+          "names": [
+            "--omit"
+          ],
+          "description": "Dependency types to omit from the installation tree on disk",
+          "is_repeatable": 3,
+          "args": [
+            {
+              "name": "Package type",
+              "default": "dev",
+              "suggestions": [
+                {
+                  "name": "dev"
+                },
+                {
+                  "name": "optional"
+                },
+                {
+                  "name": "peer"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "names": [
+            "-w",
+            "--workspace"
+          ],
+          "description": "Enable running a command in the context of the configured workspaces of the current project",
+          "args": [
+            {
+              "name": "workspace",
+              "is_variadic": true
+            }
+          ]
+        },
+        {
+          "names": [
+            "-ws",
+            "--workspaces"
+          ],
+          "description": "Enable running a command in the context of all the configured workspaces"
+        }
+      ],
       "args": [
         {
           "name": "[@scope]/pkg",
@@ -2512,6 +2621,347 @@
               "name": "otp"
             }
           ]
+        }
+      ]
+    },
+    {
+      "names": [
+        "uninstall"
+      ],
+      "description": "Uninstall a package",
+      "options": [
+        {
+          "names": [
+            "-S",
+            "--save"
+          ],
+          "description": "Package will be removed from your dependencies"
+        },
+        {
+          "names": [
+            "-D",
+            "--save-dev"
+          ],
+          "description": "Package will appear in your `devDependencies`"
+        },
+        {
+          "names": [
+            "-O",
+            "--save-optional"
+          ],
+          "description": "Package will appear in your `optionalDependencies`"
+        },
+        {
+          "names": [
+            "--no-save"
+          ],
+          "description": "Prevents saving to `dependencies`"
+        },
+        {
+          "names": [
+            "-g"
+          ],
+          "description": "Uninstall global package"
+        },
+        {
+          "names": [
+            "-w",
+            "--workspace"
+          ],
+          "description": "Enable running a command in the context of the configured workspaces of the current project",
+          "args": [
+            {
+              "name": "workspace",
+              "is_variadic": true
+            }
+          ]
+        },
+        {
+          "names": [
+            "-ws",
+            "--workspaces"
+          ],
+          "description": "Enable running a command in the context of all the configured workspaces"
+        }
+      ],
+      "args": [
+        {
+          "name": "package",
+          "is_variadic": true,
+          "filter_strategy": "fuzzy"
+        }
+      ]
+    },
+    {
+      "names": [
+        "r",
+        "rm"
+      ],
+      "description": "Uninstall a package",
+      "options": [
+        {
+          "names": [
+            "-S",
+            "--save"
+          ],
+          "description": "Package will be removed from your dependencies"
+        },
+        {
+          "names": [
+            "-D",
+            "--save-dev"
+          ],
+          "description": "Package will appear in your `devDependencies`"
+        },
+        {
+          "names": [
+            "-O",
+            "--save-optional"
+          ],
+          "description": "Package will appear in your `optionalDependencies`"
+        },
+        {
+          "names": [
+            "--no-save"
+          ],
+          "description": "Prevents saving to `dependencies`"
+        },
+        {
+          "names": [
+            "-g"
+          ],
+          "description": "Uninstall global package"
+        },
+        {
+          "names": [
+            "-w",
+            "--workspace"
+          ],
+          "description": "Enable running a command in the context of the configured workspaces of the current project",
+          "args": [
+            {
+              "name": "workspace",
+              "is_variadic": true
+            }
+          ]
+        },
+        {
+          "names": [
+            "-ws",
+            "--workspaces"
+          ],
+          "description": "Enable running a command in the context of all the configured workspaces"
+        }
+      ],
+      "args": [
+        {
+          "name": "package",
+          "is_variadic": true,
+          "filter_strategy": "fuzzy"
+        }
+      ]
+    },
+    {
+      "names": [
+        "un"
+      ],
+      "description": "Uninstall a package",
+      "options": [
+        {
+          "names": [
+            "-S",
+            "--save"
+          ],
+          "description": "Package will be removed from your dependencies"
+        },
+        {
+          "names": [
+            "-D",
+            "--save-dev"
+          ],
+          "description": "Package will appear in your `devDependencies`"
+        },
+        {
+          "names": [
+            "-O",
+            "--save-optional"
+          ],
+          "description": "Package will appear in your `optionalDependencies`"
+        },
+        {
+          "names": [
+            "--no-save"
+          ],
+          "description": "Prevents saving to `dependencies`"
+        },
+        {
+          "names": [
+            "-g"
+          ],
+          "description": "Uninstall global package"
+        },
+        {
+          "names": [
+            "-w",
+            "--workspace"
+          ],
+          "description": "Enable running a command in the context of the configured workspaces of the current project",
+          "args": [
+            {
+              "name": "workspace",
+              "is_variadic": true
+            }
+          ]
+        },
+        {
+          "names": [
+            "-ws",
+            "--workspaces"
+          ],
+          "description": "Enable running a command in the context of all the configured workspaces"
+        }
+      ],
+      "args": [
+        {
+          "name": "package",
+          "is_variadic": true,
+          "filter_strategy": "fuzzy"
+        }
+      ]
+    },
+    {
+      "names": [
+        "remove"
+      ],
+      "description": "Uninstall a package",
+      "options": [
+        {
+          "names": [
+            "-S",
+            "--save"
+          ],
+          "description": "Package will be removed from your dependencies"
+        },
+        {
+          "names": [
+            "-D",
+            "--save-dev"
+          ],
+          "description": "Package will appear in your `devDependencies`"
+        },
+        {
+          "names": [
+            "-O",
+            "--save-optional"
+          ],
+          "description": "Package will appear in your `optionalDependencies`"
+        },
+        {
+          "names": [
+            "--no-save"
+          ],
+          "description": "Prevents saving to `dependencies`"
+        },
+        {
+          "names": [
+            "-g"
+          ],
+          "description": "Uninstall global package"
+        },
+        {
+          "names": [
+            "-w",
+            "--workspace"
+          ],
+          "description": "Enable running a command in the context of the configured workspaces of the current project",
+          "args": [
+            {
+              "name": "workspace",
+              "is_variadic": true
+            }
+          ]
+        },
+        {
+          "names": [
+            "-ws",
+            "--workspaces"
+          ],
+          "description": "Enable running a command in the context of all the configured workspaces"
+        }
+      ],
+      "args": [
+        {
+          "name": "package",
+          "is_variadic": true,
+          "filter_strategy": "fuzzy"
+        }
+      ]
+    },
+    {
+      "names": [
+        "unlink"
+      ],
+      "description": "Uninstall a package",
+      "options": [
+        {
+          "names": [
+            "-S",
+            "--save"
+          ],
+          "description": "Package will be removed from your dependencies"
+        },
+        {
+          "names": [
+            "-D",
+            "--save-dev"
+          ],
+          "description": "Package will appear in your `devDependencies`"
+        },
+        {
+          "names": [
+            "-O",
+            "--save-optional"
+          ],
+          "description": "Package will appear in your `optionalDependencies`"
+        },
+        {
+          "names": [
+            "--no-save"
+          ],
+          "description": "Prevents saving to `dependencies`"
+        },
+        {
+          "names": [
+            "-g"
+          ],
+          "description": "Uninstall global package"
+        },
+        {
+          "names": [
+            "-w",
+            "--workspace"
+          ],
+          "description": "Enable running a command in the context of the configured workspaces of the current project",
+          "args": [
+            {
+              "name": "workspace",
+              "is_variadic": true
+            }
+          ]
+        },
+        {
+          "names": [
+            "-ws",
+            "--workspaces"
+          ],
+          "description": "Enable running a command in the context of all the configured workspaces"
+        }
+      ],
+      "args": [
+        {
+          "name": "package",
+          "is_variadic": true,
+          "filter_strategy": "fuzzy"
         }
       ]
     },

@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 4.6 — 97.1% coverage via A1-A4 and static factory evaluator
+
+Pushed pure-extract coverage from 94.6% → **97.1% (1429/1471)** through
+six new extractor features:
+
+- **A1: String concatenation folding** — `"foo " + "bar"` in descriptions
+  now folds at extraction time. Unblocks zig and other specs that use
+  multi-line concatenated strings.
+- **A2: Re-export handling** — `export { default } from "./git"` now
+  follows the module specifier and extracts from the target file,
+  rewriting the primary name to the aliased file's basename. Unlocks
+  hub, kubecolor, ubuntu-advantage, ua.
+- **A3: Static factory evaluator** — `tryEvaluateFactoryCall` resolves
+  `const f = (a, b) => ({...})` + `f("x", "y")` patterns by binding
+  parameters to call arguments and walking the return expression with
+  a substitution map. Parameter refs resolve via the `param_subs` map
+  on the extract context. Handles both `export default factory()` and
+  `const x = factory(...); export default x` shapes, as well as
+  default-param substitution for arrow factories. Unlocks cargo (38
+  subcommands!) and all 8 JetBrains IDE specs (idea, clion, pycharm,
+  rubymine, goland, rustrover, webstorm, phpstorm) via the shared
+  `generateInteliJCompletionSpec` helper imported from idea.ts.
+- **A4: Spread element resolution** — `[...commonOptions, {...}]` and
+  `{...baseFields, name: "foo"}` now inline the spread source when it
+  resolves to an array or object literal at compile time.
+- **Template expression folding** — `` `Hello ${name} cli` `` now
+  folds at extraction time when all interpolations resolve to strings
+  or primitives (typically via A3 parameter substitution).
+- **Shorthand property assignment** — `{ name }` (sugar for
+  `{ name: name }`) now resolves the identifier through the normal
+  path, which in a factory context means via parameter substitution.
+  Fixes the "empty names" error that blocked all 8 IDE specs on the
+  first A3 run.
+- **Skip filter for non-spec files** — `.d.ts` declarations,
+  `shared.ts` helpers, and `generators.ts` utility files are excluded
+  from the walker so they don't show up as extraction errors.
+
+Minor:
+- Factory evaluator is **lax**: inner impurities that hit
+  non-tolerant-list fields no longer fail the whole factory call —
+  they drop individual property values to null and keep extracting.
+  Covers cases where one description references an unresolved helper
+  but the rest of the spec is clean.
+- `cargo_subcommand_completion` test updated for `cargo bu` instead of
+  `cargo b` — cargo upstream declares `b` as an alias for build, so
+  `cargo b` is now an exact match with no ghost tail.
+
+Validation: **30 tests pass**. Extractor stats: 1471 total, **1429 pure
+(97.1%)**, 35 partial (2.4%), 7 js_only (0.5%), 0 errors. Release binary:
+**3.7 MB** stripped (up from 3.5 MB — richer embedded essentials now
+include cargo with 38 subcommands). Essentials extracted: 46 of 58
+whitelist commands.
+
+Remaining 42 gap specs all fall in one of three categories:
+- `generateSpec: async` that reads project files at completion time
+  (git, node, python, pnpm, yarn, rustup, bun, dotnet, rails, drush,
+  magento) — structurally requires runtime JS execution
+- Top-level `custom: async` generators doing conditional shell work
+  (aws-vault, composer, dog, esbuild, fly, kamal, mask, op, task,
+  serverless, uv, xc, yarn, z) — same
+- Factory index files calling `createVersionedSpec` from
+  `@fig/autocomplete-helpers` (aws/regions, az/index, fig/index,
+  heroku/index, infracost/index, shopify/index, cl) — external
+  runtime helper package
+
+The remaining coverage gain would require either hand-porting these
+specs as Rust-native entries or the embedded JS runtime we explicitly
+dropped. Realistic ceiling is ~97-98% without JS.
+
 ### Phase 4.5 — 94.6% coverage via extractor improvements; JS runtime removed
 
 - **Removed** `src/js.rs` and the `js` / `boa_engine` feature entirely.

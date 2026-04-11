@@ -82,7 +82,12 @@
           "names": [
             "-t"
           ],
-          "description": "Attach to a session with the given name"
+          "description": "Attach to a session with the given name",
+          "args": [
+            {
+              "name": "target-session"
+            }
+          ]
         }
       ]
     },
@@ -192,19 +197,34 @@
           "names": [
             "-n"
           ],
-          "description": "The target window"
+          "description": "The target window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         },
         {
           "names": [
             "-s"
           ],
-          "description": "The source pane"
+          "description": "The source pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         },
         {
           "names": [
             "-t"
           ],
-          "description": "The destination window"
+          "description": "The destination window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         }
       ]
     },
@@ -267,7 +287,12 @@
           "names": [
             "-b"
           ],
-          "description": "The buffer name"
+          "description": "The buffer name",
+          "args": [
+            {
+              "name": "buffer-name"
+            }
+          ]
         },
         {
           "names": [
@@ -295,7 +320,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ]
     },
@@ -372,7 +402,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ],
       "args": [
@@ -459,7 +494,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ],
       "args": [
@@ -564,7 +604,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ],
       "args": [
@@ -656,7 +701,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target client"
+          "description": "The target client",
+          "args": [
+            {
+              "name": "target-client"
+            }
+          ]
         }
       ],
       "args": [
@@ -689,7 +739,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target client"
+          "description": "The target client",
+          "args": [
+            {
+              "name": "target-client"
+            }
+          ]
         }
       ],
       "args": [
@@ -740,13 +795,23 @@
           "names": [
             "-s"
           ],
-          "description": "The source pane"
+          "description": "The source pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         },
         {
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ]
     },
@@ -761,7 +826,12 @@
           "names": [
             "-b"
           ],
-          "description": "The target buffer"
+          "description": "The target buffer",
+          "args": [
+            {
+              "name": "buffer-name"
+            }
+          ]
         }
       ]
     },
@@ -800,13 +870,23 @@
           "names": [
             "-t"
           ],
-          "description": "The target client"
+          "description": "The target client",
+          "args": [
+            {
+              "name": "target-client"
+            }
+          ]
         },
         {
           "names": [
             "-s"
           ],
-          "description": "Detach all clients attached to the specified session"
+          "description": "Detach all clients attached to the specified session",
+          "args": [
+            {
+              "name": "target-session"
+            }
+          ]
         }
       ]
     },
@@ -827,13 +907,23 @@
           "names": [
             "-c"
           ],
-          "description": "The target client"
+          "description": "The target client",
+          "args": [
+            {
+              "name": "target-client"
+            }
+          ]
         },
         {
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         },
         {
           "names": [
@@ -914,7 +1004,12 @@
           "names": [
             "-v"
           ],
-          "description": "Print verbose logging as the format is parsed"
+          "description": "Print verbose logging as the format is parsed",
+          "args": [
+            {
+              "name": "target-client"
+            }
+          ]
         },
         {
           "names": [
@@ -931,7 +1026,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ],
       "args": [
@@ -977,7 +1077,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target client"
+          "description": "The target client",
+          "args": [
+            {
+              "name": "target-client"
+            }
+          ]
         }
       ],
       "args": [
@@ -1035,7 +1140,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ],
       "args": [
@@ -1056,7 +1166,12 @@
           "names": [
             "-t"
           ],
-          "description": "Specify the target session"
+          "description": "Specify the target session",
+          "args": [
+            {
+              "name": "target-session"
+            }
+          ]
         }
       ]
     },
@@ -1080,7 +1195,12 @@
           "names": [
             "-b"
           ],
-          "description": "Src-pane will be joined to left of or above dst-pane"
+          "description": "Src-pane will be joined to left of or above dst-pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         },
         {
           "names": [
@@ -1098,13 +1218,23 @@
           "names": [
             "-s"
           ],
-          "description": "The source pane"
+          "description": "The source pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         },
         {
           "names": [
             "-t"
           ],
-          "description": "The destination pane"
+          "description": "The destination pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ]
     },
@@ -1125,7 +1255,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ]
     },
@@ -1146,7 +1281,12 @@
           "names": [
             "-t"
           ],
-          "description": "Kill/delete session with the given name"
+          "description": "Kill/delete session with the given name",
+          "args": [
+            {
+              "name": "target-session"
+            }
+          ]
         },
         {
           "names": [
@@ -1179,7 +1319,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target window"
+          "description": "The target window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         }
       ]
     },
@@ -1212,7 +1357,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target window"
+          "description": "The target window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         }
       ]
     },
@@ -1227,7 +1377,12 @@
           "names": [
             "-t"
           ],
-          "description": "Select the previously select window of the target-session"
+          "description": "Select the previously select window of the target-session",
+          "args": [
+            {
+              "name": "target-session"
+            }
+          ]
         }
       ]
     },
@@ -1266,13 +1421,23 @@
           "names": [
             "-s"
           ],
-          "description": "The source window"
+          "description": "The source window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         },
         {
           "names": [
             "-t"
           ],
-          "description": "The destination window"
+          "description": "The destination window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         }
       ]
     },
@@ -1306,7 +1471,12 @@
           "names": [
             "-t"
           ],
-          "description": "List only clients connected to that session"
+          "description": "List only clients connected to that session",
+          "args": [
+            {
+              "name": "target-session"
+            }
+          ]
         }
       ]
     },
@@ -1391,7 +1561,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target window"
+          "description": "The target window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         }
       ]
     },
@@ -1467,7 +1642,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target session"
+          "description": "The target session",
+          "args": [
+            {
+              "name": "target-session"
+            }
+          ]
         }
       ]
     },
@@ -1488,13 +1668,23 @@
           "names": [
             "-b"
           ],
-          "description": "The target buffer"
+          "description": "The target buffer",
+          "args": [
+            {
+              "name": "buffer-name"
+            }
+          ]
         },
         {
           "names": [
             "-t"
           ],
-          "description": "The target client"
+          "description": "The target client",
+          "args": [
+            {
+              "name": "target-client"
+            }
+          ]
         }
       ],
       "args": [
@@ -1515,7 +1705,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target client"
+          "description": "The target client",
+          "args": [
+            {
+              "name": "target-client"
+            }
+          ]
         }
       ]
     },
@@ -1537,7 +1732,12 @@
           "names": [
             "-t"
           ],
-          "description": "Lock all clients attached to target-session"
+          "description": "Lock all clients attached to target-session",
+          "args": [
+            {
+              "name": "target-session"
+            }
+          ]
         }
       ]
     },
@@ -1582,13 +1782,23 @@
           "names": [
             "-s"
           ],
-          "description": "The source window"
+          "description": "The source window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         },
         {
           "names": [
             "-t"
           ],
-          "description": "The destination window"
+          "description": "The destination window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         }
       ]
     },
@@ -1866,7 +2076,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target window"
+          "description": "The target window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         }
       ],
       "args": [
@@ -1887,7 +2102,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ]
     },
@@ -1908,7 +2128,12 @@
           "names": [
             "-t"
           ],
-          "description": "Move to the next window of the target-session"
+          "description": "Move to the next window of the target-session",
+          "args": [
+            {
+              "name": "target-session"
+            }
+          ]
         }
       ]
     },
@@ -1948,7 +2173,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ],
       "args": [
@@ -1970,7 +2200,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target window"
+          "description": "The target window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         }
       ]
     },
@@ -1991,7 +2226,12 @@
           "names": [
             "-t"
           ],
-          "description": "Move to the previous window of the target-session"
+          "description": "Move to the previous window of the target-session",
+          "args": [
+            {
+              "name": "target-session"
+            }
+          ]
         }
       ]
     },
@@ -2048,7 +2288,12 @@
           "names": [
             "-A"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         },
         {
           "names": [
@@ -2108,7 +2353,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target client"
+          "description": "The target client",
+          "args": [
+            {
+              "name": "target-client"
+            }
+          ]
         }
       ],
       "args": [
@@ -2130,7 +2380,12 @@
           "names": [
             "-t"
           ],
-          "description": "Rename the target-session"
+          "description": "Rename the target-session",
+          "args": [
+            {
+              "name": "target-session"
+            }
+          ]
         }
       ],
       "args": [
@@ -2151,7 +2406,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target window"
+          "description": "The target window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         }
       ],
       "args": [
@@ -2214,7 +2474,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         },
         {
           "names": [
@@ -2293,7 +2558,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target window"
+          "description": "The target window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         },
         {
           "names": [
@@ -2369,7 +2639,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ],
       "args": [
@@ -2424,7 +2699,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target window"
+          "description": "The target window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         }
       ],
       "args": [
@@ -2464,7 +2744,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target window"
+          "description": "The target window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         }
       ]
     },
@@ -2517,7 +2802,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ],
       "args": [
@@ -2610,7 +2900,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ]
     },
@@ -2649,7 +2944,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target window"
+          "description": "The target window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         }
       ]
     },
@@ -2696,13 +2996,23 @@
           "names": [
             "-b"
           ],
-          "description": "The name of the buffer"
+          "description": "The name of the buffer",
+          "args": [
+            {
+              "name": "buffer-name"
+            }
+          ]
         },
         {
           "names": [
             "-t"
           ],
-          "description": "The target client"
+          "description": "The target client",
+          "args": [
+            {
+              "name": "target-client"
+            }
+          ]
         },
         {
           "names": [
@@ -2768,7 +3078,12 @@
           "names": [
             "-t"
           ],
-          "description": "Display the environment of the target-session"
+          "description": "Display the environment of the target-session",
+          "args": [
+            {
+              "name": "target-session"
+            }
+          ]
         }
       ]
     },
@@ -2801,7 +3116,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target client"
+          "description": "The target client",
+          "args": [
+            {
+              "name": "target-client"
+            }
+          ]
         }
       ]
     },
@@ -2943,7 +3263,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target pane"
+          "description": "The target pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         },
         {
           "names": [
@@ -2984,7 +3309,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target client"
+          "description": "The target client",
+          "args": [
+            {
+              "name": "target-client"
+            }
+          ]
         }
       ]
     },
@@ -3023,13 +3353,23 @@
           "names": [
             "-s"
           ],
-          "description": "The source pane"
+          "description": "The source pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         },
         {
           "names": [
             "-t"
           ],
-          "description": "The destination pane"
+          "description": "The destination pane",
+          "args": [
+            {
+              "name": "src-pane"
+            }
+          ]
         }
       ]
     },
@@ -3050,13 +3390,23 @@
           "names": [
             "-s"
           ],
-          "description": "The source window"
+          "description": "The source window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         },
         {
           "names": [
             "-t"
           ],
-          "description": "The destination window"
+          "description": "The destination window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         }
       ]
     },
@@ -3107,13 +3457,23 @@
           "names": [
             "-c"
           ],
-          "description": "The target client"
+          "description": "The target client",
+          "args": [
+            {
+              "name": "target-client"
+            }
+          ]
         },
         {
           "names": [
             "-t"
           ],
-          "description": "Switch the client to the target-session"
+          "description": "Switch the client to the target-session",
+          "args": [
+            {
+              "name": "target-session"
+            }
+          ]
         },
         {
           "names": [
@@ -3189,7 +3549,12 @@
           "names": [
             "-t"
           ],
-          "description": "The target window"
+          "description": "The target window",
+          "args": [
+            {
+              "name": "window-name"
+            }
+          ]
         }
       ]
     },

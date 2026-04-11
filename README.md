@@ -13,9 +13,9 @@ $ git ch█eckout        ← grey suggestion ─ press → to accept
 
 ## Status
 
-**Beta — 94.6% of upstream `@withfig/autocomplete` coverage with pure
-Rust (no JS runtime).** 1397 of 1476 upstream specs fully extracted
-into JSON and consumed at runtime, with the top 45 essentials
+**Beta — 97.1% of upstream `@withfig/autocomplete` coverage with pure
+Rust (no JS runtime).** 1429 of 1471 upstream specs fully extracted
+into JSON and consumed at runtime, with the top 46 essentials
 (git, docker, cargo, npm, ssh, kubectl, systemctl, apt, curl, wget,
 find, grep, tar, make, vim, nvim, tmux, fzf, rg, fd, bat, eza, jq,
 ffmpeg, and 20 others) embedded directly into the 3.4 MB binary. The
@@ -141,7 +141,7 @@ specs it covers. Where it differs:
 | Memory | ~60 MB | ~10 MB |
 | Binary size | 30+ MB (packaged) | 1.7 MB stripped |
 | Shell support | bash, zsh, fish, pwsh, nu, xonsh, cmd | bash only |
-| Fig spec coverage | ~715 specs via dynamic import | **1397/1476 (94.6%)** via the static extractor |
+| Fig spec coverage | ~715 specs via dynamic import | **1429/1471 (97.1%)** via the static extractor |
 | JS runtime for opaque closures | always on (Node) | **none** — pure Rust static extraction only |
 | Ghost-text rendering | yes | yes |
 | Right-arrow to accept | yes | yes |

@@ -110,7 +110,9 @@ fn empty_line_returns_none() {
 
 #[test]
 fn cargo_subcommand_completion() {
-    assert_eq!(top_suggestion("cargo b"), Some("uild".to_string()));
+    // cargo upstream defines a `b` alias for build, so `cargo b` matches
+    // exactly and yields no tail. Use `bu` to force a longer-match.
+    assert_eq!(top_suggestion("cargo bu"), Some("ild".to_string()));
 }
 
 #[test]

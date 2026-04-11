@@ -1770,6 +1770,12 @@
             }
           ]
         }
+      ],
+      "args": [
+        {
+          "name": "container",
+          "is_variadic": true
+        }
       ]
     },
     {
@@ -2191,6 +2197,12 @@
             "--no-prune"
           ],
           "description": "Do not delete untagged parents"
+        }
+      ],
+      "args": [
+        {
+          "name": "image",
+          "is_variadic": true
         }
       ]
     },
@@ -5483,6 +5495,12 @@
                 }
               ]
             }
+          ],
+          "args": [
+            {
+              "name": "container",
+              "is_variadic": true
+            }
           ]
         },
         {
@@ -5549,6 +5567,83 @@
           "args": [
             {
               "name": "container"
+            }
+          ]
+        },
+        {
+          "names": [
+            "ls"
+          ],
+          "description": "List containers",
+          "options": [
+            {
+              "names": [
+                "-a",
+                "--all"
+              ],
+              "description": "Show all containers (default shows just running)"
+            },
+            {
+              "names": [
+                "-f",
+                "--filter"
+              ],
+              "description": "Filter output based on conditions provided",
+              "args": [
+                {
+                  "name": "filter"
+                }
+              ]
+            },
+            {
+              "names": [
+                "--format"
+              ],
+              "description": "Pretty-print containers using a Go template",
+              "args": [
+                {
+                  "name": "string"
+                }
+              ]
+            },
+            {
+              "names": [
+                "-n",
+                "--last"
+              ],
+              "description": "Show n last created containers (includes all states) (default -1)",
+              "args": [
+                {
+                  "name": "int"
+                }
+              ]
+            },
+            {
+              "names": [
+                "-l",
+                "--latest"
+              ],
+              "description": "Show the latest created container (includes all states)"
+            },
+            {
+              "names": [
+                "--no-trunc"
+              ],
+              "description": "Don't truncate output"
+            },
+            {
+              "names": [
+                "-q",
+                "--quiet"
+              ],
+              "description": "Only display container IDs"
+            },
+            {
+              "names": [
+                "-s",
+                "--size"
+              ],
+              "description": "Display total file sizes"
             }
           ]
         },
@@ -7358,6 +7453,12 @@
               ],
               "description": "Help for inspect"
             }
+          ],
+          "args": [
+            {
+              "name": "CONTEXT",
+              "is_variadic": true
+            }
           ]
         },
         {
@@ -7420,6 +7521,12 @@
                 "--help"
               ],
               "description": "Help for rm"
+            }
+          ],
+          "args": [
+            {
+              "name": "CONTEXT",
+              "is_variadic": true
             }
           ]
         },
@@ -7878,6 +7985,12 @@
                 }
               ]
             }
+          ],
+          "args": [
+            {
+              "name": "image",
+              "is_variadic": true
+            }
           ]
         },
         {
@@ -7903,6 +8016,68 @@
                 "--quiet"
               ],
               "description": "Suppress the load output"
+            }
+          ]
+        },
+        {
+          "names": [
+            "ls"
+          ],
+          "description": "List images",
+          "options": [
+            {
+              "names": [
+                "-a",
+                "--all"
+              ],
+              "description": "Show all images (default hides intermediate images)"
+            },
+            {
+              "names": [
+                "--digests"
+              ],
+              "description": "Show digests"
+            },
+            {
+              "names": [
+                "-f",
+                "--filter"
+              ],
+              "description": "Filter output based on conditions provided",
+              "args": [
+                {
+                  "name": "filter"
+                }
+              ]
+            },
+            {
+              "names": [
+                "--format"
+              ],
+              "description": "Pretty-print images using a Go template",
+              "args": [
+                {
+                  "name": "string"
+                }
+              ]
+            },
+            {
+              "names": [
+                "--no-trunc"
+              ],
+              "description": "Don't truncate output"
+            },
+            {
+              "names": [
+                "-q",
+                "--quiet"
+              ],
+              "description": "Only show image IDs"
+            }
+          ],
+          "args": [
+            {
+              "name": "[REPOSITORY[:TAG]]"
             }
           ]
         },
@@ -8014,6 +8189,33 @@
           "args": [
             {
               "name": "NAME[:TAG]"
+            }
+          ]
+        },
+        {
+          "names": [
+            "rm"
+          ],
+          "description": "Remove one or more images",
+          "options": [
+            {
+              "names": [
+                "-f",
+                "--force"
+              ],
+              "description": "Force removal of the image"
+            },
+            {
+              "names": [
+                "--no-prune"
+              ],
+              "description": "Do not delete untagged parents"
+            }
+          ],
+          "args": [
+            {
+              "name": "image",
+              "is_variadic": true
             }
           ]
         },

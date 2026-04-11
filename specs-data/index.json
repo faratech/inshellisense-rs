@@ -1,13 +1,13 @@
 {
   "version": "upstream-unknown",
   "stats": {
-    "total": 1476,
-    "pure": 1397,
-    "partial": 51,
-    "js_only": 23,
-    "error": 5,
-    "essentials_extracted": 45,
-    "function_skips": 51
+    "total": 1471,
+    "pure": 1429,
+    "partial": 35,
+    "js_only": 7,
+    "error": 0,
+    "essentials_extracted": 46,
+    "function_skips": 35
   },
   "entries": [
     {
@@ -4219,8 +4219,8 @@
     {
       "name": "br",
       "file": "br.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "brew",
@@ -4291,8 +4291,8 @@
     {
       "name": "c++",
       "file": "c++.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "caffeinate",
@@ -4309,8 +4309,8 @@
     {
       "name": "cap",
       "file": "cap.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "capacitor",
@@ -4321,8 +4321,8 @@
     {
       "name": "cargo",
       "file": "cargo.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "cat",
@@ -4417,14 +4417,14 @@
     {
       "name": "clang",
       "file": "clang.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "clang++",
       "file": "clang++.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "clear",
@@ -4447,8 +4447,8 @@
     {
       "name": "clion",
       "file": "clion.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "clojure",
@@ -4483,8 +4483,8 @@
     {
       "name": "code-insiders",
       "file": "code-insiders.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "codesign",
@@ -5317,8 +5317,8 @@
     {
       "name": "fly",
       "file": "fly.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "flyctl",
@@ -5383,8 +5383,8 @@
     {
       "name": "g++",
       "file": "g++.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ganache-cli",
@@ -5401,8 +5401,8 @@
     {
       "name": "gcc",
       "file": "gcc.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "gcloud",
@@ -5905,8 +5905,8 @@
     {
       "name": "goland",
       "file": "goland.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "googler",
@@ -6079,8 +6079,8 @@
     {
       "name": "https",
       "file": "https.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "httpy",
@@ -6091,7 +6091,7 @@
     {
       "name": "hub",
       "file": "hub.ts",
-      "kind": "js_only",
+      "kind": "partial",
       "has_functions": true
     },
     {
@@ -6139,14 +6139,14 @@
     {
       "name": "idea",
       "file": "idea.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "iex",
       "file": "iex.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "if",
@@ -6199,8 +6199,8 @@
     {
       "name": "j",
       "file": "j.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "java",
@@ -6349,8 +6349,8 @@
     {
       "name": "kubecolor",
       "file": "kubecolor.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "kubectl",
@@ -6727,8 +6727,8 @@
     {
       "name": "nativescript",
       "file": "nativescript.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "nc",
@@ -7123,8 +7123,8 @@
     {
       "name": "phpstorm",
       "file": "phpstorm.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "phpunit",
@@ -7159,8 +7159,8 @@
     {
       "name": "pip3",
       "file": "pip3.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pipenv",
@@ -7273,8 +7273,8 @@
     {
       "name": "preset",
       "file": "preset.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "prettier",
@@ -7357,8 +7357,8 @@
     {
       "name": "pycharm",
       "file": "pycharm.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "pyenv",
@@ -7567,8 +7567,8 @@
     {
       "name": "rubymine",
       "file": "rubymine.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ruff",
@@ -7603,8 +7603,8 @@
     {
       "name": "rustrover",
       "file": "rustrover.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "rustup",
@@ -7909,8 +7909,8 @@
     {
       "name": "sta",
       "file": "sta.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "stack",
@@ -8221,8 +8221,8 @@
     {
       "name": "tns",
       "file": "tns.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "tokei",
@@ -8353,8 +8353,8 @@
     {
       "name": "twilio",
       "file": "twilio.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "typeorm",
@@ -8377,14 +8377,14 @@
     {
       "name": "ua",
       "file": "ua.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "ubuntu-advantage",
       "file": "ubuntu-advantage.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "uname",
@@ -8401,8 +8401,8 @@
     {
       "name": "unix2dos",
       "file": "unix2dos.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "unset",
@@ -8587,8 +8587,8 @@
     {
       "name": "webstorm",
       "file": "webstorm.ts",
-      "kind": "js_only",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "wezterm",
@@ -8815,8 +8815,8 @@
     {
       "name": "zig",
       "file": "zig.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "zip",
