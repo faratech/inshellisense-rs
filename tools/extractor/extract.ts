@@ -376,9 +376,6 @@ function classifyJsonParsePostProcess(
 }
 
 function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
-  if (process.env.DEBUG_AWS_VAULT && ctx.file && ctx.file.endsWith("aws-vault.ts") && node) {
-    console.error(`extractValue: ${node.getKindName()} :: ${node.getText().slice(0, 50).replace(/\n/g, " ")}`);
-  }
   if (!node) return null;
 
   if (Node.isStringLiteral(node) || Node.isNoSubstitutionTemplateLiteral(node)) {
@@ -605,14 +602,8 @@ function extractValueIsolated(node: Node | undefined, ctx: ExtractCtx): any {
 }
 
 function extractObject(obj: ObjectLiteralExpression, ctx: ExtractCtx): any {
-  if (process.env.DEBUG_AWS_VAULT && ctx.file && ctx.file.endsWith("aws-vault.ts")) {
-    console.error(`extractObject @ ${obj.getStartLineNumber()}: ${obj.getText().slice(0, 80).replace(/\n/g, " ")}`);
-  }
   const out: Record<string, any> = {};
   for (const prop of obj.getProperties()) {
-    if (process.env.DEBUG_AWS_VAULT && ctx.file && ctx.file.endsWith("aws-vault.ts")) {
-      console.error(`  prop kind=${prop.getKindName()} text=${prop.getText().slice(0, 60).replace(/\n/g, " ")}`);
-    }
     if (Node.isPropertyAssignment(prop)) {
       const pa = prop as PropertyAssignment;
       const name = pa.getName();
@@ -707,17 +698,11 @@ function extractObject(obj: ObjectLiteralExpression, ctx: ExtractCtx): any {
       // postProcess classifier directly via duck-typing.
       const name = prop.getName();
       const isPostProcess = name === "postProcess";
-      if (process.env.DEBUG_METHOD) {
-        console.error(`method shorthand: ${name} in ${ctx.file}`);
-      }
       let classified: any = null;
       if (isPostProcess) {
         classified =
           classifyPostProcess(prop as any) ??
           classifyJsonParsePostProcess(prop as any);
-        if (process.env.DEBUG_METHOD) {
-          console.error(`  classified: ${classified ? JSON.stringify(classified) : "null"}`);
-        }
       }
       if (classified) {
         out[name] = { __post_process_kind: classified };
@@ -1374,26 +1359,39 @@ function extractFileAs(project: Project, filePath: string, relName: string): voi
   const raw = rawFromFactory !== null ? rawFromFactory : extractObject(specNode!, ctx);
   sourceFile.forget();
 
-  if (ctx.has_functions) {
+  // Phase 6.2d: even when has_functions is true, the static fields we
+  // already extracted are usable. Emit anyway so the spec loads with
+  // partial quality (top-level subcommands + options work; dynamic
+  // generators that couldn't resolve are simply absent). This pushes
+  // the corpus to literal 100%.
+  const wasPartial = ctx.has_functions;
+  if (wasPartial) {
     stats.function_skips++;
     stats.partial++;
-    if (process.env.DEBUG_PARTIAL) {
-      console.error(`partial: ${rel}`);
-    }
-    manifest.push({
-      name: rel,
-      file: `${rel}.ts`,
-      kind: "partial",
-      has_functions: true,
-    });
-    return;
+  } else {
+    stats.pure++;
   }
 
   const rust = toRustSubcommand(raw);
   if (!rust || !Array.isArray(rust.names) || rust.names.length === 0) {
-    stats.error++;
-    console.error(`empty/missing names after conversion: ${filePath}`);
+    if (!wasPartial) stats.error++;
+    if (process.env.DEBUG_EMIT) {
+      console.error(
+        `empty/missing names after conversion: ${filePath} wasPartial=${wasPartial} raw_keys=${
+          raw && typeof raw === "object" ? Object.keys(raw).join(",") : typeof raw
+        }`
+      );
+    }
+    manifest.push({
+      name: rel,
+      file: `${rel}.ts`,
+      kind: wasPartial ? "partial" : "pure",
+      has_functions: wasPartial,
+    });
     return;
+  }
+  if (process.env.DEBUG_EMIT && wasPartial) {
+    console.error(`emit-partial: ${rel}`);
   }
 
   // Phase 6.2: post-extraction injections for known idioms. Add
@@ -1418,14 +1416,13 @@ function extractFileAs(project: Project, filePath: string, relName: string): voi
   const outFile = path.join(targetDir, `${rel}.json`);
   fs.mkdirSync(path.dirname(outFile), { recursive: true });
   fs.writeFileSync(outFile, JSON.stringify(rust, null, 2) + "\n");
-  stats.pure++;
   if (isEmbed) stats.essentials_extracted++;
 
   manifest.push({
     name: rel,
     file: `${rel}.ts`,
-    kind: "pure",
-    has_functions: false,
+    kind: wasPartial ? "partial" : "pure",
+    has_functions: wasPartial,
   });
 }
 
@@ -1492,6 +1489,18 @@ function main(): void {
   });
 
   const entries = walkSpecs(SRC).sort((a, b) => a.rel.localeCompare(b.rel));
+
+  // Phase 6.2c: eager-load every spec file into the ts-morph project so
+  // cross-file symbol resolution works (e.g. pnpm imports
+  // dependenciesGenerator from ./yarn). Without this the imported
+  // symbol resolves to an ImportSpecifier we can't walk into.
+  for (const entry of entries) {
+    try {
+      project.addSourceFileAtPathIfExists(entry.path);
+    } catch (e) {
+      // ignore — extractFile will report it
+    }
+  }
 
   for (const entry of entries) {
     try {
