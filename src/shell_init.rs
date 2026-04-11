@@ -8,11 +8,14 @@ const MARKER: &str = "# >>> insh-rs init >>>";
 const MARKER_END: &str = "# <<< insh-rs init <<<";
 
 pub fn snippet() -> String {
+    // Dual-guard both INSH_RS and ISTERM so this coexists with upstream
+    // inshellisense's shell integration. Also respect VSCODE_RESOLVING_-
+    // ENVIRONMENT per upstream to avoid interfering with VS Code env probes.
     format!(
         r#"{MARKER}
-# Launch insh-rs once per interactive login. The INSH_RS guard prevents
-# infinite recursion once insh itself re-execs bash.
-if [[ $- == *i* ]] && [[ -z "${{INSH_RS:-}}" ]] && command -v insh >/dev/null 2>&1; then
+if [[ $- == *i* ]] && [[ -z "${{INSH_RS:-}}" ]] && [[ -z "${{ISTERM:-}}" ]] \
+   && [[ -z "${{VSCODE_RESOLVING_ENVIRONMENT:-}}" ]] \
+   && command -v insh >/dev/null 2>&1; then
     exec insh start
 fi
 {MARKER_END}

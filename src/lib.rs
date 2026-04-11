@@ -5,11 +5,14 @@
 //! The binary (`src/main.rs`) is thin CLI plumbing that uses this crate.
 
 pub mod ansi;
+pub mod commands;
 pub mod curated;
+pub mod env;
 pub mod generator;
 pub mod history;
 pub mod pty;
 pub mod render;
+pub mod shell;
 pub mod shell_init;
 pub mod spec;
 pub mod suggest;

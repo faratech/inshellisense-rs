@@ -1,6 +1,6 @@
 [package]
 name = "insh-rs"
-version = "0.1.0"
+version = "0.0.2"
 edition = "2021"
 description = "Rust port of inshellisense: IDE-style autocomplete as ghost text for your shell"
 license = "MIT"
@@ -8,6 +8,10 @@ license = "MIT"
 [[bin]]
 name = "insh"
 path = "src/main.rs"
+
+[[bin]]
+name = "is"
+path = "src/bin/is.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
