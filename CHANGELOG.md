@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 4 — PostProcessKind DSL + lazy LoadSpec + recursive extractor + embed/extras split
+
+- **Added** `PostProcessKind` execution in `src/generator.rs`:
+  - `SplitLines` — line-by-line raw output → suggestions
+  - `SplitLinesFiltered` — filter by skip-prefix
+  - `JsonParse` / `JsonPath` — parse via `serde_json::Value::pointer`,
+    support dotted path syntax (`items.name`) or JSON Pointer (`/items/name`)
+  - `GitBranches` — strip `*`, drop `HEAD`, strip `remotes/` prefix
+  - `KeyValueColon` — split lines on `:`, key → name, value → description
+  - `TableColumn { index, sep }` — awk-like column extraction
+- **Added** `spec::resolver::resolve_with_registry` — new entry point that
+  takes a registry reference so `LoadSpec::SpecPath { name }` references
+  get resolved against the loaded spec tree at descent time. Used by
+  `suggest::Engine` automatically.
+- **Added** Registry recursive walk via `include_dir::DirEntry`, so
+  nested paths like `aws/ec2` get loaded under their full path key.
+- **Added** extractor recursive directory walker — previously only
+  enumerated `SRC/*.ts` top-level; now descends into `aws/`, `gcloud/`,
+  `heroku/`, etc. and preserves nested paths in the output.
+- **Added** extractor postProcess pattern matcher — recognizes the most
+  common upstream shape `(out) => out.split("\n").map(line => ({ name: line, ... }))`
+  and emits `PostProcess::Pattern { inner: SplitLines }` instead of
+  marking the spec as having functions. Upgraded pure spec count from
+  321 → **1032**.
+- **Added** `INSH_RS_SPECS_DIR` environment variable — at registry init,
+  recursively loads `.json` specs from the given directory (after the
+  embedded essentials). Lets users point at a full extras tree without
+  rebuilding the binary.
+- **Changed** extractor splits output into two directories:
+  - `specs-data/embed/` — committed, 26 top-level essentials (chmod, curl,
+    find, grep, fzf, vim, nvim, top, htop, ls, cp, mv, dig, nc, nmap, ps,
+    etc.), ~332 KB. Embedded into the binary via `include_dir!`.
+  - `specs-data/extras/` — gitignored, 1006 specs (~107 MB) including the
+    entire aws/, gcloud/, dotnet/, heroku/ subtrees. Regenerable via the
+    extractor; loadable at runtime via `INSH_RS_SPECS_DIR`.
+- **Removed** old `specs-data/essentials/` (superseded by `embed/`).
+
+Validation: **29 tests pass** (14 unit + 15 parity). Release binary is
+**2.4 MB** (down from 8.7 MB in phase 3 because the 1006 extras are no
+longer embedded). Extractor stats: 1476 total, 1032 pure, 416 partial,
+23 js_only, 5 errors. `INSH_RS_SPECS_DIR=specs-data/extras insh doctor`
+loads **1002 specs** confirming runtime extras loading works.
+
 ### Phase 3 — @withfig/autocomplete extractor + 321 specs vendored
 
 - **Added** `tools/extractor/` — Node + TypeScript extractor using

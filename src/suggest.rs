@@ -57,7 +57,7 @@ impl Engine {
         let Some(root) = self.registry.get(cmd) else {
             return Vec::new();
         };
-        let result = resolver::resolve(root, &tokens);
+        let result = resolver::resolve_with_registry(&self.registry, root, &tokens);
 
         let partial = result
             .active_partial

@@ -263,9 +263,84 @@ fn apply_post_process(raw: Vec<String>, post: &PostProcess) -> Vec<Suggestion> {
 }
 
 fn apply_pattern(raw: Vec<String>, kind: &PostProcessKind) -> Vec<Suggestion> {
-    // Phase 4 fleshes these out; for now we forward the raw values.
-    let _ = kind;
+    match kind {
+        PostProcessKind::SplitLines {} => raw_to_suggestions(raw),
+        PostProcessKind::SplitLinesFiltered { skip_prefixes } => {
+            let filtered: Vec<String> = raw
+                .into_iter()
+                .filter(|line| !skip_prefixes.iter().any(|p| line.starts_with(p)))
+                .collect();
+            raw_to_suggestions(filtered)
+        }
+        PostProcessKind::JsonParse {} => {
+            let blob = raw.join("\n");
+            json_to_suggestions(&blob, None)
+        }
+        PostProcessKind::JsonPath { path } => {
+            let blob = raw.join("\n");
+            json_to_suggestions(&blob, Some(path))
+        }
+        PostProcessKind::GitBranches {} => raw
+            .into_iter()
+            .map(|line| line.trim_start_matches('*').trim().to_string())
+            .filter(|line| !line.is_empty() && line != "HEAD")
+            .map(|line| {
+                let stripped = line
+                    .strip_prefix("remotes/")
+                    .map(|s| s.to_string())
+                    .unwrap_or(line);
+                Suggestion {
+                    name: stripped,
+                    suggestion_type: SuggestionType::Arg,
+                    priority: Some(60),
+                    ..Default::default()
+                }
+            })
+            .collect(),
+        PostProcessKind::KeyValueColon {} => raw
+            .into_iter()
+            .filter_map(|line| {
+                let mut parts = line.splitn(2, ':');
+                let key = parts.next()?.trim().to_string();
+                let val = parts.next().map(|s| s.trim().to_string());
+                if key.is_empty() {
+                    return None;
+                }
+                Some(Suggestion {
+                    name: key,
+                    description: val,
+                    suggestion_type: SuggestionType::Arg,
+                    priority: Some(60),
+                    ..Default::default()
+                })
+            })
+            .collect(),
+        PostProcessKind::TableColumn { index, sep } => raw
+            .into_iter()
+            .filter_map(|line| {
+                let cols: Vec<&str> = if sep.is_empty() {
+                    line.split_whitespace().collect()
+                } else {
+                    line.split(sep.as_str()).collect()
+                };
+                let val = cols.get(*index as usize)?.trim().to_string();
+                if val.is_empty() {
+                    return None;
+                }
+                Some(Suggestion {
+                    name: val,
+                    suggestion_type: SuggestionType::Arg,
+                    priority: Some(60),
+                    ..Default::default()
+                })
+            })
+            .collect(),
+    }
+}
+
+fn raw_to_suggestions(raw: Vec<String>) -> Vec<Suggestion> {
     raw.into_iter()
+        .filter(|s| !s.is_empty())
         .map(|name| Suggestion {
             name,
             suggestion_type: SuggestionType::Arg,
@@ -273,4 +348,56 @@ fn apply_pattern(raw: Vec<String>, kind: &PostProcessKind) -> Vec<Suggestion> {
             ..Default::default()
         })
         .collect()
+}
+
+fn json_to_suggestions(blob: &str, path: Option<&str>) -> Vec<Suggestion> {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(blob) else {
+        return Vec::new();
+    };
+    let target = match path {
+        Some(p) => {
+            let ptr = if p.starts_with('/') {
+                p.to_string()
+            } else {
+                format!("/{}", p.replace('.', "/"))
+            };
+            match value.pointer(&ptr) {
+                Some(v) => v,
+                None => return Vec::new(),
+            }
+        }
+        None => &value,
+    };
+    json_value_to_suggestions(target)
+}
+
+fn json_value_to_suggestions(v: &serde_json::Value) -> Vec<Suggestion> {
+    match v {
+        serde_json::Value::Array(arr) => arr
+            .iter()
+            .filter_map(|item| match item {
+                serde_json::Value::String(s) => Some(Suggestion {
+                    name: s.clone(),
+                    suggestion_type: SuggestionType::Arg,
+                    priority: Some(60),
+                    ..Default::default()
+                }),
+                serde_json::Value::Object(obj) => {
+                    let name = obj.get("name")?.as_str()?.to_string();
+                    Some(Suggestion {
+                        name,
+                        description: obj
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
+                        suggestion_type: SuggestionType::Arg,
+                        priority: Some(60),
+                        ..Default::default()
+                    })
+                }
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
 }

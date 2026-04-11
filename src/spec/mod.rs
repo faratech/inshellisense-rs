@@ -46,22 +46,65 @@ impl Registry {
 
     fn load_embedded_essentials(&mut self) {
         use include_dir::{include_dir, Dir};
-        static ESSENTIALS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/specs-data/essentials");
-        for file in ESSENTIALS.files() {
-            if file.path().extension().and_then(|e| e.to_str()) != Some("json") {
-                continue;
+        static EMBED: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/specs-data/embed");
+        Self::walk_embedded(&EMBED, self);
+        // Also load runtime extras if INSH_RS_SPECS_DIR is set.
+        if let Ok(extras) = std::env::var("INSH_RS_SPECS_DIR") {
+            self.load_disk_specs(std::path::Path::new(&extras));
+        }
+    }
+
+    fn load_disk_specs(&mut self, dir: &std::path::Path) {
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                self.load_disk_specs(&path);
+            } else if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                let Ok(bytes) = std::fs::read_to_string(&path) else { continue };
+                match serde_json::from_str::<Subcommand>(&bytes) {
+                    Ok(spec) => self.insert(spec),
+                    Err(e) => eprintln!("insh-rs: skipped {}: {}", path.display(), e),
+                }
             }
-            let Some(bytes) = file.contents_utf8() else { continue };
-            match serde_json::from_str::<Subcommand>(bytes) {
-                Ok(spec) => self.insert(spec),
-                Err(e) => {
-                    // A field we don't yet model — log and skip so the rest
-                    // of the registry still loads.
-                    eprintln!(
-                        "insh-rs: skipped {}: {}",
-                        file.path().display(),
-                        e
-                    );
+        }
+    }
+
+    fn walk_embedded(dir: &include_dir::Dir<'_>, reg: &mut Registry) {
+        for entry in dir.entries() {
+            match entry {
+                include_dir::DirEntry::Dir(d) => Self::walk_embedded(d, reg),
+                include_dir::DirEntry::File(f) => {
+                    if f.path().extension().and_then(|e| e.to_str()) != Some("json") {
+                        continue;
+                    }
+                    let Some(bytes) = f.contents_utf8() else { continue };
+                    // Derive the registry key from the path relative to the
+                    // essentials root: `aws/ec2.json` → `aws/ec2`.
+                    let rel_path = f.path();
+                    let rel_key = rel_path
+                        .with_extension("")
+                        .to_string_lossy()
+                        .to_string();
+                    match serde_json::from_str::<Subcommand>(bytes) {
+                        Ok(mut spec) => {
+                            // For nested paths, the primary name comes from
+                            // the spec itself but we also want it reachable
+                            // under the path key for LoadSpec::SpecPath.
+                            if rel_key.contains('/') {
+                                reg.specs.insert(rel_key, spec);
+                            } else {
+                                // Normal top-level spec — keyed by its own name.
+                                // Strip the redundant primary-name check; `insert`
+                                // already does it.
+                                let _ = rel_key;
+                                reg.insert(std::mem::take(&mut spec));
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("insh-rs: skipped {}: {}", rel_path.display(), e);
+                        }
+                    }
                 }
             }
         }

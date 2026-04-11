@@ -21,6 +21,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import {
   ArrayLiteralExpression,
+  ArrowFunction,
+  FunctionExpression,
   Node,
   ObjectLiteralExpression,
   Project,
@@ -31,7 +33,8 @@ import {
 
 const SRC = process.env.SRC ?? "/tmp/withfig-autocomplete/src";
 const OUT = process.env.OUT ?? path.resolve(process.cwd(), "../../specs-data");
-const ESSENTIALS_DIR = path.join(OUT, "essentials");
+const EMBED_DIR = path.join(OUT, "embed");
+const EXTRAS_DIR = path.join(OUT, "extras");
 
 // Priority set: the top commands we want to ensure get extracted. We still
 // try to extract everything pure, but these are the ones most likely to be
@@ -82,7 +85,113 @@ const manifest: ManifestEntry[] = [];
 type ExtractCtx = {
   has_functions: boolean;
   file: string;
+  /// When true, the classifier is evaluating a function expression in the
+  /// context of a generator's `postProcess` field — recognized shapes are
+  /// converted to PostProcessKind variants instead of flagging the spec.
+  post_process_in_progress: boolean;
 };
+
+/// Attempt to classify a function expression used as a postProcess
+/// callback into a named PostProcessKind.  Returns the kind descriptor
+/// on a hit, null on a miss (caller should fall back to marking the
+/// containing spec as having functions).
+function classifyPostProcess(
+  fn: ArrowFunction | FunctionExpression
+): any | null {
+  // Target shape: (out) => out.split("sep").map(...)  OR the one-statement
+  // return form. Everything is done syntactically; we don't evaluate.
+  const body = fn.getBody();
+  let expr: Node | undefined;
+  if (Node.isBlock(body)) {
+    // Single return statement?
+    const stmts = body.getStatements();
+    if (stmts.length === 1 && Node.isReturnStatement(stmts[0])) {
+      expr = stmts[0].getExpression();
+    } else {
+      return null;
+    }
+  } else {
+    expr = body;
+  }
+  if (!expr) return null;
+
+  // Pattern: X.split("sep").map(arrow) where X is the first parameter.
+  // The arrow body can be { name: line } or { name: line, description: ... }
+  // — we match shallowly.
+  if (!Node.isCallExpression(expr)) return null;
+  const mapCall = expr;
+  const mapAccess = mapCall.getExpression();
+  if (!Node.isPropertyAccessExpression(mapAccess)) return null;
+  if (mapAccess.getName() !== "map") return null;
+  const splitCall = mapAccess.getExpression();
+  if (!Node.isCallExpression(splitCall)) return null;
+  const splitAccess = splitCall.getExpression();
+  if (!Node.isPropertyAccessExpression(splitAccess)) return null;
+  if (splitAccess.getName() !== "split") return null;
+
+  // The split target must reference the function's first parameter.
+  // Relaxed check: we just need the target to be an Identifier.
+  if (!Node.isIdentifier(splitAccess.getExpression())) return null;
+
+  // Split separator must be a string literal (commonly "\n").
+  const splitArgs = splitCall.getArguments();
+  if (splitArgs.length !== 1) return null;
+  if (
+    !Node.isStringLiteral(splitArgs[0]) &&
+    !Node.isNoSubstitutionTemplateLiteral(splitArgs[0])
+  )
+    return null;
+
+  // Map callback is an arrow returning an object literal with `name` set
+  // to an identifier (the iteration variable). We accept this as SplitLines.
+  const mapArgs = mapCall.getArguments();
+  if (mapArgs.length !== 1) return null;
+  const mapArg = mapArgs[0];
+  if (!Node.isArrowFunction(mapArg) && !Node.isFunctionExpression(mapArg))
+    return null;
+  const mapBody = mapArg.getBody();
+  let mapExpr: Node | undefined;
+  if (Node.isBlock(mapBody)) {
+    const stmts = mapBody.getStatements();
+    if (stmts.length === 1 && Node.isReturnStatement(stmts[0])) {
+      mapExpr = stmts[0].getExpression();
+    } else {
+      return null;
+    }
+  } else {
+    mapExpr = mapBody;
+  }
+  if (!mapExpr || !Node.isObjectLiteralExpression(mapExpr)) return null;
+  const mapObj = mapExpr;
+  const props = mapObj.getProperties();
+  if (props.length === 0) return null;
+
+  // At least one property named `name` must be present.
+  const hasName = props.some(
+    (p) => Node.isPropertyAssignment(p) && p.getName() === "name"
+  );
+  if (!hasName) return null;
+
+  // All property values must be simple: identifiers, string literals,
+  // or property-access off the iteration variable. Anything else (e.g.
+  // template literals, conditional, regex) bails.
+  for (const p of props) {
+    if (!Node.isPropertyAssignment(p)) return null;
+    const v = p.getInitializer();
+    if (!v) return null;
+    if (
+      !Node.isIdentifier(v) &&
+      !Node.isStringLiteral(v) &&
+      !Node.isNoSubstitutionTemplateLiteral(v) &&
+      !Node.isPropertyAccessExpression(v)
+    ) {
+      return null;
+    }
+  }
+
+  // Emit SplitLines DSL descriptor.
+  return { kind: "pattern", inner: { kind: "split_lines" } };
+}
 
 function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
   if (!node) return null;
@@ -117,7 +226,18 @@ function extractValue(node: Node | undefined, ctx: ExtractCtx): any {
     ctx.has_functions = true;
     return null;
   }
-  if (Node.isFunctionExpression(node) || Node.isArrowFunction(node) || Node.isMethodDeclaration(node)) {
+  if (Node.isFunctionExpression(node) || Node.isArrowFunction(node)) {
+    // If we're inside a generator's postProcess field, try to classify.
+    if (ctx.post_process_in_progress) {
+      const kind = classifyPostProcess(node as ArrowFunction | FunctionExpression);
+      if (kind) {
+        return { __post_process_kind: kind };
+      }
+    }
+    ctx.has_functions = true;
+    return { __fn: true };
+  }
+  if (Node.isMethodDeclaration(node)) {
     ctx.has_functions = true;
     return { __fn: true };
   }
@@ -146,7 +266,12 @@ function extractObject(obj: ObjectLiteralExpression, ctx: ExtractCtx): any {
     if (Node.isPropertyAssignment(prop)) {
       const pa = prop as PropertyAssignment;
       const name = pa.getName();
+      // Toggle postProcess classifier when descending into that field.
+      const isPostProcess = name === "postProcess";
+      const savedFlag = ctx.post_process_in_progress;
+      if (isPostProcess) ctx.post_process_in_progress = true;
       const value = extractValue(pa.getInitializer(), ctx);
+      if (isPostProcess) ctx.post_process_in_progress = savedFlag;
       if (value !== undefined) {
         out[name] = value;
       }
@@ -328,14 +453,19 @@ function toRustGenerator(g: any): any {
     return { kind: "template", template: t };
   }
 
-  // Script generator
+  // Script generator with pattern-matched postProcess.
+  const pp = g.postProcess;
+  const ppDesc = pp && typeof pp === "object" && pp.__post_process_kind
+    ? pp.__post_process_kind
+    : { kind: "none" };
+
   if (g.script != null && !g.__fn) {
     if (typeof g.script === "string") {
       return {
         kind: "script",
         input: { kind: "shell", script: g.script },
         split_on: typeof g.splitOn === "string" ? g.splitOn : "\n",
-        post_process: { kind: "none" },
+        post_process: ppDesc,
         timeout_ms: typeof g.scriptTimeout === "number" ? g.scriptTimeout : 5000,
       };
     }
@@ -344,13 +474,13 @@ function toRustGenerator(g: any): any {
         kind: "script",
         input: { kind: "argv", argv: g.script },
         split_on: typeof g.splitOn === "string" ? g.splitOn : "\n",
-        post_process: { kind: "none" },
+        post_process: ppDesc,
         timeout_ms: typeof g.scriptTimeout === "number" ? g.scriptTimeout : 5000,
       };
     }
   }
 
-  // Custom/postProcess closures: mark requiring JS — phase 6.
+  // Custom/complex postProcess closures: mark requiring JS — phase 6.
   return null;
 }
 
@@ -377,9 +507,9 @@ function clamp0_100(n: number): number {
 // Per-file extraction
 // ---------------------------------------------------------------------------
 
-function extractFile(project: Project, filePath: string): void {
+function extractFile(project: Project, filePath: string, relName: string): void {
   stats.total++;
-  const rel = path.basename(filePath, ".ts");
+  const rel = relName;
   let sourceFile: SourceFile;
   try {
     sourceFile = project.addSourceFileAtPath(filePath);
@@ -441,7 +571,11 @@ function extractFile(project: Project, filePath: string): void {
     return;
   }
 
-  const ctx: ExtractCtx = { has_functions: false, file: filePath };
+  const ctx: ExtractCtx = {
+    has_functions: false,
+    file: filePath,
+    post_process_in_progress: false,
+  };
   const raw = extractObject(specNode, ctx);
   sourceFile.forget();
 
@@ -463,11 +597,19 @@ function extractFile(project: Project, filePath: string): void {
     return;
   }
 
-  // Write the JSON.
-  const outFile = path.join(ESSENTIALS_DIR, `${rel}.json`);
+  // Write the JSON. Top-level specs in the ESSENTIALS whitelist go to
+  // embed/ (compiled into the binary via include_dir). Everything else —
+  // including nested aws/*, gcloud/*, and top-level specs not in the
+  // whitelist — goes to extras/ (shipped separately or loaded at runtime
+  // from ~/.local/share/insh-rs/extras).
+  const baseName = path.basename(rel);
+  const isEmbed = !rel.includes("/") && ESSENTIALS.has(baseName);
+  const targetDir = isEmbed ? EMBED_DIR : EXTRAS_DIR;
+  const outFile = path.join(targetDir, `${rel}.json`);
+  fs.mkdirSync(path.dirname(outFile), { recursive: true });
   fs.writeFileSync(outFile, JSON.stringify(rust, null, 2) + "\n");
   stats.pure++;
-  if (ESSENTIALS.has(rel)) stats.essentials_extracted++;
+  if (isEmbed) stats.essentials_extracted++;
 
   manifest.push({
     name: rel,
@@ -475,6 +617,27 @@ function extractFile(project: Project, filePath: string): void {
     kind: "pure",
     has_functions: false,
   });
+}
+
+function walkSpecs(dir: string, prefix: string = ""): Array<{ path: string; rel: string }> {
+  const out: Array<{ path: string; rel: string }> = [];
+  if (!fs.existsSync(dir)) return out;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    // Skip hidden entries and @-scoped npm-style directories (helpers, not
+    // specs) at the top level. Nested directories like aws/, gcloud/ ARE
+    // recursed into.
+    if (entry.name.startsWith(".") || entry.name.startsWith("@")) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const sub = prefix ? `${prefix}/${entry.name}` : entry.name;
+      out.push(...walkSpecs(full, sub));
+    } else if (entry.isFile() && entry.name.endsWith(".ts")) {
+      const base = entry.name.slice(0, -3);
+      const rel = prefix ? `${prefix}/${base}` : base;
+      out.push({ path: full, rel });
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -486,7 +649,14 @@ function main(): void {
     console.error(`SRC not found: ${SRC}`);
     process.exit(1);
   }
-  fs.mkdirSync(ESSENTIALS_DIR, { recursive: true });
+  // Wipe previous extractor output (both dirs) so stale files from an
+  // earlier run don't survive when the whitelist changes.
+  fs.rmSync(EMBED_DIR, { recursive: true, force: true });
+  fs.rmSync(EXTRAS_DIR, { recursive: true, force: true });
+  // Also remove the old essentials/ path from phase 3 if it still exists.
+  fs.rmSync(path.join(OUT, "essentials"), { recursive: true, force: true });
+  fs.mkdirSync(EMBED_DIR, { recursive: true });
+  fs.mkdirSync(EXTRAS_DIR, { recursive: true });
 
   const project = new Project({
     compilerOptions: {
@@ -500,18 +670,14 @@ function main(): void {
     useInMemoryFileSystem: false,
   });
 
-  const entries = fs
-    .readdirSync(SRC)
-    .filter((f) => f.endsWith(".ts") && !f.startsWith("."))
-    .sort();
+  const entries = walkSpecs(SRC).sort((a, b) => a.rel.localeCompare(b.rel));
 
   for (const entry of entries) {
-    const filePath = path.join(SRC, entry);
     try {
-      extractFile(project, filePath);
+      extractFile(project, entry.path, entry.rel);
     } catch (e: any) {
       stats.error++;
-      console.error(`error on ${entry}: ${e?.message ?? e}`);
+      console.error(`error on ${entry.rel}: ${e?.message ?? e}`);
     }
   }
 
@@ -530,7 +696,8 @@ function main(): void {
   );
 
   console.log(JSON.stringify(stats, null, 2));
-  console.log(`wrote ${stats.pure} pure specs to ${ESSENTIALS_DIR}`);
+  console.log(`wrote ${stats.essentials_extracted} embed specs to ${EMBED_DIR}`);
+  console.log(`wrote ${stats.pure - stats.essentials_extracted} extras specs to ${EXTRAS_DIR}`);
   console.log(`manifest: ${path.join(OUT, "index.json")}`);
 }
 

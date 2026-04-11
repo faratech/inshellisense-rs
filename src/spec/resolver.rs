@@ -8,8 +8,9 @@
 //! The result is a `ResolveResult` the suggest engine turns into a
 //! `Vec<Suggestion>`.
 
-use super::model::{Arg, Opt, Subcommand};
+use super::model::{Arg, LoadSpec, Opt, Subcommand};
 use super::parser::CommandToken;
+use super::Registry;
 
 #[derive(Debug, Clone)]
 pub struct ResolveResult<'a> {
@@ -32,12 +33,32 @@ pub struct ResolveResult<'a> {
 
 /// Resolve the token stream against the spec. `tokens` should be the output
 /// of `parser::parse_command` — the first token is the command name itself.
+///
+/// No registry variant: `load_spec: SpecPath { name }` substitutions are
+/// disabled. Call `resolve_with_registry` to enable them.
 pub fn resolve<'a>(root: &'a Subcommand, tokens: &'a [CommandToken]) -> ResolveResult<'a> {
-    // Skip the command-name token (token 0) — resolver walks the *rest*.
     let rest = if tokens.is_empty() { &[][..] } else { &tokens[1..] };
     let ctx = Ctx {
         persistent: Vec::new(),
         accepted_options: Vec::new(),
+        registry: None,
+    };
+    run_subcommand(rest, root, ctx, false, false)
+}
+
+/// Resolve with a registry reference — enables `LoadSpec::SpecPath` lookups
+/// when a subcommand declares `load_spec` as a name reference (e.g.
+/// `aws/ec2`). The target spec must already be in the registry.
+pub fn resolve_with_registry<'a>(
+    registry: &'a Registry,
+    root: &'a Subcommand,
+    tokens: &'a [CommandToken],
+) -> ResolveResult<'a> {
+    let rest = if tokens.is_empty() { &[][..] } else { &tokens[1..] };
+    let ctx = Ctx {
+        persistent: Vec::new(),
+        accepted_options: Vec::new(),
+        registry: Some(registry),
     };
     run_subcommand(rest, root, ctx, false, false)
 }
@@ -46,6 +67,18 @@ pub fn resolve<'a>(root: &'a Subcommand, tokens: &'a [CommandToken]) -> ResolveR
 struct Ctx<'a> {
     persistent: Vec<&'a Opt>,
     accepted_options: Vec<String>,
+    registry: Option<&'a Registry>,
+}
+
+/// If `sub` has a `load_spec: SpecPath`, resolve it against the registry and
+/// return the loaded spec; otherwise return `sub` unchanged.
+fn maybe_substitute<'a>(sub: &'a Subcommand, ctx: &Ctx<'a>) -> &'a Subcommand {
+    if let (Some(LoadSpec::SpecPath { name }), Some(reg)) = (&sub.load_spec, ctx.registry) {
+        if let Some(loaded) = reg.get(name) {
+            return loaded;
+        }
+    }
+    sub
 }
 
 fn run_subcommand<'a>(
@@ -108,14 +141,15 @@ fn run_subcommand<'a>(
         // Subcommand?
         if let Some(next) = sub.subcommands.iter().find(|s| s.matches(&active.token)) {
             let mut new_ctx = ctx.clone();
-            // persistent options inherit the ones we already had, plus any
-            // isPersistent options from this subcommand.
             for opt in &sub.options {
                 if opt.is_persistent && !new_ctx.persistent.iter().any(|o| opts_eq(o, opt)) {
                     new_ctx.persistent.push(opt);
                 }
             }
-            return run_subcommand(&tokens[1..], next, new_ctx, false, false);
+            // LoadSpec::SpecPath substitution: if the matched subcommand is
+            // just a stub pointing to another spec, load it lazily.
+            let resolved = maybe_substitute(next, &new_ctx);
+            return run_subcommand(&tokens[1..], resolved, new_ctx, false, false);
         }
     }
 
@@ -204,7 +238,8 @@ fn run_arg<'a>(
         }
         if !active.is_raw {
             if let Some(next) = sub.subcommands.iter().find(|s| s.matches(&active.token)) {
-                return run_subcommand(&tokens[1..], next, ctx, false, false);
+                let resolved = maybe_substitute(next, &ctx);
+                return run_subcommand(&tokens[1..], resolved, ctx, false, false);
             }
         }
     }

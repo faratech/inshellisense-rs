@@ -1,13 +1,13 @@
 {
   "version": "upstream-unknown",
   "stats": {
-    "total": 715,
-    "pure": 321,
-    "partial": 377,
-    "js_only": 17,
-    "error": 0,
+    "total": 1476,
+    "pure": 1032,
+    "partial": 416,
+    "js_only": 23,
+    "error": 5,
     "essentials_extracted": 26,
-    "function_skips": 377
+    "function_skips": 416
   },
   "entries": [
     {
@@ -83,6 +83,12 @@
       "has_functions": false
     },
     {
+      "name": "ansible",
+      "file": "ansible.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
       "name": "ansible-config",
       "file": "ansible-config.ts",
       "kind": "pure",
@@ -111,12 +117,6 @@
       "file": "ansible-playbook.ts",
       "kind": "partial",
       "has_functions": true
-    },
-    {
-      "name": "ansible",
-      "file": "ansible.ts",
-      "kind": "pure",
-      "has_functions": false
     },
     {
       "name": "ant",
@@ -221,22 +221,3910 @@
       "has_functions": false
     },
     {
-      "name": "aws-vault",
-      "file": "aws-vault.ts",
-      "kind": "partial",
-      "has_functions": true
-    },
-    {
       "name": "aws",
       "file": "aws.ts",
       "kind": "partial",
       "has_functions": true
     },
     {
+      "name": "aws-vault",
+      "file": "aws-vault.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws/accessanalyzer",
+      "file": "aws/accessanalyzer.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/account",
+      "file": "aws/account.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/acm",
+      "file": "aws/acm.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws/acm-pca",
+      "file": "aws/acm-pca.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/alexaforbusiness",
+      "file": "aws/alexaforbusiness.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/amp",
+      "file": "aws/amp.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/amplify",
+      "file": "aws/amplify.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws/amplifybackend",
+      "file": "aws/amplifybackend.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/amplifyuibuilder",
+      "file": "aws/amplifyuibuilder.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/apigateway",
+      "file": "aws/apigateway.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/apigatewaymanagementapi",
+      "file": "aws/apigatewaymanagementapi.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/apigatewayv2",
+      "file": "aws/apigatewayv2.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/appconfig",
+      "file": "aws/appconfig.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/appconfigdata",
+      "file": "aws/appconfigdata.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/appfabric",
+      "file": "aws/appfabric.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/appflow",
+      "file": "aws/appflow.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/appintegrations",
+      "file": "aws/appintegrations.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/application-autoscaling",
+      "file": "aws/application-autoscaling.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/application-insights",
+      "file": "aws/application-insights.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/application-signals",
+      "file": "aws/application-signals.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/applicationcostprofiler",
+      "file": "aws/applicationcostprofiler.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/appmesh",
+      "file": "aws/appmesh.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/apprunner",
+      "file": "aws/apprunner.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/appstream",
+      "file": "aws/appstream.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/appsync",
+      "file": "aws/appsync.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/apptest",
+      "file": "aws/apptest.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/arc-zonal-shift",
+      "file": "aws/arc-zonal-shift.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/artifact",
+      "file": "aws/artifact.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/athena",
+      "file": "aws/athena.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/auditmanager",
+      "file": "aws/auditmanager.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/autoscaling",
+      "file": "aws/autoscaling.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/autoscaling-plans",
+      "file": "aws/autoscaling-plans.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/b2bi",
+      "file": "aws/b2bi.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/backup",
+      "file": "aws/backup.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/backup-gateway",
+      "file": "aws/backup-gateway.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/backupstorage",
+      "file": "aws/backupstorage.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/batch",
+      "file": "aws/batch.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/bcm-data-exports",
+      "file": "aws/bcm-data-exports.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/bcm-pricing-calculator",
+      "file": "aws/bcm-pricing-calculator.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/bedrock",
+      "file": "aws/bedrock.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/bedrock-agent",
+      "file": "aws/bedrock-agent.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/bedrock-agent-runtime",
+      "file": "aws/bedrock-agent-runtime.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/bedrock-data-automation",
+      "file": "aws/bedrock-data-automation.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/bedrock-data-automation-runtime",
+      "file": "aws/bedrock-data-automation-runtime.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/bedrock-runtime",
+      "file": "aws/bedrock-runtime.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/billing",
+      "file": "aws/billing.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/billingconductor",
+      "file": "aws/billingconductor.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/braket",
+      "file": "aws/braket.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/budgets",
+      "file": "aws/budgets.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ce",
+      "file": "aws/ce.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/chatbot",
+      "file": "aws/chatbot.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/chime",
+      "file": "aws/chime.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/chime-sdk-identity",
+      "file": "aws/chime-sdk-identity.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/chime-sdk-media-pipelines",
+      "file": "aws/chime-sdk-media-pipelines.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/chime-sdk-meetings",
+      "file": "aws/chime-sdk-meetings.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/chime-sdk-messaging",
+      "file": "aws/chime-sdk-messaging.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/chime-sdk-voice",
+      "file": "aws/chime-sdk-voice.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cleanrooms",
+      "file": "aws/cleanrooms.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cleanroomsml",
+      "file": "aws/cleanroomsml.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cloud9",
+      "file": "aws/cloud9.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cloudcontrol",
+      "file": "aws/cloudcontrol.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/clouddirectory",
+      "file": "aws/clouddirectory.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cloudformation",
+      "file": "aws/cloudformation.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws/cloudfront",
+      "file": "aws/cloudfront.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cloudfront-keyvaluestore",
+      "file": "aws/cloudfront-keyvaluestore.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cloudhsm",
+      "file": "aws/cloudhsm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cloudhsmv2",
+      "file": "aws/cloudhsmv2.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cloudsearch",
+      "file": "aws/cloudsearch.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cloudsearchdomain",
+      "file": "aws/cloudsearchdomain.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cloudtrail",
+      "file": "aws/cloudtrail.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cloudtrail-data",
+      "file": "aws/cloudtrail-data.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cloudwatch",
+      "file": "aws/cloudwatch.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws/codeartifact",
+      "file": "aws/codeartifact.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/codebuild",
+      "file": "aws/codebuild.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/codecatalyst",
+      "file": "aws/codecatalyst.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/codecommit",
+      "file": "aws/codecommit.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/codeconnections",
+      "file": "aws/codeconnections.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/codeguru-reviewer",
+      "file": "aws/codeguru-reviewer.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/codeguru-security",
+      "file": "aws/codeguru-security.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/codeguruprofiler",
+      "file": "aws/codeguruprofiler.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/codepipeline",
+      "file": "aws/codepipeline.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/codestar",
+      "file": "aws/codestar.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/codestar-connections",
+      "file": "aws/codestar-connections.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/codestar-notifications",
+      "file": "aws/codestar-notifications.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cognito-identity",
+      "file": "aws/cognito-identity.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cognito-idp",
+      "file": "aws/cognito-idp.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cognito-sync",
+      "file": "aws/cognito-sync.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/comprehend",
+      "file": "aws/comprehend.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/comprehendmedical",
+      "file": "aws/comprehendmedical.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/compute-optimizer",
+      "file": "aws/compute-optimizer.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/configservice",
+      "file": "aws/configservice.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/configure",
+      "file": "aws/configure.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/connect",
+      "file": "aws/connect.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/connect-contact-lens",
+      "file": "aws/connect-contact-lens.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/connectcampaigns",
+      "file": "aws/connectcampaigns.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/connectcampaignsv2",
+      "file": "aws/connectcampaignsv2.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/connectcases",
+      "file": "aws/connectcases.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/connectparticipant",
+      "file": "aws/connectparticipant.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/controlcatalog",
+      "file": "aws/controlcatalog.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/controltower",
+      "file": "aws/controltower.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cost-optimization-hub",
+      "file": "aws/cost-optimization-hub.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/cur",
+      "file": "aws/cur.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/customer-profiles",
+      "file": "aws/customer-profiles.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/databrew",
+      "file": "aws/databrew.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/dataexchange",
+      "file": "aws/dataexchange.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/datapipeline",
+      "file": "aws/datapipeline.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/datasync",
+      "file": "aws/datasync.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/datazone",
+      "file": "aws/datazone.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/dax",
+      "file": "aws/dax.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/deadline",
+      "file": "aws/deadline.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/deploy",
+      "file": "aws/deploy.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/detective",
+      "file": "aws/detective.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/devicefarm",
+      "file": "aws/devicefarm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/devops-guru",
+      "file": "aws/devops-guru.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/directconnect",
+      "file": "aws/directconnect.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/discovery",
+      "file": "aws/discovery.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/dlm",
+      "file": "aws/dlm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/dms",
+      "file": "aws/dms.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/docdb",
+      "file": "aws/docdb.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/docdb-elastic",
+      "file": "aws/docdb-elastic.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/drs",
+      "file": "aws/drs.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ds",
+      "file": "aws/ds.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ds-data",
+      "file": "aws/ds-data.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/dsql",
+      "file": "aws/dsql.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/dynamodb",
+      "file": "aws/dynamodb.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/dynamodbstreams",
+      "file": "aws/dynamodbstreams.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ebs",
+      "file": "aws/ebs.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ec2",
+      "file": "aws/ec2.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws/ec2-instance-connect",
+      "file": "aws/ec2-instance-connect.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ecr",
+      "file": "aws/ecr.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ecr-public",
+      "file": "aws/ecr-public.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ecs",
+      "file": "aws/ecs.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws/efs",
+      "file": "aws/efs.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/eks",
+      "file": "aws/eks.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws/eks-auth",
+      "file": "aws/eks-auth.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/elastic-inference",
+      "file": "aws/elastic-inference.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/elasticache",
+      "file": "aws/elasticache.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/elasticbeanstalk",
+      "file": "aws/elasticbeanstalk.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws/elastictranscoder",
+      "file": "aws/elastictranscoder.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/elb",
+      "file": "aws/elb.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/elbv2",
+      "file": "aws/elbv2.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/emr",
+      "file": "aws/emr.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/emr-containers",
+      "file": "aws/emr-containers.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/emr-serverless",
+      "file": "aws/emr-serverless.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/entityresolution",
+      "file": "aws/entityresolution.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/es",
+      "file": "aws/es.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/events",
+      "file": "aws/events.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/evidently",
+      "file": "aws/evidently.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/finspace",
+      "file": "aws/finspace.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/finspace-data",
+      "file": "aws/finspace-data.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/firehose",
+      "file": "aws/firehose.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/fis",
+      "file": "aws/fis.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/fms",
+      "file": "aws/fms.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/forecast",
+      "file": "aws/forecast.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/forecastquery",
+      "file": "aws/forecastquery.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/frauddetector",
+      "file": "aws/frauddetector.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/freetier",
+      "file": "aws/freetier.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/fsx",
+      "file": "aws/fsx.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/gamelift",
+      "file": "aws/gamelift.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/geo-maps",
+      "file": "aws/geo-maps.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/geo-places",
+      "file": "aws/geo-places.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/geo-routes",
+      "file": "aws/geo-routes.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/glacier",
+      "file": "aws/glacier.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/globalaccelerator",
+      "file": "aws/globalaccelerator.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/glue",
+      "file": "aws/glue.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/grafana",
+      "file": "aws/grafana.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/greengrass",
+      "file": "aws/greengrass.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/greengrassv2",
+      "file": "aws/greengrassv2.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/groundstation",
+      "file": "aws/groundstation.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/guardduty",
+      "file": "aws/guardduty.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/health",
+      "file": "aws/health.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/healthlake",
+      "file": "aws/healthlake.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/history",
+      "file": "aws/history.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/honeycode",
+      "file": "aws/honeycode.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iam",
+      "file": "aws/iam.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws/identitystore",
+      "file": "aws/identitystore.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/imagebuilder",
+      "file": "aws/imagebuilder.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/importexport",
+      "file": "aws/importexport.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/inspector",
+      "file": "aws/inspector.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/inspector-scan",
+      "file": "aws/inspector-scan.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/inspector2",
+      "file": "aws/inspector2.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/internetmonitor",
+      "file": "aws/internetmonitor.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/invoicing",
+      "file": "aws/invoicing.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iot",
+      "file": "aws/iot.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iot-data",
+      "file": "aws/iot-data.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iot-jobs-data",
+      "file": "aws/iot-jobs-data.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iot1click-devices",
+      "file": "aws/iot1click-devices.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iot1click-projects",
+      "file": "aws/iot1click-projects.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iotanalytics",
+      "file": "aws/iotanalytics.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iotdeviceadvisor",
+      "file": "aws/iotdeviceadvisor.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iotevents",
+      "file": "aws/iotevents.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iotevents-data",
+      "file": "aws/iotevents-data.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iotfleethub",
+      "file": "aws/iotfleethub.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iotfleetwise",
+      "file": "aws/iotfleetwise.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iotsecuretunneling",
+      "file": "aws/iotsecuretunneling.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iotsitewise",
+      "file": "aws/iotsitewise.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iotthingsgraph",
+      "file": "aws/iotthingsgraph.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iottwinmaker",
+      "file": "aws/iottwinmaker.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/iotwireless",
+      "file": "aws/iotwireless.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ivs",
+      "file": "aws/ivs.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ivs-realtime",
+      "file": "aws/ivs-realtime.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ivschat",
+      "file": "aws/ivschat.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/kafka",
+      "file": "aws/kafka.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/kafkaconnect",
+      "file": "aws/kafkaconnect.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/kendra",
+      "file": "aws/kendra.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/kendra-ranking",
+      "file": "aws/kendra-ranking.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/keyspaces",
+      "file": "aws/keyspaces.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/kinesis",
+      "file": "aws/kinesis.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/kinesis-video-archived-media",
+      "file": "aws/kinesis-video-archived-media.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/kinesis-video-media",
+      "file": "aws/kinesis-video-media.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/kinesis-video-signaling",
+      "file": "aws/kinesis-video-signaling.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/kinesis-video-webrtc-storage",
+      "file": "aws/kinesis-video-webrtc-storage.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/kinesisanalytics",
+      "file": "aws/kinesisanalytics.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/kinesisanalyticsv2",
+      "file": "aws/kinesisanalyticsv2.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/kinesisvideo",
+      "file": "aws/kinesisvideo.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/kms",
+      "file": "aws/kms.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/lakeformation",
+      "file": "aws/lakeformation.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/lambda",
+      "file": "aws/lambda.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws/launch-wizard",
+      "file": "aws/launch-wizard.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/lex-models",
+      "file": "aws/lex-models.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/lex-runtime",
+      "file": "aws/lex-runtime.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/lexv2-models",
+      "file": "aws/lexv2-models.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/lexv2-runtime",
+      "file": "aws/lexv2-runtime.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/license-manager",
+      "file": "aws/license-manager.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/license-manager-linux-subscriptions",
+      "file": "aws/license-manager-linux-subscriptions.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/license-manager-user-subscriptions",
+      "file": "aws/license-manager-user-subscriptions.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/lightsail",
+      "file": "aws/lightsail.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/location",
+      "file": "aws/location.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/logs",
+      "file": "aws/logs.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/lookoutequipment",
+      "file": "aws/lookoutequipment.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/lookoutmetrics",
+      "file": "aws/lookoutmetrics.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/lookoutvision",
+      "file": "aws/lookoutvision.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/m2",
+      "file": "aws/m2.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/machinelearning",
+      "file": "aws/machinelearning.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/macie",
+      "file": "aws/macie.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/macie2",
+      "file": "aws/macie2.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mailmanager",
+      "file": "aws/mailmanager.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/managedblockchain",
+      "file": "aws/managedblockchain.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/managedblockchain-query",
+      "file": "aws/managedblockchain-query.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/marketplace-agreement",
+      "file": "aws/marketplace-agreement.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/marketplace-catalog",
+      "file": "aws/marketplace-catalog.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/marketplace-deployment",
+      "file": "aws/marketplace-deployment.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/marketplace-entitlement",
+      "file": "aws/marketplace-entitlement.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/marketplace-reporting",
+      "file": "aws/marketplace-reporting.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/marketplacecommerceanalytics",
+      "file": "aws/marketplacecommerceanalytics.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mediaconnect",
+      "file": "aws/mediaconnect.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mediaconvert",
+      "file": "aws/mediaconvert.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/medialive",
+      "file": "aws/medialive.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mediapackage",
+      "file": "aws/mediapackage.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mediapackage-vod",
+      "file": "aws/mediapackage-vod.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mediapackagev2",
+      "file": "aws/mediapackagev2.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mediastore",
+      "file": "aws/mediastore.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mediastore-data",
+      "file": "aws/mediastore-data.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mediatailor",
+      "file": "aws/mediatailor.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/medical-imaging",
+      "file": "aws/medical-imaging.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/memorydb",
+      "file": "aws/memorydb.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/meteringmarketplace",
+      "file": "aws/meteringmarketplace.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mgh",
+      "file": "aws/mgh.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mgn",
+      "file": "aws/mgn.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/migration-hub-refactor-spaces",
+      "file": "aws/migration-hub-refactor-spaces.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/migrationhub-config",
+      "file": "aws/migrationhub-config.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/migrationhuborchestrator",
+      "file": "aws/migrationhuborchestrator.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/migrationhubstrategy",
+      "file": "aws/migrationhubstrategy.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mobile",
+      "file": "aws/mobile.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mq",
+      "file": "aws/mq.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mturk",
+      "file": "aws/mturk.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/mwaa",
+      "file": "aws/mwaa.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/neptune",
+      "file": "aws/neptune.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/neptune-graph",
+      "file": "aws/neptune-graph.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/neptunedata",
+      "file": "aws/neptunedata.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/network-firewall",
+      "file": "aws/network-firewall.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/networkflowmonitor",
+      "file": "aws/networkflowmonitor.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/networkmanager",
+      "file": "aws/networkmanager.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/networkmonitor",
+      "file": "aws/networkmonitor.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/nimble",
+      "file": "aws/nimble.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/notifications",
+      "file": "aws/notifications.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/notificationscontacts",
+      "file": "aws/notificationscontacts.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/oam",
+      "file": "aws/oam.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/observabilityadmin",
+      "file": "aws/observabilityadmin.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/omics",
+      "file": "aws/omics.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/opensearch",
+      "file": "aws/opensearch.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/opensearchserverless",
+      "file": "aws/opensearchserverless.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/opsworks",
+      "file": "aws/opsworks.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/opsworks-cm",
+      "file": "aws/opsworks-cm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/opsworkscm",
+      "file": "aws/opsworkscm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/organizations",
+      "file": "aws/organizations.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/osis",
+      "file": "aws/osis.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/outposts",
+      "file": "aws/outposts.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/panorama",
+      "file": "aws/panorama.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/partnercentral-selling",
+      "file": "aws/partnercentral-selling.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/payment-cryptography",
+      "file": "aws/payment-cryptography.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/payment-cryptography-data",
+      "file": "aws/payment-cryptography-data.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/pca-connector-ad",
+      "file": "aws/pca-connector-ad.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/pca-connector-scep",
+      "file": "aws/pca-connector-scep.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/pcs",
+      "file": "aws/pcs.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/personalize",
+      "file": "aws/personalize.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/personalize-events",
+      "file": "aws/personalize-events.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/personalize-runtime",
+      "file": "aws/personalize-runtime.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/pi",
+      "file": "aws/pi.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/pinpoint",
+      "file": "aws/pinpoint.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/pinpoint-email",
+      "file": "aws/pinpoint-email.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/pinpoint-sms-voice",
+      "file": "aws/pinpoint-sms-voice.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/pinpoint-sms-voice-v2",
+      "file": "aws/pinpoint-sms-voice-v2.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/pipes",
+      "file": "aws/pipes.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/polly",
+      "file": "aws/polly.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/pricing",
+      "file": "aws/pricing.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/privatenetworks",
+      "file": "aws/privatenetworks.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/proton",
+      "file": "aws/proton.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/qapps",
+      "file": "aws/qapps.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/qbusiness",
+      "file": "aws/qbusiness.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/qconnect",
+      "file": "aws/qconnect.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/qldb",
+      "file": "aws/qldb.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/qldb-session",
+      "file": "aws/qldb-session.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/quicksight",
+      "file": "aws/quicksight.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ram",
+      "file": "aws/ram.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/rbin",
+      "file": "aws/rbin.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/rds",
+      "file": "aws/rds.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/rds-data",
+      "file": "aws/rds-data.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/redshift",
+      "file": "aws/redshift.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/redshift-data",
+      "file": "aws/redshift-data.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/redshift-serverless",
+      "file": "aws/redshift-serverless.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/regions",
+      "file": "aws/regions.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
+      "name": "aws/rekognition",
+      "file": "aws/rekognition.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/repostspace",
+      "file": "aws/repostspace.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/resiliencehub",
+      "file": "aws/resiliencehub.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/resource-explorer-2",
+      "file": "aws/resource-explorer-2.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/resource-groups",
+      "file": "aws/resource-groups.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/resourcegroupstaggingapi",
+      "file": "aws/resourcegroupstaggingapi.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/robomaker",
+      "file": "aws/robomaker.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/rolesanywhere",
+      "file": "aws/rolesanywhere.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/route53",
+      "file": "aws/route53.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/route53-recovery-cluster",
+      "file": "aws/route53-recovery-cluster.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/route53-recovery-control-config",
+      "file": "aws/route53-recovery-control-config.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/route53-recovery-readiness",
+      "file": "aws/route53-recovery-readiness.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/route53domains",
+      "file": "aws/route53domains.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/route53profiles",
+      "file": "aws/route53profiles.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/route53resolver",
+      "file": "aws/route53resolver.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/rum",
+      "file": "aws/rum.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/runtime.sagemaker",
+      "file": "aws/runtime.sagemaker.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/s3",
+      "file": "aws/s3.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws/s3api",
+      "file": "aws/s3api.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws/s3control",
+      "file": "aws/s3control.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/s3outposts",
+      "file": "aws/s3outposts.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/s3tables",
+      "file": "aws/s3tables.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sagemaker",
+      "file": "aws/sagemaker.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sagemaker-a2i-runtime",
+      "file": "aws/sagemaker-a2i-runtime.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sagemaker-edge",
+      "file": "aws/sagemaker-edge.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sagemaker-featurestore-runtime",
+      "file": "aws/sagemaker-featurestore-runtime.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sagemaker-geospatial",
+      "file": "aws/sagemaker-geospatial.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sagemaker-metrics",
+      "file": "aws/sagemaker-metrics.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sagemaker-runtime",
+      "file": "aws/sagemaker-runtime.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/savingsplans",
+      "file": "aws/savingsplans.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/scheduler",
+      "file": "aws/scheduler.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/schemas",
+      "file": "aws/schemas.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sdb",
+      "file": "aws/sdb.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/secretsmanager",
+      "file": "aws/secretsmanager.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "aws/security-ir",
+      "file": "aws/security-ir.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/securityhub",
+      "file": "aws/securityhub.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/securitylake",
+      "file": "aws/securitylake.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/serverlessrepo",
+      "file": "aws/serverlessrepo.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/service-quotas",
+      "file": "aws/service-quotas.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/servicecatalog",
+      "file": "aws/servicecatalog.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/servicecatalog-appregistry",
+      "file": "aws/servicecatalog-appregistry.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/servicediscovery",
+      "file": "aws/servicediscovery.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ses",
+      "file": "aws/ses.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sesv2",
+      "file": "aws/sesv2.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/shield",
+      "file": "aws/shield.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/signer",
+      "file": "aws/signer.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/simspaceweaver",
+      "file": "aws/simspaceweaver.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sms",
+      "file": "aws/sms.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sms-voice",
+      "file": "aws/sms-voice.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/snow-device-management",
+      "file": "aws/snow-device-management.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/snowball",
+      "file": "aws/snowball.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sns",
+      "file": "aws/sns.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/socialmessaging",
+      "file": "aws/socialmessaging.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sqs",
+      "file": "aws/sqs.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ssm",
+      "file": "aws/ssm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ssm-contacts",
+      "file": "aws/ssm-contacts.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ssm-incidents",
+      "file": "aws/ssm-incidents.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ssm-quicksetup",
+      "file": "aws/ssm-quicksetup.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/ssm-sap",
+      "file": "aws/ssm-sap.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sso",
+      "file": "aws/sso.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sso-admin",
+      "file": "aws/sso-admin.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sso-oidc",
+      "file": "aws/sso-oidc.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/stepfunctions",
+      "file": "aws/stepfunctions.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/storagegateway",
+      "file": "aws/storagegateway.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/sts",
+      "file": "aws/sts.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/supplychain",
+      "file": "aws/supplychain.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/support",
+      "file": "aws/support.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/support-app",
+      "file": "aws/support-app.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/swf",
+      "file": "aws/swf.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/synthetics",
+      "file": "aws/synthetics.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/taxsettings",
+      "file": "aws/taxsettings.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/textract",
+      "file": "aws/textract.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/timestream-influxdb",
+      "file": "aws/timestream-influxdb.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/timestream-query",
+      "file": "aws/timestream-query.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/timestream-write",
+      "file": "aws/timestream-write.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/tnb",
+      "file": "aws/tnb.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/transcribe",
+      "file": "aws/transcribe.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/transfer",
+      "file": "aws/transfer.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/translate",
+      "file": "aws/translate.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/trustedadvisor",
+      "file": "aws/trustedadvisor.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/verifiedpermissions",
+      "file": "aws/verifiedpermissions.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/voice-id",
+      "file": "aws/voice-id.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/vpc-lattice",
+      "file": "aws/vpc-lattice.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/waf",
+      "file": "aws/waf.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/waf-regional",
+      "file": "aws/waf-regional.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/wafv2",
+      "file": "aws/wafv2.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/wellarchitected",
+      "file": "aws/wellarchitected.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/wisdom",
+      "file": "aws/wisdom.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/workdocs",
+      "file": "aws/workdocs.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/worklink",
+      "file": "aws/worklink.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/workmail",
+      "file": "aws/workmail.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/workmailmessageflow",
+      "file": "aws/workmailmessageflow.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/workspaces",
+      "file": "aws/workspaces.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/workspaces-thin-client",
+      "file": "aws/workspaces-thin-client.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/workspaces-web",
+      "file": "aws/workspaces-web.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "aws/xray",
+      "file": "aws/xray.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
       "name": "awsume",
       "file": "awsume.ts",
       "kind": "pure",
       "has_functions": false
+    },
+    {
+      "name": "az/2.53.0",
+      "file": "az/2.53.0.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/account",
+      "file": "az/2.53.0/account.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/acr",
+      "file": "az/2.53.0/acr.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/ad",
+      "file": "az/2.53.0/ad.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/adp",
+      "file": "az/2.53.0/adp.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/advisor",
+      "file": "az/2.53.0/advisor.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/afd",
+      "file": "az/2.53.0/afd.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/ai-examples",
+      "file": "az/2.53.0/ai-examples.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/aks",
+      "file": "az/2.53.0/aks.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/alerts-management",
+      "file": "az/2.53.0/alerts-management.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/alias",
+      "file": "az/2.53.0/alias.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/amlfs",
+      "file": "az/2.53.0/amlfs.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/ams",
+      "file": "az/2.53.0/ams.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/apim",
+      "file": "az/2.53.0/apim.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/appconfig",
+      "file": "az/2.53.0/appconfig.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/appservice",
+      "file": "az/2.53.0/appservice.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/arcappliance",
+      "file": "az/2.53.0/arcappliance.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/arcdata",
+      "file": "az/2.53.0/arcdata.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/aro",
+      "file": "az/2.53.0/aro.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/artifacts",
+      "file": "az/2.53.0/artifacts.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/attestation",
+      "file": "az/2.53.0/attestation.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/automanage",
+      "file": "az/2.53.0/automanage.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/automation",
+      "file": "az/2.53.0/automation.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/azurestackhci",
+      "file": "az/2.53.0/azurestackhci.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/backup",
+      "file": "az/2.53.0/backup.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/baremetalinstance",
+      "file": "az/2.53.0/baremetalinstance.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/batch",
+      "file": "az/2.53.0/batch.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/batchai",
+      "file": "az/2.53.0/batchai.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/bicep",
+      "file": "az/2.53.0/bicep.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/billing",
+      "file": "az/2.53.0/billing.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/billing-benefits",
+      "file": "az/2.53.0/billing-benefits.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/blockchain",
+      "file": "az/2.53.0/blockchain.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/blueprint",
+      "file": "az/2.53.0/blueprint.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/boards",
+      "file": "az/2.53.0/boards.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/bot",
+      "file": "az/2.53.0/bot.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/cache",
+      "file": "az/2.53.0/cache.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/capacity",
+      "file": "az/2.53.0/capacity.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/cdn",
+      "file": "az/2.53.0/cdn.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/change-analysis",
+      "file": "az/2.53.0/change-analysis.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/cli-translator",
+      "file": "az/2.53.0/cli-translator.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/cloud",
+      "file": "az/2.53.0/cloud.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/cloud-service",
+      "file": "az/2.53.0/cloud-service.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/cognitiveservices",
+      "file": "az/2.53.0/cognitiveservices.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/command-change",
+      "file": "az/2.53.0/command-change.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/communication",
+      "file": "az/2.53.0/communication.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/confcom",
+      "file": "az/2.53.0/confcom.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/confidentialledger",
+      "file": "az/2.53.0/confidentialledger.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/config",
+      "file": "az/2.53.0/config.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/configure",
+      "file": "az/2.53.0/configure.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/confluent",
+      "file": "az/2.53.0/confluent.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/connectedk8s",
+      "file": "az/2.53.0/connectedk8s.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/connectedmachine",
+      "file": "az/2.53.0/connectedmachine.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/connectedvmware",
+      "file": "az/2.53.0/connectedvmware.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/connection",
+      "file": "az/2.53.0/connection.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/consumption",
+      "file": "az/2.53.0/consumption.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/container",
+      "file": "az/2.53.0/container.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/containerapp",
+      "file": "az/2.53.0/containerapp.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/cosmosdb",
+      "file": "az/2.53.0/cosmosdb.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/costmanagement",
+      "file": "az/2.53.0/costmanagement.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/csvmware",
+      "file": "az/2.53.0/csvmware.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/custom-providers",
+      "file": "az/2.53.0/custom-providers.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/customlocation",
+      "file": "az/2.53.0/customlocation.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/databox",
+      "file": "az/2.53.0/databox.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/databoxedge",
+      "file": "az/2.53.0/databoxedge.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/databricks",
+      "file": "az/2.53.0/databricks.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/datadog",
+      "file": "az/2.53.0/datadog.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/datafactory",
+      "file": "az/2.53.0/datafactory.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/datamigration",
+      "file": "az/2.53.0/datamigration.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/dataprotection",
+      "file": "az/2.53.0/dataprotection.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/datashare",
+      "file": "az/2.53.0/datashare.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/dedicated-hsm",
+      "file": "az/2.53.0/dedicated-hsm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/demo",
+      "file": "az/2.53.0/demo.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/deployment",
+      "file": "az/2.53.0/deployment.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/deployment-scripts",
+      "file": "az/2.53.0/deployment-scripts.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/desktopvirtualization",
+      "file": "az/2.53.0/desktopvirtualization.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/devcenter",
+      "file": "az/2.53.0/devcenter.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/devops",
+      "file": "az/2.53.0/devops.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/disk",
+      "file": "az/2.53.0/disk.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/disk-access",
+      "file": "az/2.53.0/disk-access.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/disk-encryption-set",
+      "file": "az/2.53.0/disk-encryption-set.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/disk-pool",
+      "file": "az/2.53.0/disk-pool.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/dla",
+      "file": "az/2.53.0/dla.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/dls",
+      "file": "az/2.53.0/dls.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/dms",
+      "file": "az/2.53.0/dms.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/dnc",
+      "file": "az/2.53.0/dnc.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/dns-resolver",
+      "file": "az/2.53.0/dns-resolver.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/dt",
+      "file": "az/2.53.0/dt.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/dynatrace",
+      "file": "az/2.53.0/dynatrace.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/edgeorder",
+      "file": "az/2.53.0/edgeorder.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/elastic",
+      "file": "az/2.53.0/elastic.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/elastic-san",
+      "file": "az/2.53.0/elastic-san.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/eventgrid",
+      "file": "az/2.53.0/eventgrid.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/eventhubs",
+      "file": "az/2.53.0/eventhubs.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/extension",
+      "file": "az/2.53.0/extension.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/feature",
+      "file": "az/2.53.0/feature.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/feedback",
+      "file": "az/2.53.0/feedback.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/find",
+      "file": "az/2.53.0/find.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/fleet",
+      "file": "az/2.53.0/fleet.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/fluid-relay",
+      "file": "az/2.53.0/fluid-relay.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/footprint",
+      "file": "az/2.53.0/footprint.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/functionapp",
+      "file": "az/2.53.0/functionapp.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/fzf",
+      "file": "az/2.53.0/fzf.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/grafana",
+      "file": "az/2.53.0/grafana.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/graph",
+      "file": "az/2.53.0/graph.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/graph-services",
+      "file": "az/2.53.0/graph-services.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/group",
+      "file": "az/2.53.0/group.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/guestconfig",
+      "file": "az/2.53.0/guestconfig.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/hack",
+      "file": "az/2.53.0/hack.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/hanainstance",
+      "file": "az/2.53.0/hanainstance.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/hdinsight",
+      "file": "az/2.53.0/hdinsight.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/healthbot",
+      "file": "az/2.53.0/healthbot.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/healthcareapis",
+      "file": "az/2.53.0/healthcareapis.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/hpc-cache",
+      "file": "az/2.53.0/hpc-cache.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/hybridaks",
+      "file": "az/2.53.0/hybridaks.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/identity",
+      "file": "az/2.53.0/identity.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/image",
+      "file": "az/2.53.0/image.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/import-export",
+      "file": "az/2.53.0/import-export.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/init",
+      "file": "az/2.53.0/init.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/interactive",
+      "file": "az/2.53.0/interactive.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/internet-analyzer",
+      "file": "az/2.53.0/internet-analyzer.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/iot",
+      "file": "az/2.53.0/iot.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/k8s-configuration",
+      "file": "az/2.53.0/k8s-configuration.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/k8s-extension",
+      "file": "az/2.53.0/k8s-extension.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/k8sconfiguration",
+      "file": "az/2.53.0/k8sconfiguration.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/keyvault",
+      "file": "az/2.53.0/keyvault.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/kusto",
+      "file": "az/2.53.0/kusto.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/lab",
+      "file": "az/2.53.0/lab.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/load",
+      "file": "az/2.53.0/load.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/lock",
+      "file": "az/2.53.0/lock.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/logic",
+      "file": "az/2.53.0/logic.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/logicapp",
+      "file": "az/2.53.0/logicapp.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/login",
+      "file": "az/2.53.0/login.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/logout",
+      "file": "az/2.53.0/logout.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/logz",
+      "file": "az/2.53.0/logz.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/maintenance",
+      "file": "az/2.53.0/maintenance.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/managed-cassandra",
+      "file": "az/2.53.0/managed-cassandra.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/managedapp",
+      "file": "az/2.53.0/managedapp.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/managedservices",
+      "file": "az/2.53.0/managedservices.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/managementpartner",
+      "file": "az/2.53.0/managementpartner.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/maps",
+      "file": "az/2.53.0/maps.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/mariadb",
+      "file": "az/2.53.0/mariadb.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/mesh",
+      "file": "az/2.53.0/mesh.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/ml",
+      "file": "az/2.53.0/ml.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/mobile-network",
+      "file": "az/2.53.0/mobile-network.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/monitor",
+      "file": "az/2.53.0/monitor.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/mysql",
+      "file": "az/2.53.0/mysql.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/netappfiles",
+      "file": "az/2.53.0/netappfiles.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/network",
+      "file": "az/2.53.0/network.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/network-function",
+      "file": "az/2.53.0/network-function.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/networkcloud",
+      "file": "az/2.53.0/networkcloud.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/networkfabric",
+      "file": "az/2.53.0/networkfabric.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/new-relic",
+      "file": "az/2.53.0/new-relic.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/next",
+      "file": "az/2.53.0/next.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/nginx",
+      "file": "az/2.53.0/nginx.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/notification-hub",
+      "file": "az/2.53.0/notification-hub.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/offazure",
+      "file": "az/2.53.0/offazure.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/orbital",
+      "file": "az/2.53.0/orbital.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/palo-alto",
+      "file": "az/2.53.0/palo-alto.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/partnercenter",
+      "file": "az/2.53.0/partnercenter.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/peering",
+      "file": "az/2.53.0/peering.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/pipelines",
+      "file": "az/2.53.0/pipelines.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/policy",
+      "file": "az/2.53.0/policy.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/portal",
+      "file": "az/2.53.0/portal.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/postgres",
+      "file": "az/2.53.0/postgres.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/powerbi",
+      "file": "az/2.53.0/powerbi.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/ppg",
+      "file": "az/2.53.0/ppg.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/private-link",
+      "file": "az/2.53.0/private-link.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/provider",
+      "file": "az/2.53.0/provider.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/providerhub",
+      "file": "az/2.53.0/providerhub.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/purview",
+      "file": "az/2.53.0/purview.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/quantum",
+      "file": "az/2.53.0/quantum.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/qumulo",
+      "file": "az/2.53.0/qumulo.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/quota",
+      "file": "az/2.53.0/quota.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/redis",
+      "file": "az/2.53.0/redis.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/redisenterprise",
+      "file": "az/2.53.0/redisenterprise.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/relay",
+      "file": "az/2.53.0/relay.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/remote-rendering-account",
+      "file": "az/2.53.0/remote-rendering-account.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/repos",
+      "file": "az/2.53.0/repos.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/reservations",
+      "file": "az/2.53.0/reservations.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/resource",
+      "file": "az/2.53.0/resource.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/resource-mover",
+      "file": "az/2.53.0/resource-mover.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/resourcemanagement",
+      "file": "az/2.53.0/resourcemanagement.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/rest",
+      "file": "az/2.53.0/rest.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/restore-point",
+      "file": "az/2.53.0/restore-point.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/role",
+      "file": "az/2.53.0/role.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/sapmonitor",
+      "file": "az/2.53.0/sapmonitor.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/scenario",
+      "file": "az/2.53.0/scenario.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/scvmm",
+      "file": "az/2.53.0/scvmm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/search",
+      "file": "az/2.53.0/search.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/security",
+      "file": "az/2.53.0/security.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/self-help",
+      "file": "az/2.53.0/self-help.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/self-test",
+      "file": "az/2.53.0/self-test.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/sentinel",
+      "file": "az/2.53.0/sentinel.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/serial-console",
+      "file": "az/2.53.0/serial-console.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/servicebus",
+      "file": "az/2.53.0/servicebus.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/sf",
+      "file": "az/2.53.0/sf.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/sig",
+      "file": "az/2.53.0/sig.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/signalr",
+      "file": "az/2.53.0/signalr.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/site-recovery",
+      "file": "az/2.53.0/site-recovery.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/snapshot",
+      "file": "az/2.53.0/snapshot.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/spatial-anchors-account",
+      "file": "az/2.53.0/spatial-anchors-account.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/sphere",
+      "file": "az/2.53.0/sphere.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/spring",
+      "file": "az/2.53.0/spring.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/spring-cloud",
+      "file": "az/2.53.0/spring-cloud.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/sql",
+      "file": "az/2.53.0/sql.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/ssh",
+      "file": "az/2.53.0/ssh.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/sshkey",
+      "file": "az/2.53.0/sshkey.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/stack",
+      "file": "az/2.53.0/stack.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/stack-hci",
+      "file": "az/2.53.0/stack-hci.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/staticwebapp",
+      "file": "az/2.53.0/staticwebapp.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/storage",
+      "file": "az/2.53.0/storage.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/storage-mover",
+      "file": "az/2.53.0/storage-mover.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/storagesync",
+      "file": "az/2.53.0/storagesync.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/stream-analytics",
+      "file": "az/2.53.0/stream-analytics.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/support",
+      "file": "az/2.53.0/support.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/survey",
+      "file": "az/2.53.0/survey.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/synapse",
+      "file": "az/2.53.0/synapse.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/tag",
+      "file": "az/2.53.0/tag.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/term",
+      "file": "az/2.53.0/term.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/ts",
+      "file": "az/2.53.0/ts.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/tsi",
+      "file": "az/2.53.0/tsi.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/upgrade",
+      "file": "az/2.53.0/upgrade.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/version",
+      "file": "az/2.53.0/version.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/vm",
+      "file": "az/2.53.0/vm.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/vmss",
+      "file": "az/2.53.0/vmss.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/vmware",
+      "file": "az/2.53.0/vmware.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/webapp",
+      "file": "az/2.53.0/webapp.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/webpubsub",
+      "file": "az/2.53.0/webpubsub.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/2.53.0/workloads",
+      "file": "az/2.53.0/workloads.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "az/index",
+      "file": "az/index.ts",
+      "kind": "js_only",
+      "has_functions": true
     },
     {
       "name": "babel",
@@ -527,14 +4415,14 @@
       "has_functions": true
     },
     {
-      "name": "clang++",
-      "file": "clang++.ts",
+      "name": "clang",
+      "file": "clang.ts",
       "kind": "partial",
       "has_functions": true
     },
     {
-      "name": "clang",
-      "file": "clang.ts",
+      "name": "clang++",
+      "file": "clang++.ts",
       "kind": "partial",
       "has_functions": true
     },
@@ -587,14 +4475,14 @@
       "has_functions": true
     },
     {
-      "name": "code-insiders",
-      "file": "code-insiders.ts",
+      "name": "code",
+      "file": "code.ts",
       "kind": "partial",
       "has_functions": true
     },
     {
-      "name": "code",
-      "file": "code.ts",
+      "name": "code-insiders",
+      "file": "code-insiders.ts",
       "kind": "partial",
       "has_functions": true
     },
@@ -911,26 +4799,26 @@
       "has_functions": true
     },
     {
-      "name": "do-release-upgrade",
-      "file": "do-release-upgrade.ts",
-      "kind": "partial",
-      "has_functions": true
-    },
-    {
       "name": "do",
       "file": "do.ts",
       "kind": "pure",
       "has_functions": false
     },
     {
-      "name": "docker-compose",
-      "file": "docker-compose.ts",
+      "name": "do-release-upgrade",
+      "file": "do-release-upgrade.ts",
       "kind": "partial",
       "has_functions": true
     },
     {
       "name": "docker",
       "file": "docker.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "docker-compose",
+      "file": "docker-compose.ts",
       "kind": "partial",
       "has_functions": true
     },
@@ -965,20 +4853,140 @@
       "has_functions": false
     },
     {
-      "name": "dotenv-vault",
-      "file": "dotenv-vault.ts",
-      "kind": "partial",
-      "has_functions": true
-    },
-    {
       "name": "dotenv",
       "file": "dotenv.ts",
       "kind": "pure",
       "has_functions": false
     },
     {
+      "name": "dotenv-vault",
+      "file": "dotenv-vault.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
       "name": "dotnet",
       "file": "dotnet.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-add",
+      "file": "dotnet/dotnet-add.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-build",
+      "file": "dotnet/dotnet-build.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-build-server",
+      "file": "dotnet/dotnet-build-server.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "dotnet/dotnet-clean",
+      "file": "dotnet/dotnet-clean.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-format",
+      "file": "dotnet/dotnet-format.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-help",
+      "file": "dotnet/dotnet-help.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "dotnet/dotnet-list",
+      "file": "dotnet/dotnet-list.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-migrate",
+      "file": "dotnet/dotnet-migrate.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-msbuild",
+      "file": "dotnet/dotnet-msbuild.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "dotnet/dotnet-new",
+      "file": "dotnet/dotnet-new.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-nuget",
+      "file": "dotnet/dotnet-nuget.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-pack",
+      "file": "dotnet/dotnet-pack.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-publish",
+      "file": "dotnet/dotnet-publish.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-remove",
+      "file": "dotnet/dotnet-remove.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-restore",
+      "file": "dotnet/dotnet-restore.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-run",
+      "file": "dotnet/dotnet-run.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-sln",
+      "file": "dotnet/dotnet-sln.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-store",
+      "file": "dotnet/dotnet-store.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-test",
+      "file": "dotnet/dotnet-test.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "dotnet/dotnet-tool",
+      "file": "dotnet/dotnet-tool.ts",
       "kind": "partial",
       "has_functions": true
     },
@@ -1079,6 +5087,12 @@
       "has_functions": true
     },
     {
+      "name": "elm",
+      "file": "elm.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
       "name": "elm-format",
       "file": "elm-format.ts",
       "kind": "partial",
@@ -1093,12 +5107,6 @@
     {
       "name": "elm-review",
       "file": "elm-review.ts",
-      "kind": "partial",
-      "has_functions": true
-    },
-    {
-      "name": "elm",
-      "file": "elm.ts",
       "kind": "partial",
       "has_functions": true
     },
@@ -1157,6 +5165,18 @@
       "has_functions": false
     },
     {
+      "name": "example/git_push",
+      "file": "example/git_push.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "example/trigger",
+      "file": "example/trigger.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
       "name": "exec",
       "file": "exec.ts",
       "kind": "pure",
@@ -1169,14 +5189,14 @@
       "has_functions": false
     },
     {
-      "name": "expo-cli",
-      "file": "expo-cli.ts",
+      "name": "expo",
+      "file": "expo.ts",
       "kind": "partial",
       "has_functions": true
     },
     {
-      "name": "expo",
-      "file": "expo.ts",
+      "name": "expo-cli",
+      "file": "expo-cli.ts",
       "kind": "partial",
       "has_functions": true
     },
@@ -1226,6 +5246,24 @@
       "name": "ffmpeg",
       "file": "ffmpeg.ts",
       "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "fig/1.0.0",
+      "file": "fig/1.0.0.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "fig/2.0.0",
+      "file": "fig/2.0.0.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "fig/index",
+      "file": "fig/index.ts",
+      "kind": "js_only",
       "has_functions": true
     },
     {
@@ -1331,14 +5369,14 @@
       "has_functions": true
     },
     {
-      "name": "fzf-tmux",
-      "file": "fzf-tmux.ts",
+      "name": "fzf",
+      "file": "fzf.ts",
       "kind": "pure",
       "has_functions": false
     },
     {
-      "name": "fzf",
-      "file": "fzf.ts",
+      "name": "fzf-tmux",
+      "file": "fzf-tmux.ts",
       "kind": "pure",
       "has_functions": false
     },
@@ -1373,6 +5411,414 @@
       "has_functions": false
     },
     {
+      "name": "gcloud/access-context-manager",
+      "file": "gcloud/access-context-manager.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/active-directory",
+      "file": "gcloud/active-directory.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/ai-platform",
+      "file": "gcloud/ai-platform.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/anthos",
+      "file": "gcloud/anthos.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/apigee",
+      "file": "gcloud/apigee.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/app",
+      "file": "gcloud/app.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/artifacts",
+      "file": "gcloud/artifacts.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/asset",
+      "file": "gcloud/asset.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/auth",
+      "file": "gcloud/auth.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/bigtable",
+      "file": "gcloud/bigtable.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/builds",
+      "file": "gcloud/builds.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/cheat-sheet",
+      "file": "gcloud/cheat-sheet.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/cloud-shell",
+      "file": "gcloud/cloud-shell.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/components",
+      "file": "gcloud/components.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/composer",
+      "file": "gcloud/composer.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/compute",
+      "file": "gcloud/compute.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/config",
+      "file": "gcloud/config.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/container",
+      "file": "gcloud/container.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/data-catalog",
+      "file": "gcloud/data-catalog.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/dataflow",
+      "file": "gcloud/dataflow.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/dataproc",
+      "file": "gcloud/dataproc.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/datastore",
+      "file": "gcloud/datastore.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/debug",
+      "file": "gcloud/debug.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/deployment-manager",
+      "file": "gcloud/deployment-manager.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/dns",
+      "file": "gcloud/dns.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/docker",
+      "file": "gcloud/docker.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/domains",
+      "file": "gcloud/domains.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/endpoints",
+      "file": "gcloud/endpoints.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/feedback",
+      "file": "gcloud/feedback.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/filestore",
+      "file": "gcloud/filestore.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/firebase",
+      "file": "gcloud/firebase.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/firestore",
+      "file": "gcloud/firestore.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/functions",
+      "file": "gcloud/functions.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/game",
+      "file": "gcloud/game.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/healthcare",
+      "file": "gcloud/healthcare.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/help",
+      "file": "gcloud/help.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/iam",
+      "file": "gcloud/iam.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/iap",
+      "file": "gcloud/iap.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/identity",
+      "file": "gcloud/identity.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/info",
+      "file": "gcloud/info.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/init",
+      "file": "gcloud/init.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/iot",
+      "file": "gcloud/iot.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/kms",
+      "file": "gcloud/kms.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/logging",
+      "file": "gcloud/logging.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/meta",
+      "file": "gcloud/meta.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/ml",
+      "file": "gcloud/ml.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/ml-engine",
+      "file": "gcloud/ml-engine.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/monitoring",
+      "file": "gcloud/monitoring.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/network-management",
+      "file": "gcloud/network-management.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/organizations",
+      "file": "gcloud/organizations.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/policy-troubleshoot",
+      "file": "gcloud/policy-troubleshoot.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/projects",
+      "file": "gcloud/projects.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/pubsub",
+      "file": "gcloud/pubsub.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/recommender",
+      "file": "gcloud/recommender.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/redis",
+      "file": "gcloud/redis.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/resource-manager",
+      "file": "gcloud/resource-manager.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/run",
+      "file": "gcloud/run.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/scc",
+      "file": "gcloud/scc.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/scheduler",
+      "file": "gcloud/scheduler.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/secrets",
+      "file": "gcloud/secrets.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/services",
+      "file": "gcloud/services.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/source",
+      "file": "gcloud/source.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/spanner",
+      "file": "gcloud/spanner.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/sql",
+      "file": "gcloud/sql.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/survey",
+      "file": "gcloud/survey.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/tasks",
+      "file": "gcloud/tasks.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/topic",
+      "file": "gcloud/topic.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "gcloud/version",
+      "file": "gcloud/version.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
       "name": "gem",
       "file": "gem.ts",
       "kind": "partial",
@@ -1393,6 +5839,12 @@
     {
       "name": "gibo",
       "file": "gibo.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "git",
+      "file": "git.ts",
       "kind": "partial",
       "has_functions": true
     },
@@ -1419,12 +5871,6 @@
       "file": "git-quick-stats.ts",
       "kind": "pure",
       "has_functions": false
-    },
-    {
-      "name": "git",
-      "file": "git.ts",
-      "kind": "partial",
-      "has_functions": true
     },
     {
       "name": "github",
@@ -1577,6 +6023,24 @@
       "has_functions": true
     },
     {
+      "name": "heroku/8.0.0",
+      "file": "heroku/8.0.0.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "heroku/8.6.0",
+      "file": "heroku/8.6.0.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "heroku/index",
+      "file": "heroku/index.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
       "name": "hexo",
       "file": "hexo.ts",
       "kind": "partial",
@@ -1645,8 +6109,8 @@
     {
       "name": "hyper",
       "file": "hyper.ts",
-      "kind": "partial",
-      "has_functions": true
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "hyperfine",
@@ -1694,6 +6158,24 @@
       "name": "ignite-cli",
       "file": "ignite-cli.ts",
       "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "infracost/0.10.0",
+      "file": "infracost/0.10.0.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "infracost/0.9.0",
+      "file": "infracost/0.9.0.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "infracost/index",
+      "file": "infracost/index.ts",
+      "kind": "js_only",
       "has_functions": true
     },
     {
@@ -2621,15 +7103,27 @@
       "has_functions": true
     },
     {
-      "name": "phpstorm",
-      "file": "phpstorm.ts",
-      "kind": "js_only",
+      "name": "php/artisan",
+      "file": "php/artisan.ts",
+      "kind": "partial",
       "has_functions": true
     },
     {
-      "name": "phpunit-watcher",
-      "file": "phpunit-watcher.ts",
+      "name": "php/bin-console",
+      "file": "php/bin-console.ts",
       "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "php/please",
+      "file": "php/please.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "phpstorm",
+      "file": "phpstorm.ts",
+      "kind": "js_only",
       "has_functions": true
     },
     {
@@ -2637,6 +7131,12 @@
       "file": "phpunit.ts",
       "kind": "pure",
       "has_functions": false
+    },
+    {
+      "name": "phpunit-watcher",
+      "file": "phpunit-watcher.ts",
+      "kind": "partial",
+      "has_functions": true
     },
     {
       "name": "pijul",
@@ -2877,6 +7377,12 @@
       "file": "python.ts",
       "kind": "partial",
       "has_functions": true
+    },
+    {
+      "name": "python/http.server",
+      "file": "python/http.server.ts",
+      "kind": "pure",
+      "has_functions": false
     },
     {
       "name": "python3",
@@ -3233,6 +7739,24 @@
       "has_functions": true
     },
     {
+      "name": "shopify/2.0.0",
+      "file": "shopify/2.0.0.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "shopify/3.0.0",
+      "file": "shopify/3.0.0.ts",
+      "kind": "pure",
+      "has_functions": false
+    },
+    {
+      "name": "shopify/index",
+      "file": "shopify/index.ts",
+      "kind": "js_only",
+      "has_functions": true
+    },
+    {
       "name": "shortcuts",
       "file": "shortcuts.ts",
       "kind": "partial",
@@ -3305,14 +7829,14 @@
       "has_functions": false
     },
     {
-      "name": "speedtest-cli",
-      "file": "speedtest-cli.ts",
+      "name": "speedtest",
+      "file": "speedtest.ts",
       "kind": "pure",
       "has_functions": false
     },
     {
-      "name": "speedtest",
-      "file": "speedtest.ts",
+      "name": "speedtest-cli",
+      "file": "speedtest-cli.ts",
       "kind": "pure",
       "has_functions": false
     },
@@ -3365,14 +7889,14 @@
       "has_functions": true
     },
     {
-      "name": "ssh-keygen",
-      "file": "ssh-keygen.ts",
+      "name": "ssh",
+      "file": "ssh.ts",
       "kind": "partial",
       "has_functions": true
     },
     {
-      "name": "ssh",
-      "file": "ssh.ts",
+      "name": "ssh-keygen",
+      "file": "ssh-keygen.ts",
       "kind": "partial",
       "has_functions": true
     },
@@ -3595,6 +8119,18 @@
     {
       "name": "task",
       "file": "task.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "task/go-task",
+      "file": "task/go-task.ts",
+      "kind": "partial",
+      "has_functions": true
+    },
+    {
+      "name": "task/taskwarrior",
+      "file": "task/taskwarrior.ts",
       "kind": "partial",
       "has_functions": true
     },

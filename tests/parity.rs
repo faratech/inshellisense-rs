@@ -152,13 +152,15 @@ fn extracted_grep_count_option() {
 }
 
 #[test]
-fn loaded_spec_count_at_least_100() {
-    // Sanity check: the extractor + curated set should give us at least
-    // 100 commands. This is a floor that should grow as we close gaps.
+fn loaded_spec_count_at_least_20() {
+    // Sanity check: the embedded essentials + curated fallbacks should
+    // give us at least 20 commands out of the box. The full 1000+ specs
+    // live under specs-data/extras/ and are loaded via INSH_RS_SPECS_DIR
+    // or a CI-published tarball — not counted here.
     let registry = Registry::new_with_defaults();
     assert!(
-        registry.len() >= 100,
-        "expected ≥100 specs loaded, got {}",
+        registry.len() >= 20,
+        "expected ≥20 specs loaded from embed + curated, got {}",
         registry.len()
     );
 }
