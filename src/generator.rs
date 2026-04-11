@@ -1,8 +1,11 @@
-//! Execution of Fig-spec generators (phase 1 surface).
+//! Execution of Fig-spec generators.
 //!
 //! Handles `Generator::Script`, `Generator::Template`, and `Generator::Glob`.
 //! `Custom(FnId)` and `PostProcess::Fn` fall through to empty until phase 6
 //! wires the js_bridge. Results are cached per (cwd, script) with TTL.
+//!
+//! Phase 2 change: multiple generators per arg execute concurrently on
+//! scoped threads. One-or-zero generator still takes the fast path.
 
 use crate::spec::model::{
     Arg, CacheSpec, Generator, PostProcess, PostProcessKind, ScriptInput, Suggestion,
@@ -31,8 +34,26 @@ pub fn suggestions_for_arg(arg: &Arg, cwd: &str, prefix: &str) -> Vec<Suggestion
         out.extend(template_suggestions(*tpl, cwd, prefix));
     }
 
-    for gen in &arg.generators {
-        out.extend(run_generator(gen, cwd, prefix));
+    // Multi-generator fan-out: scoped threads run shell generators in
+    // parallel. Single-generator arg stays on the caller's thread.
+    match arg.generators.len() {
+        0 => {}
+        1 => {
+            out.extend(run_generator(&arg.generators[0], cwd, prefix));
+        }
+        _ => {
+            let results: Vec<Vec<Suggestion>> = std::thread::scope(|scope| {
+                let handles: Vec<_> = arg
+                    .generators
+                    .iter()
+                    .map(|g| scope.spawn(move || run_generator(g, cwd, prefix)))
+                    .collect();
+                handles.into_iter().filter_map(|h| h.join().ok()).collect()
+            });
+            for r in results {
+                out.extend(r);
+            }
+        }
     }
 
     out
@@ -46,7 +67,15 @@ fn run_generator(g: &Generator, cwd: &str, prefix: &str) -> Vec<Suggestion> {
             post_process,
             timeout_ms,
             cache,
-        } => run_script(input, split_on.as_deref(), post_process, *timeout_ms, cache.as_ref(), cwd, prefix),
+        } => run_script(
+            input,
+            split_on.as_deref(),
+            post_process,
+            *timeout_ms,
+            cache.as_ref(),
+            cwd,
+            prefix,
+        ),
         Generator::Template { template } => template_suggestions(*template, cwd, prefix),
         Generator::Glob { pattern } => glob_paths(pattern, cwd),
         Generator::Custom { .. } => Vec::new(),
@@ -172,7 +201,9 @@ fn run_shell_line(
     cwd: &str,
 ) -> Vec<String> {
     let key = format!("{cwd}\0{}", cache_key.unwrap_or(script));
-    let ttl = cache.map(|c| Duration::from_secs(c.ttl_secs)).unwrap_or(Duration::from_secs(30));
+    let ttl = cache
+        .map(|c| Duration::from_secs(c.ttl_secs))
+        .unwrap_or(Duration::from_secs(30));
 
     {
         let c = CACHE.lock().unwrap();

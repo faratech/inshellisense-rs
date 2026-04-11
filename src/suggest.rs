@@ -94,6 +94,23 @@ impl Engine {
                 if opt.hidden {
                     continue;
                 }
+                // Respect exclusive_on: if any of this option's names has
+                // already been used, or if any accepted option is listed in
+                // this option's exclusive_on set, suppress it.
+                let already_used = opt
+                    .names
+                    .iter()
+                    .any(|n| result.accepted_option_tokens.iter().any(|a| a == n));
+                if already_used && !matches!(opt.is_repeatable, crate::spec::model::Repeatable::True | crate::spec::model::Repeatable::N(_)) {
+                    continue;
+                }
+                let excluded = opt
+                    .exclusive_on
+                    .iter()
+                    .any(|e| result.accepted_option_tokens.iter().any(|a| a == e));
+                if excluded {
+                    continue;
+                }
                 for n in &opt.names {
                     candidates.push(Suggestion {
                         name: n.clone(),

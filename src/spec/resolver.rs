@@ -25,6 +25,9 @@ pub struct ResolveResult<'a> {
     pub active_partial: Option<&'a CommandToken>,
     /// True when we got here via an option consuming its argument.
     pub from_option: bool,
+    /// Option tokens the user has already typed. The suggest engine uses
+    /// this to filter `exclusive_on` / `depends_on` candidates.
+    pub accepted_option_tokens: Vec<String>,
 }
 
 /// Resolve the token stream against the spec. `tokens` should be the output
@@ -34,6 +37,7 @@ pub fn resolve<'a>(root: &'a Subcommand, tokens: &'a [CommandToken]) -> ResolveR
     let rest = if tokens.is_empty() { &[][..] } else { &tokens[1..] };
     let ctx = Ctx {
         persistent: Vec::new(),
+        accepted_options: Vec::new(),
     };
     run_subcommand(rest, root, ctx, false, false)
 }
@@ -41,6 +45,7 @@ pub fn resolve<'a>(root: &'a Subcommand, tokens: &'a [CommandToken]) -> ResolveR
 #[derive(Clone)]
 struct Ctx<'a> {
     persistent: Vec<&'a Opt>,
+    accepted_options: Vec<String>,
 }
 
 fn run_subcommand<'a>(
@@ -59,6 +64,7 @@ fn run_subcommand<'a>(
             args_depleted,
             active_partial: None,
             from_option: false,
+            accepted_option_tokens: ctx.accepted_options.clone(),
         };
     }
 
@@ -71,6 +77,7 @@ fn run_subcommand<'a>(
             args_depleted,
             active_partial: Some(&tokens[0]),
             from_option: false,
+            accepted_option_tokens: ctx.accepted_options.clone(),
         };
     }
 
@@ -80,10 +87,11 @@ fn run_subcommand<'a>(
     // Option?
     if active.is_option && !active.is_raw {
         if let Some(opt) = find_option(&all_opts, &active.token) {
-            return run_option(tokens, opt, sub, ctx);
+            let mut new_ctx = ctx.clone();
+            new_ctx.accepted_options.push(active.token.clone());
+            return run_option(tokens, opt, sub, new_ctx);
         }
         // Unknown option — fall through but don't match as subcommand.
-        // inshellisense returns undefined here; we return the current level.
         return ResolveResult {
             subcommand: sub,
             active_arg: None,
@@ -91,6 +99,7 @@ fn run_subcommand<'a>(
             args_depleted,
             active_partial: None,
             from_option: false,
+            accepted_option_tokens: ctx.accepted_options.clone(),
         };
     }
 
@@ -154,6 +163,7 @@ fn run_arg<'a>(
             args_depleted: false,
             active_partial: None,
             from_option,
+            accepted_option_tokens: ctx.accepted_options.clone(),
         };
     }
 
@@ -166,6 +176,7 @@ fn run_arg<'a>(
             args_depleted: false,
             active_partial: Some(&tokens[0]),
             from_option,
+            accepted_option_tokens: ctx.accepted_options.clone(),
         };
     }
 
@@ -177,7 +188,9 @@ fn run_arg<'a>(
             ctx.persistent.iter().copied().chain(sub.options.iter()).collect();
         if active.is_option && !active.is_raw {
             if let Some(opt) = find_option(&all_opts, &active.token) {
-                return run_option(tokens, opt, sub, ctx);
+                let mut new_ctx = ctx.clone();
+                new_ctx.accepted_options.push(active.token.clone());
+                return run_option(tokens, opt, sub, new_ctx);
             }
             return ResolveResult {
                 subcommand: sub,
@@ -186,6 +199,7 @@ fn run_arg<'a>(
                 args_depleted: false,
                 active_partial: None,
                 from_option,
+                accepted_option_tokens: ctx.accepted_options.clone(),
             };
         }
         if !active.is_raw {

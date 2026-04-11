@@ -5,7 +5,20 @@
 //! the real cursor position and overwrites the ghost — we redraw each pass.
 
 use crate::ansi;
+use crate::spec::model::Suggestion;
 use std::io::{self, Write};
+
+/// Pick the top suggestion for ghost-text rendering. Assumes the Vec is
+/// already sorted by priority DESC / type precedence / name length ASC.
+/// Returns the tail of the top suggestion's name relative to `partial`,
+/// or None if there's nothing to show.
+pub fn pick_top(suggestions: &[Suggestion], partial: &str) -> Option<String> {
+    let top = suggestions.first()?;
+    if top.name.len() <= partial.len() || !top.name.starts_with(partial) {
+        return None;
+    }
+    Some(top.name[partial.len()..].to_string())
+}
 
 pub struct Renderer<W: Write> {
     out: W,

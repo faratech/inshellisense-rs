@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 2 — Suggestion engine polish + parity test harness
+
+- **Added** `src/lib.rs` exposing modules for integration testing.
+  Binary stays thin (`src/main.rs` just imports from the crate).
+- **Added** `insh complete --json` flag emitting the full ranked
+  `Vec<Suggestion>` as pretty JSON for inspection and parity testing.
+  Also added `--cwd` override on the `complete` command.
+- **Added** concurrent multi-generator execution in
+  `generator::suggestions_for_arg`. Args with 2+ generators fan out
+  on `std::thread::scope`; 0-1 generators stay on the caller's thread.
+- **Added** `accepted_option_tokens` field on `ResolveResult` — the
+  resolver now tracks option tokens the user has already typed so
+  the suggest engine can respect `exclusive_on` and non-repeatable
+  option filtering.
+- **Added** `render::pick_top(&[Suggestion], &str) -> Option<String>`
+  helper that picks the top suggestion and returns its tail relative
+  to the current partial (used by the ghost-text path).
+- **Added** `tests/parity.rs` — 12-case hand-crafted parity harness
+  covering subcommand completion, option-value binding, `--foo=bar`
+  splitting, `--` raw markers, trailing-space subcommand offering,
+  unknown-command graceful handling. Scaffold for phase 5's full
+  500-case corpus.
+- **Changed** `suggest.rs` now filters out options whose names appear
+  in `accepted_option_tokens` (unless `is_repeatable`) and options
+  whose `exclusive_on` set intersects the accepted tokens.
+
+Validation: `cargo test` passes **26 tests** (14 unit + 12 parity).
+Release binary: 1.8 MB.
+
 ### Phase 1 — Schema v2 + tokenizer + resolver
 
 - **Added** `src/spec/` module tree mirroring `@withfig/autocomplete-types`:
