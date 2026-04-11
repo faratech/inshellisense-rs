@@ -1,0 +1,8 @@
+# parity-scan cli.txt — invocations to compare against upstream --help output.
+# Lines starting with # are skipped.
+--help
+complete --help
+init --help
+specs list --help
+doctor --help
+reinit --help

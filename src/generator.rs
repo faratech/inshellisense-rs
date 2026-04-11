@@ -293,7 +293,7 @@ fn list_paths(cwd: &str, prefix: &str, dirs_only: bool) -> Vec<Suggestion> {
     let Ok(entries) = std::fs::read_dir(&target) else {
         return Vec::new();
     };
-    let mut out = Vec::new();
+    let mut pairs: Vec<(String, bool)> = Vec::new();
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
         if !name.starts_with(file_prefix) {
@@ -303,6 +303,15 @@ fn list_paths(cwd: &str, prefix: &str, dirs_only: bool) -> Vec<Suggestion> {
         if dirs_only && !is_dir {
             continue;
         }
+        pairs.push((name, is_dir));
+    }
+    // Upstream lists filepaths alphabetically by raw name (so hidden
+    // dotfiles come first since `.` < any letter in ASCII). Files and
+    // directories are interleaved — upstream does NOT group dirs first.
+    pairs.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let mut out = Vec::with_capacity(pairs.len());
+    for (name, is_dir) in pairs {
         let joined = if dir.is_empty() {
             name
         } else {
@@ -430,6 +439,8 @@ fn apply_post_process(raw: Vec<String>, post: &PostProcess) -> Vec<Suggestion> {
     match post {
         PostProcess::None {} | PostProcess::Split { .. } => raw
             .into_iter()
+            .map(clean_raw_line)
+            .filter(|n| !n.is_empty())
             .map(|name| Suggestion {
                 name,
                 suggestion_type: SuggestionType::Arg,
@@ -440,6 +451,19 @@ fn apply_post_process(raw: Vec<String>, post: &PostProcess) -> Vec<Suggestion> {
         PostProcess::Pattern { inner } => apply_pattern(raw, inner),
         PostProcess::Fn { .. } => Vec::new(), // phase 6
     }
+}
+
+/// Trim leading whitespace and common decoration prefixes from raw
+/// script output. Upstream's spec files often set `postProcess` to a
+/// JS callback that does this cleanup; our extractor can't evaluate
+/// those callbacks, so we compensate with a safe default here: strip
+/// leading whitespace, leading `* ` (git branch current marker), and
+/// trailing whitespace. This makes `git checkout <TAB>` return
+/// `main` instead of `* main`, matching upstream's behavior.
+fn clean_raw_line(line: String) -> String {
+    let trimmed = line.trim();
+    let stripped = trimmed.strip_prefix("* ").unwrap_or(trimmed);
+    stripped.trim().to_string()
 }
 
 fn apply_pattern(raw: Vec<String>, kind: &PostProcessKind) -> Vec<Suggestion> {

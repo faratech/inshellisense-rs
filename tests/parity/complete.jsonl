@@ -1,0 +1,58 @@
+{"line": "g", "label": "single-char-g"}
+{"line": "gi", "label": "two-char-gi"}
+{"line": "git", "label": "complete-git"}
+{"line": "git ", "label": "git-subcommands"}
+{"line": "git ch", "label": "git-ch-partial"}
+{"line": "git che", "label": "git-che-partial"}
+{"line": "git checkout", "label": "git-checkout-complete"}
+{"line": "git checkout ", "label": "git-checkout-args"}
+{"line": "git commit -", "label": "git-commit-shortopt"}
+{"line": "git commit --", "label": "git-commit-longopt"}
+{"line": "docker", "label": "complete-docker"}
+{"line": "docker ", "label": "docker-subcommands"}
+{"line": "docker run", "label": "docker-run-complete"}
+{"line": "docker run ", "label": "docker-run-args"}
+{"line": "docker run -", "label": "docker-run-shortopt"}
+{"line": "docker run --", "label": "docker-run-longopt"}
+{"line": "cargo", "label": "complete-cargo"}
+{"line": "cargo ", "label": "cargo-subcommands"}
+{"line": "cargo build", "label": "cargo-build-complete"}
+{"line": "cargo build --", "label": "cargo-build-longopt"}
+{"line": "npm", "label": "complete-npm"}
+{"line": "npm ", "label": "npm-subcommands"}
+{"line": "npm install", "label": "npm-install-complete"}
+{"line": "ls", "label": "complete-ls"}
+{"line": "ls ", "label": "ls-args"}
+{"line": "ls -", "label": "ls-shortopt"}
+{"line": "ls --", "label": "ls-longopt"}
+{"line": "kubectl", "label": "complete-kubectl"}
+{"line": "kubectl ", "label": "kubectl-subcommands"}
+{"line": "kubectl get", "label": "kubectl-get-complete"}
+{"line": "aws", "label": "complete-aws"}
+{"line": "aws ", "label": "aws-subcommands"}
+{"line": "systemctl", "label": "complete-systemctl"}
+{"line": "systemctl ", "label": "systemctl-subcommands"}
+{"line": "systemctl start", "label": "systemctl-start-partial"}
+{"line": "find", "label": "complete-find"}
+{"line": "find ", "label": "find-args"}
+{"line": "find -", "label": "find-shortopt"}
+{"line": "grep", "label": "complete-grep"}
+{"line": "grep -", "label": "grep-shortopt"}
+{"line": "tar", "label": "complete-tar"}
+{"line": "tar -", "label": "tar-shortopt"}
+{"line": "make", "label": "complete-make"}
+{"line": "ssh", "label": "complete-ssh"}
+{"line": "ssh -", "label": "ssh-shortopt"}
+{"line": "curl", "label": "complete-curl"}
+{"line": "curl -", "label": "curl-shortopt"}
+{"line": "uname", "label": "complete-uname"}
+{"line": "uname -", "label": "uname-shortopt"}
+{"line": "uname ", "label": "uname-args"}
+{"line": "u", "label": "single-char-u"}
+{"line": "un", "label": "two-char-un"}
+{"line": "una", "label": "three-char-una"}
+{"line": "c", "label": "single-char-c"}
+{"line": "d", "label": "single-char-d"}
+{"line": "k", "label": "single-char-k"}
+{"line": "l", "label": "single-char-l"}
+{"line": "p", "label": "single-char-p"}

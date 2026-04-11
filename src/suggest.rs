@@ -55,14 +55,16 @@ impl Engine {
         }
         let cmd = &tokens[0].token;
 
-        // If the user is typing the command name itself (exactly one
-        // token, no trailing space, not a registered command), scan
-        // the registry for command names whose prefix matches. This
-        // is what upstream does for first-word completion — the popup
-        // shows e.g. `uname` when the user types `una`, even though
-        // `una` isn't yet a resolved command.
+        // First-word completion — when the user has typed exactly one
+        // token with no trailing space, they are *still typing the
+        // command name*. Upstream always returns top-level commands
+        // starting with that partial, regardless of whether the token
+        // is already a fully-formed registered command. e.g. `git`
+        // returns `[git, git-cliff, git-flow, git-profile]`, not git's
+        // subcommands. Subcommands only appear once the user presses
+        // space.
         let trailing_space = line.ends_with(char::is_whitespace);
-        if tokens.len() == 1 && !trailing_space && self.registry.get(cmd).is_none() {
+        if tokens.len() == 1 && !trailing_space {
             return self.top_level_name_matches(cmd);
         }
 
@@ -89,15 +91,19 @@ impl Engine {
                 if s.hidden {
                     continue;
                 }
-                for n in &s.names {
-                    candidates.push(Suggestion {
-                        name: n.clone(),
-                        description: s.description.clone(),
-                        suggestion_type: SuggestionType::Subcommand,
-                        priority: Some(s.priority.unwrap_or(50)),
-                        ..Default::default()
-                    });
-                }
+                // Upstream picks the longest name when there's no
+                // partial, and the first matching name otherwise
+                // (from runtime/suggestion.ts::filter). Match exactly.
+                let Some(name) = pick_primary(&s.names, &partial) else {
+                    continue;
+                };
+                candidates.push(Suggestion {
+                    name,
+                    description: s.description.clone(),
+                    suggestion_type: SuggestionType::Subcommand,
+                    priority: Some(s.priority.unwrap_or(50)),
+                    ..Default::default()
+                });
             }
         }
 
@@ -125,15 +131,16 @@ impl Engine {
                 if excluded {
                     continue;
                 }
-                for n in &opt.names {
-                    candidates.push(Suggestion {
-                        name: n.clone(),
-                        description: opt.description.clone(),
-                        suggestion_type: SuggestionType::Option,
-                        priority: Some(opt.priority.unwrap_or(45)),
-                        ..Default::default()
-                    });
-                }
+                let Some(name) = pick_primary(&opt.names, &partial) else {
+                    continue;
+                };
+                candidates.push(Suggestion {
+                    name,
+                    description: opt.description.clone(),
+                    suggestion_type: SuggestionType::Option,
+                    priority: Some(opt.priority.unwrap_or(45)),
+                    ..Default::default()
+                });
             }
         }
 
@@ -146,13 +153,16 @@ impl Engine {
         let strategy = active_filter_strategy(&result);
         candidates.retain(|c| !c.name.is_empty() && matches(strategy, &c.name, &partial));
 
-        // Sort: priority DESC, type precedence, name length ASC.
+        // Stable sort by priority DESC only. Within the same priority
+        // tier we preserve insertion order, which mirrors upstream's
+        // behavior: spec-file authored order for subcommands/options,
+        // alphabetical string order for filepaths. Upstream does NOT
+        // group folders before files or subcommands before options —
+        // ties are broken by whatever order the upstream runtime
+        // collected them, which is what our insertion order already
+        // replicates.
         candidates.sort_by(|a, b| {
-            b.priority
-                .unwrap_or(50)
-                .cmp(&a.priority.unwrap_or(50))
-                .then_with(|| type_rank(a.suggestion_type).cmp(&type_rank(b.suggestion_type)))
-                .then_with(|| a.name.len().cmp(&b.name.len()))
+            b.priority.unwrap_or(50).cmp(&a.priority.unwrap_or(50))
         });
 
         dedup_by_name(candidates)
@@ -196,9 +206,6 @@ impl Engine {
         // this order keeps the popup pixel-identical to upstream for
         // top-level command completion.
         out.sort_by(|a, b| a.name.cmp(&b.name));
-        // Cap to a reasonable number so a one-letter query doesn't
-        // return hundreds.
-        out.truncate(32);
         out
     }
 }
@@ -212,6 +219,35 @@ fn active_filter_strategy(r: &ResolveResult<'_>) -> FilterStrategy {
     r.subcommand.filter_strategy
 }
 
+/// Port of upstream's name-picking logic from
+/// `/tmp/inshellisense/src/runtime/suggestion.ts::filter`.
+///
+/// When the user has typed a partial token (e.g. `ls -`), upstream
+/// picks the first alias in `names` that starts with the partial —
+/// so `[-a, --attach]` with partial `-` picks `-a`. When there's no
+/// partial (trailing space case, e.g. `git `), upstream picks the
+/// LONGEST name via `getLong` — so `[-p, --paginate]` picks
+/// `--paginate`.
+///
+/// Returns `None` when names is empty or no alias matches the partial.
+fn pick_primary(names: &[String], partial: &str) -> Option<String> {
+    if names.is_empty() {
+        return None;
+    }
+    if partial.is_empty() {
+        // Longest name wins.
+        let longest = names.iter().max_by_key(|n| n.len())?;
+        return Some(longest.clone());
+    }
+    // First name whose case-insensitive prefix matches the partial.
+    let p = partial.to_lowercase();
+    names
+        .iter()
+        .find(|n| n.to_lowercase().starts_with(&p))
+        .cloned()
+}
+
+#[allow(dead_code)]
 fn type_rank(t: SuggestionType) -> u8 {
     // Lower is more preferred in ties.
     match t {

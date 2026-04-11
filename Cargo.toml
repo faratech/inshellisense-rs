@@ -13,6 +13,10 @@ path = "src/main.rs"
 name = "is"
 path = "src/bin/is.rs"
 
+[[bin]]
+name = "parity-scan"
+path = "src/bin/parity_scan.rs"
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 portable-pty = "0.9"
@@ -30,6 +34,7 @@ bytes = "1"
 include_dir = "0.7"
 unicode-width = "0.2"
 ruzstd = "0.8"
+rayon = "1"
 
 [features]
 default = []

@@ -10,7 +10,17 @@ use anyhow::Result;
 
 pub fn list(plain: bool) -> Result<()> {
     let registry = spec::Registry::new_with_defaults();
-    let names: Vec<&str> = registry.names().collect();
+    // Registry keys include nested path-form entries for specs loaded
+    // via subdirectories (e.g. `aws/ec2`, `gcloud/alpha/compute`).
+    // Those exist for `LoadSpec::SpecPath` resolution at runtime, but
+    // they're not standalone commands a user would invoke — `specs
+    // list` should only surface the top-level primary names. Match
+    // upstream's behavior exactly.
+    let names: Vec<&str> = registry
+        .names()
+        .filter(|n| !n.contains('/'))
+        .filter(|n| !n.is_empty() && *n != "-")
+        .collect();
     if plain {
         for name in &names {
             println!("{}", name);
