@@ -273,3 +273,114 @@ fn merged_options<'a>(
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::spec::model::*;
+
+    fn make_spec(name: &str, subs: Vec<Subcommand>, opts: Vec<Opt>) -> Subcommand {
+        Subcommand {
+            names: vec![name.to_string()],
+            subcommands: subs,
+            options: opts,
+            ..Default::default()
+        }
+    }
+
+    fn make_opt(name: &str) -> Opt {
+        Opt { names: vec![name.to_string()], ..Default::default() }
+    }
+
+    fn make_arg() -> Arg {
+        Arg::default()
+    }
+
+    fn tok(s: &str) -> Vec<CommandToken> {
+        crate::spec::parse_command(s)
+    }
+
+    #[test]
+    fn resolve_simple_subcommand() {
+        let root = make_spec("git", vec![
+            make_spec("status", vec![], vec![]),
+            make_spec("commit", vec![], vec![]),
+        ], vec![]);
+        let tokens = tok("git status ");
+        let result = resolve(&root, &tokens);
+        assert_eq!(result.subcommand.names[0], "status");
+    }
+
+    #[test]
+    fn resolve_partial_subcommand() {
+        let root = make_spec("git", vec![
+            make_spec("status", vec![], vec![]),
+        ], vec![]);
+        let tokens = tok("git sta");
+        let result = resolve(&root, &tokens);
+        assert_eq!(result.subcommand.names[0], "git");
+        assert_eq!(result.active_partial.unwrap().token, "sta");
+    }
+
+    #[test]
+    fn resolve_option_tracking() {
+        let root = make_spec("git", vec![
+            make_spec("status", vec![], vec![make_opt("--short")]),
+        ], vec![]);
+        let tokens = tok("git status --short ");
+        let result = resolve(&root, &tokens);
+        assert!(result.accepted_option_tokens.contains(&"--short".to_string()));
+    }
+
+    #[test]
+    fn resolve_double_dash_raw() {
+        let root = make_spec("git", vec![
+            make_spec("log", vec![], vec![]),
+        ], vec![]);
+        let tokens = tok("git log -- file1");
+        let result = resolve(&root, &tokens);
+        assert_eq!(result.subcommand.names[0], "log");
+    }
+
+    #[test]
+    fn resolve_unknown_subcommand_stays_at_root() {
+        let root = make_spec("git", vec![
+            make_spec("status", vec![], vec![]),
+        ], vec![]);
+        let tokens = tok("git nonexistent ");
+        let result = resolve(&root, &tokens);
+        assert_eq!(result.subcommand.names[0], "git");
+    }
+
+    #[test]
+    fn resolve_nested_subcommand() {
+        let inner = make_spec("remote", vec![
+            make_spec("add", vec![], vec![]),
+        ], vec![]);
+        let root = make_spec("git", vec![inner], vec![]);
+        let tokens = tok("git remote add ");
+        let result = resolve(&root, &tokens);
+        assert_eq!(result.subcommand.names[0], "add");
+    }
+
+    #[test]
+    fn resolve_with_arg() {
+        let mut sub = make_spec("commit", vec![], vec![make_opt("-m")]);
+        sub.args = vec![make_arg()];
+        let root = make_spec("git", vec![sub], vec![]);
+        let tokens = tok("git commit -m ");
+        let result = resolve(&root, &tokens);
+        assert_eq!(result.subcommand.names[0], "commit");
+    }
+
+    #[test]
+    fn resolve_persistent_option() {
+        let mut root = make_spec("git", vec![
+            make_spec("status", vec![], vec![]),
+        ], vec![make_opt("-C")]);
+        root.options[0].is_persistent = true;
+        let tokens = tok("git status ");
+        let result = resolve(&root, &tokens);
+        assert!(result.persistent_options.iter().any(|o| o.names.contains(&"-C".to_string())));
+    }
+}

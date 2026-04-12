@@ -622,4 +622,50 @@ mod tests {
         let out = replacement_tail(&s, "fo");
         assert_eq!(out, "o={cursor}");
     }
+
+    // ── Upstream replacement.test.ts parity ─────────────────
+
+    #[test]
+    fn replacement_no_token_inserts_full() {
+        let s = Suggestion { name: "status".into(), ..Default::default() };
+        assert_eq!(replacement_tail(&s, ""), "status");
+    }
+
+    #[test]
+    fn replacement_divergent_backspaces_all() {
+        let s = Suggestion { name: "status".into(), ..Default::default() };
+        let out = replacement_tail(&s, "xyz");
+        assert_eq!(out, "\x08\x08\x08status");
+    }
+
+    #[test]
+    fn replacement_insert_value_backspaces_then_inserts() {
+        let s = Suggestion {
+            name: "status".into(),
+            insert_value: Some("status --short".into()),
+            ..Default::default()
+        };
+        let out = replacement_tail(&s, "sta");
+        // insertValue "status --short" starts with "sta", so strip_prefix
+        // returns the tail.
+        assert_eq!(out, "tus --short");
+    }
+
+    #[test]
+    fn replacement_option_prefix() {
+        let s = Suggestion { name: "--version".into(), ..Default::default() };
+        assert_eq!(replacement_tail(&s, "--ver"), "sion");
+    }
+
+    #[test]
+    fn replacement_empty_name_returns_empty() {
+        let s = Suggestion { name: "".into(), ..Default::default() };
+        assert_eq!(replacement_tail(&s, ""), "");
+    }
+
+    #[test]
+    fn replacement_full_match_returns_empty() {
+        let s = Suggestion { name: "status".into(), ..Default::default() };
+        assert_eq!(replacement_tail(&s, "status"), "");
+    }
 }

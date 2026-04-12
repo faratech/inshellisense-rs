@@ -56,3 +56,18 @@
 {"line": "k", "label": "single-char-k"}
 {"line": "l", "label": "single-char-l"}
 {"line": "p", "label": "single-char-p"}
+{"line": "", "label": "empty-input"}
+{"line": "   ", "label": "whitespace-only"}
+{"line": "git --version ", "label": "git-after-option"}
+{"line": "git -C /tmp status ", "label": "git-option-value-binding"}
+{"line": "git commit -m ", "label": "git-commit-message-arg"}
+{"line": "git log -- ", "label": "git-double-dash-raw"}
+{"line": "docker run ", "label": "docker-run-subcommand"}
+{"line": "docker run --detach ", "label": "docker-run-detach"}
+{"line": "cargo build --target ", "label": "cargo-build-target-arg"}
+{"line": "cargo test --release -- ", "label": "cargo-test-double-dash"}
+{"line": "npm install ", "label": "npm-install-args"}
+{"line": "ssh ", "label": "ssh-args"}
+{"line": "chmod ", "label": "chmod-args"}
+{"line": "curl --header ", "label": "curl-header-arg"}
+{"line": "tar -x", "label": "tar-short-flag-partial"}

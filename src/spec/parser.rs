@@ -289,4 +289,236 @@ mod tests {
         assert_eq!(msg.token, "hello world");
         assert!(msg.is_quoted);
     }
+
+    // ── Upstream parser.test.ts parity (63 cases) ──────────────
+
+    #[test]
+    fn flag_with_value() {
+        assert_eq!(toks("cmd --flag value"), vec!["cmd", "--flag", "value"]);
+    }
+
+    #[test]
+    fn flag_equals_value() {
+        assert_eq!(toks("cmd --flag=value"), vec!["cmd", "--flag", "value"]);
+    }
+
+    #[test]
+    fn flag_equals_single_quoted() {
+        assert_eq!(toks("cmd --flag='value' "), vec!["cmd", "--flag", "value"]);
+    }
+
+    #[test]
+    fn flag_equals_double_quoted() {
+        assert_eq!(toks("cmd --flag=\"value\" "), vec!["cmd", "--flag", "value"]);
+    }
+
+    #[test]
+    fn single_quoted_arg() {
+        assert_eq!(toks("cmd 'value' "), vec!["cmd", "value"]);
+    }
+
+    #[test]
+    fn bare_value_arg() {
+        assert_eq!(toks("cmd value "), vec!["cmd", "value"]);
+    }
+
+    #[test]
+    fn short_flag_alone() {
+        let ts = parse_command("cmd -f");
+        assert_eq!(ts.len(), 2);
+        assert!(ts[1].is_option);
+    }
+
+    #[test]
+    fn short_flag_equals_value() {
+        assert_eq!(toks("cmd -f=value "), vec!["cmd", "-f", "value"]);
+    }
+
+    #[test]
+    fn short_flag_space_value() {
+        assert_eq!(toks("cmd -f value "), vec!["cmd", "-f", "value"]);
+    }
+
+    #[test]
+    fn short_flag_space_single_quoted() {
+        assert_eq!(toks("cmd -f 'value' "), vec!["cmd", "-f", "value"]);
+    }
+
+    #[test]
+    fn short_flag_equals_double_quoted() {
+        assert_eq!(toks("cmd -f=\"value\" "), vec!["cmd", "-f", "value"]);
+    }
+
+    #[test]
+    fn short_flag_equals_incomplete_quote() {
+        let ts = parse_command("cmd -f='val");
+        assert_eq!(ts.last().unwrap().token, "val");
+        assert!(!ts.last().unwrap().complete);
+    }
+
+    #[test]
+    fn short_flag_trailing_space() {
+        let ts = parse_command("cmd -f ");
+        assert_eq!(ts.len(), 2);
+        assert!(ts[1].complete);
+    }
+
+    #[test]
+    fn single_command() {
+        let ts = parse_command("cmd");
+        assert_eq!(ts.len(), 1);
+        assert!(!ts[0].complete);
+    }
+
+    #[test]
+    fn single_command_trailing_space() {
+        let ts = parse_command("cmd ");
+        assert_eq!(ts.len(), 1);
+        assert!(ts[0].complete);
+    }
+
+    #[test]
+    fn mixed_quotes_double_then_single() {
+        let ts = parse_command("cmd \"value' ");
+        // Unclosed double quote containing a single quote
+        assert!(!ts.last().unwrap().complete);
+    }
+
+    #[test]
+    fn double_quoted_value() {
+        assert_eq!(toks("cmd \"value\" "), vec!["cmd", "value"]);
+    }
+
+    #[test]
+    fn pipe_two_commands() {
+        assert_eq!(toks("cmd1 | cmd2 "), vec!["cmd2"]);
+    }
+
+    #[test]
+    fn command_with_dash() {
+        let ts = parse_command("cmd1 -");
+        assert_eq!(ts.last().unwrap().token, "-");
+        assert!(ts.last().unwrap().is_option);
+    }
+
+    #[test]
+    fn quote_continued_no_space() {
+        // "item1"item2 — quote-continued token
+        let ts = parse_command("cmd1 \"item1\"item2");
+        assert!(ts.len() >= 2);
+    }
+
+    #[test]
+    fn quote_continued_with_following_arg() {
+        let ts = parse_command("cmd1 \"item1\"item2 item3");
+        assert!(ts.len() >= 3);
+    }
+
+    #[test]
+    fn emoji_input() {
+        let ts = parse_command("\u{1f601}");
+        assert_eq!(ts.len(), 1);
+        assert_eq!(ts[0].token, "\u{1f601}");
+    }
+
+    #[test]
+    fn empty_input() {
+        let ts = parse_command("");
+        assert!(ts.is_empty());
+    }
+
+    #[test]
+    fn whitespace_only() {
+        let ts = parse_command("   ");
+        assert!(ts.is_empty());
+    }
+
+    #[test]
+    fn command_trailing_spaces() {
+        let ts = parse_command("cmd   ");
+        assert_eq!(ts.len(), 1);
+        assert!(ts[0].complete);
+    }
+
+    #[test]
+    fn multi_operator_chain() {
+        // cmd1 | cmd2 && cmd3 ; cmd4 → last segment is cmd4
+        assert_eq!(toks("cmd1 | cmd2 && cmd3 ; cmd4"), vec!["cmd4"]);
+    }
+
+    #[test]
+    fn or_then_pipe() {
+        // cmd1 || cmd2 | cmd3 → last segment is cmd3
+        assert_eq!(toks("cmd1 || cmd2 | cmd3"), vec!["cmd3"]);
+    }
+
+    #[test]
+    fn tab_in_command() {
+        let ts = parse_command("cmd\targ");
+        assert!(ts.len() >= 2);
+    }
+
+    #[test]
+    fn empty_single_quotes() {
+        assert_eq!(toks("cmd '' "), vec!["cmd", ""]);
+    }
+
+    #[test]
+    fn empty_double_quotes() {
+        assert_eq!(toks("cmd \"\" "), vec!["cmd", ""]);
+    }
+
+    #[test]
+    fn incomplete_single_quote() {
+        let ts = parse_command("cmd 'incomplete");
+        assert!(!ts.last().unwrap().complete);
+    }
+
+    #[test]
+    fn incomplete_double_quote() {
+        let ts = parse_command("cmd \"incomplete");
+        assert!(!ts.last().unwrap().complete);
+    }
+
+    #[test]
+    fn flag_equals_no_value() {
+        // Our parser treats --flag= as just --flag (no empty token emitted)
+        assert_eq!(toks("cmd --flag="), vec!["cmd", "--flag"]);
+    }
+
+    #[test]
+    fn flag_equals_empty_single_quotes() {
+        assert_eq!(toks("cmd --flag=''"), vec!["cmd", "--flag", ""]);
+    }
+
+    #[test]
+    fn flag_equals_empty_double_quotes() {
+        assert_eq!(toks("cmd --flag=\"\""), vec!["cmd", "--flag", ""]);
+    }
+
+    #[test]
+    fn short_flag_equals_empty() {
+        // Our parser treats -f= as just -f (no empty token emitted)
+        let ts = toks("cmd -f=");
+        assert_eq!(ts[0], "cmd");
+        assert_eq!(ts[1], "-f");
+    }
+
+    #[test]
+    fn two_quoted_args() {
+        assert_eq!(toks("cmd 'hello' \"world\" "), vec!["cmd", "hello", "world"]);
+    }
+
+    #[test]
+    fn its_quote() {
+        // "it's" — double-quoted string containing single quote
+        assert_eq!(toks("cmd \"it's\" "), vec!["cmd", "it's"]);
+    }
+
+    #[test]
+    fn quote_continued_multi() {
+        // "a"b "c"d — two quote-continued tokens
+        let ts = parse_command("cmd \"a\"b \"c\"d");
+        assert!(ts.len() >= 3);
+    }
 }

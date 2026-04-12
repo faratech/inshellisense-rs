@@ -107,4 +107,26 @@ mod tests {
         assert_eq!(expand("gs -s", &aliases), "git status -s");
         assert_eq!(expand("ls -la", &aliases), "ls -la");
     }
+
+    #[test]
+    fn parse_escaped_quotes() {
+        // Bash format with escaped single quotes:
+        // alias la='echo '\''lo'\'' '\''la'\'''
+        let input = "alias la='echo '\\''lo'\\'' '\\''la'\\'''";
+        let map = parse_posix_aliases(input);
+        assert!(map.contains_key("la"));
+    }
+
+    #[test]
+    fn expand_no_match() {
+        let aliases = HashMap::new();
+        assert_eq!(expand("git status", &aliases), "git status");
+    }
+
+    #[test]
+    fn expand_with_flags() {
+        let mut aliases = HashMap::new();
+        aliases.insert("glo".into(), "git log --oneline".into());
+        assert_eq!(expand("glo --all", &aliases), "git log --oneline --all");
+    }
 }
