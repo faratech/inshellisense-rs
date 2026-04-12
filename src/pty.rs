@@ -7,6 +7,7 @@ use crate::ansi;
 use crate::config::{Bindings, UiMode};
 use crate::history;
 use crate::paths;
+use crate::platform::{self, PtyHandle};
 use crate::render::{Direction, Renderer};
 use crate::shell::Shell;
 use crate::spec::model::{Suggestion, SuggestionType};
@@ -40,13 +41,13 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     // Make sure the vendored shell integration scripts are on disk.
     let _ = crate::resources::unpack();
 
-    let shell_path = find_on_path(shell.as_str())
-        .with_context(|| format!("shell not found on PATH: {}", shell.as_str()))?;
+    let shell_path = platform::find_on_path(shell.as_str())
+        .ok_or_else(|| anyhow::anyhow!("shell not found on PATH: {}", shell.as_str()))?;
     let shell_dir = paths::shell_dir().context("no HOME directory")?;
     let zsh_dotdir = paths::zsh_dotdir().context("no HOME directory")?;
     let target = shell.spawn_target(&shell_dir, &zsh_dotdir, login);
 
-    let (cols, rows) = term_size().unwrap_or((80, 24));
+    let (cols, rows) = platform::term_size().unwrap_or((80, 24));
 
     // Build the environment for the child shell.
     let mut child_env: Vec<(String, String)> = vec![
@@ -72,19 +73,19 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     let mut argv = vec![shell_path.clone()];
     argv.extend(target.args.iter().cloned());
 
-    let (master_fd, child_pid) =
-        spawn_pty(&shell_path, &argv, &child_env, rows, cols)
-            .context("forkpty failed")?;
+    #[cfg(unix)]
+    let mut pty = platform::UnixPty::spawn(&shell_path, &argv, &child_env, rows, cols)
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+    #[cfg(windows)]
+    let mut pty = platform::WindowsPty::spawn(&shell_path, &argv, &child_env, rows, cols)
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
 
-    enable_raw_mode();
-    install_signal_handlers();
+    platform::enable_raw_mode();
+    platform::install_signal_handlers();
 
-    // Panic hook: if anything in the main loop panics, restore the
-    // terminal before printing the panic message. Without this, a
-    // panic leaves the tty in raw mode (no echo, unusable).
     let prev_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        disable_raw_mode();
+        platform::disable_raw_mode();
         prev_hook(info);
     }));
 
@@ -119,13 +120,6 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
         });
     }
 
-    // Get the raw file descriptors we need to poll. Upstream's Node.js
-    // event loop uses libuv's epoll under the hood for exactly this —
-    // blocking until data arrives on either the PTY master or stdin,
-    // with zero CPU when idle. We match that model using libc::poll().
-    let pty_fd = master_fd;
-    let stdin_fd = libc::STDIN_FILENO;
-
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
     let mut tracker = TermTracker::new(rows, cols);
@@ -157,53 +151,34 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     let mut stdin_buf = [0u8; 1024];
 
     loop {
-        // Non-blocking child exit check.
-        let mut status: libc::c_int = 0;
-        let w = unsafe { libc::waitpid(child_pid, &mut status, libc::WNOHANG) };
-        if w > 0 {
+        if pty.try_wait().is_some() {
             break;
         }
 
-        // SIGWINCH — one TIOCGWINSZ ioctl per wakeup.
-        if let Some((new_cols, new_rows)) = term_size() {
+        // SIGWINCH — one ioctl per wakeup.
+        if let Some((new_cols, new_rows)) = platform::term_size() {
             if new_cols > 0
                 && new_rows > 0
                 && (new_rows != tracker.rows() || new_cols != tracker.cols())
             {
                 tracker.resize(new_rows, new_cols);
-                let ws = libc::winsize {
-                    ws_row: new_rows,
-                    ws_col: new_cols,
-                    ws_xpixel: 0,
-                    ws_ypixel: 0,
-                };
-                unsafe { libc::ioctl(pty_fd, libc::TIOCSWINSZ, &ws) };
+                pty.resize(new_rows, new_cols);
                 renderer.clear(&mut out).ok();
             }
         }
 
-        // Block until the PTY or stdin has data, exactly like
-        // upstream's libuv epoll_wait. CPU usage is 0% when idle.
-        // The 50ms timeout ensures we still check child exit and
-        // SIGWINCH even when no I/O arrives.
-        let mut fds = [
-            libc::pollfd { fd: pty_fd, events: libc::POLLIN, revents: 0 },
-            libc::pollfd { fd: stdin_fd, events: libc::POLLIN, revents: 0 },
-        ];
-        let nready = unsafe { libc::poll(fds.as_mut_ptr(), 2, 50) };
-        if nready <= 0 {
-            continue; // timeout or error — loop back to check child + SIGWINCH
+        // Block until data arrives on PTY or stdin (0% CPU idle).
+        let (pty_ready, stdin_ready) = pty.poll(50);
+        if !pty_ready && !stdin_ready {
+            continue;
         }
 
         let mut made_progress = false;
 
         // Read PTY output if ready.
-        if fds[0].revents & libc::POLLIN != 0 {
-            // Non-blocking read: drain all available bytes.
+        if pty_ready {
             loop {
-                let n = unsafe {
-                    libc::read(pty_fd, pty_buf.as_mut_ptr() as *mut libc::c_void, pty_buf.len())
-                };
+                let n = pty.read_pty(&mut pty_buf);
                 if n <= 0 {
                     break;
                 }
@@ -212,21 +187,19 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                 out.write_all(&clean).ok();
                 out.flush().ok();
                 tracker.feed(&clean, &osc_events);
+                pending_tail = None;
                 made_progress = true;
-                // Check if more data is available without blocking.
-                let mut peek = [libc::pollfd { fd: pty_fd, events: libc::POLLIN, revents: 0 }];
-                let more = unsafe { libc::poll(peek.as_mut_ptr(), 1, 0) };
-                if more <= 0 {
+                // Check if more data without blocking.
+                let (more, _) = pty.poll(0);
+                if !more {
                     break;
                 }
             }
         }
 
         // Read stdin if ready.
-        if fds[1].revents & libc::POLLIN != 0 {
-            let n = unsafe {
-                libc::read(stdin_fd, stdin_buf.as_mut_ptr() as *mut libc::c_void, stdin_buf.len())
-            };
+        if stdin_ready {
+            let n = pty.read_stdin(&mut stdin_buf);
             if n > 0 {
                 let bytes = stdin_buf[..n as usize].to_vec();
                 handle_stdin(
@@ -240,7 +213,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                     &tracker,
                     &mut renderer,
                     &mut out,
-                    pty_fd,
+                    &pty,
                     &mut submitting,
                 );
                 made_progress = true;
@@ -373,8 +346,8 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
         // parks the thread when there's no activity.
     }
 
-    unsafe { libc::close(pty_fd); }
-    disable_raw_mode();
+    pty.close();
+    platform::disable_raw_mode();
     let _ = std::panic::take_hook(); // restore default panic hook
     let _ = std::io::stdout().write_all(b"\x1b[2K");
     Ok(())
@@ -392,7 +365,7 @@ fn handle_stdin(
     tracker: &TermTracker,
     renderer: &mut Renderer,
     out: &mut impl Write,
-    master_fd: i32,
+    pty: &dyn PtyHandle,
     submitting: &mut bool,
 ) {
     // Ghost-accept (right / End / Ctrl-E).
@@ -401,7 +374,7 @@ fn handle_stdin(
         if ghost_accept.contains(&bytes) {
             if let Some(tail) = pending_tail.take() {
                 renderer.clear(out).ok();
-                pty_write(master_fd, tail.as_bytes());
+                pty.pty_write(tail.as_bytes());
                 *popup_mode = PopupMode::Hidden;
                 return;
             }
@@ -429,10 +402,10 @@ fn handle_stdin(
                     let tail = replacement_tail(selected, &partial);
                     renderer.clear(out).ok();
                     if !tail.is_empty() {
-                        pty_write(master_fd, tail.as_bytes());
+                        pty.pty_write(tail.as_bytes());
                     }
                     if !matches!(selected.suggestion_type, SuggestionType::Folder) {
-                        pty_write(master_fd, b" ");
+                        pty.pty_write(b" ");
                     }
                     *popup_mode = PopupMode::Hidden;
                     *pending_tail = None;
@@ -457,157 +430,7 @@ fn handle_stdin(
         *submitting = true;
         *popup_mode = PopupMode::Hidden;
     }
-    pty_write(master_fd, bytes);
-}
-
-/// Fork a child shell under a new PTY via libc::forkpty. Returns
-/// (master_fd, child_pid). The child never returns — it exec's.
-fn spawn_pty(
-    bin: &str,
-    argv: &[String],
-    env: &[(String, String)],
-    rows: u16,
-    cols: u16,
-) -> Result<(i32, libc::pid_t)> {
-    let mut master: libc::c_int = 0;
-    let ws = libc::winsize {
-        ws_row: rows,
-        ws_col: cols,
-        ws_xpixel: 0,
-        ws_ypixel: 0,
-    };
-    let pid = unsafe {
-        libc::forkpty(
-            &mut master,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            &ws,
-        )
-    };
-    match pid {
-        -1 => anyhow::bail!("forkpty failed: {}", std::io::Error::last_os_error()),
-        0 => {
-            // Child process: set env vars, then exec.
-            for (k, v) in env {
-                std::env::set_var(k, v);
-            }
-            let c_bin =
-                std::ffi::CString::new(bin.as_bytes()).expect("CString");
-            let c_argv: Vec<std::ffi::CString> = argv
-                .iter()
-                .map(|a| std::ffi::CString::new(a.as_bytes()).expect("CString"))
-                .collect();
-            let c_ptrs: Vec<*const libc::c_char> = c_argv
-                .iter()
-                .map(|a| a.as_ptr())
-                .chain(std::iter::once(std::ptr::null()))
-                .collect();
-            unsafe { libc::execvp(c_bin.as_ptr(), c_ptrs.as_ptr()) };
-            // execvp only returns on error.
-            eprintln!("is: execvp failed: {}", std::io::Error::last_os_error());
-            unsafe { libc::_exit(127) };
-        }
-        _ => Ok((master, pid)),
-    }
-}
-
-/// Write bytes to the PTY master fd.
-fn pty_write(fd: i32, data: &[u8]) {
-    let mut offset = 0;
-    while offset < data.len() {
-        let n = unsafe {
-            libc::write(
-                fd,
-                data[offset..].as_ptr() as *const libc::c_void,
-                data.len() - offset,
-            )
-        };
-        if n <= 0 {
-            break;
-        }
-        offset += n as usize;
-    }
-}
-
-fn term_size() -> Option<(u16, u16)> {
-    unsafe {
-        let mut ws: libc::winsize = std::mem::zeroed();
-        if libc::ioctl(libc::STDOUT_FILENO, libc::TIOCGWINSZ, &mut ws) == 0
-            && ws.ws_col > 0
-            && ws.ws_row > 0
-        {
-            Some((ws.ws_col, ws.ws_row))
-        } else {
-            None
-        }
-    }
-}
-
-/// Saved original termios so we can restore on exit or signal.
-/// Using a raw static + unsafe because signal handlers can't access
-/// thread-locals or heap. The flag tracks whether the save is valid.
-static mut ORIG_TERMIOS: libc::termios = unsafe { std::mem::zeroed() };
-static mut ORIG_TERMIOS_SAVED: bool = false;
-
-fn enable_raw_mode() {
-    unsafe {
-        let p = std::ptr::addr_of_mut!(ORIG_TERMIOS);
-        if libc::tcgetattr(libc::STDIN_FILENO, p) == 0 {
-            ORIG_TERMIOS_SAVED = true;
-            let mut raw = *p;
-            libc::cfmakeraw(&mut raw);
-            libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, &raw);
-        }
-    }
-}
-
-fn disable_raw_mode() {
-    unsafe {
-        if ORIG_TERMIOS_SAVED {
-            libc::tcsetattr(
-                libc::STDIN_FILENO,
-                libc::TCSANOW,
-                std::ptr::addr_of!(ORIG_TERMIOS),
-            );
-        }
-    }
-}
-
-/// Install signal handlers that restore the terminal before exit.
-/// Without this, SIGTERM (kill), SIGHUP (terminal closed), or a
-/// second SIGINT after the child dies leaves the tty in raw mode —
-/// no echo, no line editing, unusable until `reset`.
-fn install_signal_handlers() {
-    extern "C" fn handler(sig: libc::c_int) {
-        unsafe {
-            if ORIG_TERMIOS_SAVED {
-                libc::tcsetattr(
-                    libc::STDIN_FILENO,
-                    libc::TCSANOW,
-                    std::ptr::addr_of!(ORIG_TERMIOS),
-                );
-            }
-            libc::signal(sig, libc::SIG_DFL);
-            libc::raise(sig);
-        }
-    }
-
-    unsafe {
-        libc::signal(libc::SIGTERM, handler as *const () as libc::sighandler_t);
-        libc::signal(libc::SIGHUP, handler as *const () as libc::sighandler_t);
-        libc::signal(libc::SIGINT, handler as *const () as libc::sighandler_t);
-    }
-}
-
-fn find_on_path(binary: &str) -> Result<String> {
-    let path = std::env::var("PATH").unwrap_or_default();
-    for dir in path.split(':') {
-        let candidate = std::path::Path::new(dir).join(binary);
-        if candidate.exists() {
-            return Ok(candidate.to_string_lossy().into_owned());
-        }
-    }
-    anyhow::bail!("not found on PATH: {}", binary)
+    pty.pty_write(bytes);
 }
 
 /// Is this stdin chunk a pure cursor-navigation key that doesn't

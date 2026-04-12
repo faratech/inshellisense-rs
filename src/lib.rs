@@ -15,6 +15,7 @@ pub mod env;
 pub mod generator;
 pub mod history;
 pub mod parity;
+pub mod platform;
 pub mod paths;
 pub mod pty;
 pub mod render;

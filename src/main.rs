@@ -156,6 +156,8 @@ fn parse_shell(s: &str) -> Option<Shell> {
         "powershell" => Some(Shell::Powershell),
         "xonsh" => Some(Shell::Xonsh),
         "nu" => Some(Shell::Nu),
+        #[cfg(windows)]
+        "cmd" => Some(Shell::Cmd),
         _ => None,
     }
 }

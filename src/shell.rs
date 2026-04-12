@@ -19,6 +19,8 @@ pub enum Shell {
     Powershell,
     Xonsh,
     Nu,
+    #[cfg(windows)]
+    Cmd,
 }
 
 /// Complete spawn descriptor for `pty::run_wrapped_shell`. Computed from
@@ -44,6 +46,8 @@ impl Shell {
             Shell::Powershell => "powershell",
             Shell::Xonsh => "xonsh",
             Shell::Nu => "nu",
+            #[cfg(windows)]
+            Shell::Cmd => "cmd",
         }
     }
 
@@ -116,6 +120,15 @@ impl Shell {
                 args.push("--execute".into());
                 args.push(format!("source `{}`", path_of("shellIntegration.nu")));
             }
+            #[cfg(windows)]
+            Shell::Cmd => {
+                // cmd.exe uses the PROMPT env var for OSC 6973 markers.
+                // No shell integration script needed.
+                env.push((
+                    "PROMPT".into(),
+                    "\x1b]6973;PS\x07$P$G \x1b]6973;PE\x07".into(),
+                ));
+            }
         }
 
         if login {
@@ -127,6 +140,8 @@ impl Shell {
                 Shell::Pwsh | Shell::Powershell => {
                     args.insert(0, "-Login".into())
                 }
+                #[cfg(windows)]
+                Shell::Cmd => {} // cmd has no login concept
             }
         }
 
@@ -142,6 +157,8 @@ impl Shell {
             Shell::Pwsh | Shell::Powershell => "init.ps1",
             Shell::Xonsh => "init.xsh",
             Shell::Nu => "init.nu",
+            #[cfg(windows)]
+            Shell::Cmd => "init.cmd",
         }
     }
 

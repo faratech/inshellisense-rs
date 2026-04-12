@@ -40,18 +40,30 @@ use crate::shell::Shell;
 use std::path::PathBuf;
 
 pub fn home() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from)
+    // Unix: $HOME. Windows: $USERPROFILE.
+    #[cfg(unix)]
+    { std::env::var_os("HOME").map(PathBuf::from) }
+    #[cfg(windows)]
+    { std::env::var_os("USERPROFILE").map(PathBuf::from) }
 }
 
-/// XDG config dir: `$XDG_CONFIG_HOME` or `$HOME/.config`.
+/// Config dir. Unix: `$XDG_CONFIG_HOME` or `~/.config`.
+/// Windows: `$APPDATA` (`C:\Users\<user>\AppData\Roaming`).
 pub fn config_dir() -> Option<PathBuf> {
-    if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
-        let p = PathBuf::from(xdg);
-        if p.is_absolute() {
-            return Some(p);
-        }
+    #[cfg(windows)]
+    {
+        return std::env::var_os("APPDATA").map(PathBuf::from);
     }
-    home().map(|h| h.join(".config"))
+    #[cfg(unix)]
+    {
+        if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
+            let p = PathBuf::from(xdg);
+            if p.is_absolute() {
+                return Some(p);
+            }
+        }
+        home().map(|h| h.join(".config"))
+    }
 }
 
 /// `~/.insh-rs/` — the resource root.
