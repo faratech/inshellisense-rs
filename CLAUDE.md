@@ -37,7 +37,7 @@ The binary is ~5.8 MB stripped (3.8 MB of that is the embedded zstd-compressed s
 |----------|-----|------------|-----------------|--------|
 | Linux | forkpty(3) | poll(2) | termios | Fully tested |
 | macOS | forkpty(3) | poll(2) | termios | Compiles, needs testing |
-| Windows | ConPTY | WaitForMultipleObjects | SetConsoleMode | Compiles, needs testing |
+| Windows | ConPTY | WaitForMultipleObjects | SetConsoleMode | Field-tested (PowerShell + Git Bash in Windows Terminal) |
 
 Windows uses `windows-sys` crate (target-gated, zero impact on Linux/macOS). Supports Windows 10 1809+ (ConPTY requirement).
 
@@ -72,9 +72,13 @@ We intentionally avoid: clap, portable-pty, crossterm, rayon, dirs, once_cell.
 
 - **No TUI framework.** All rendering is raw ANSI escape sequences written to stdout.
 - **Single stdout writer.** Renderers take `&mut impl Write`, never own a `Stdout` handle.
-- **Platform-abstracted event loop.** `PtyHandle::poll()` blocks until data arrives. Zero CPU when idle on all platforms.
+- **Platform-abstracted event loop.** `PtyHandle::poll()` blocks until data arrives. Zero CPU when idle on all platforms (libc::poll on Unix, WaitForMultipleObjects on Windows).
 - **Signal/ctrl handlers.** Unix: SIGTERM/SIGHUP/SIGINT restore termios. Windows: SetConsoleCtrlHandler restores console mode.
 - **Background engine load.** Registry decompresses + indexes on a background thread (~200 ms).
+- **Windows stdin via ReadConsoleInputW.** Reads raw KEY_EVENTs and converts virtual key codes to VT sequences. Never blocks on line mode. Synthetic vk=0 events from ENABLE_VIRTUAL_TERMINAL_INPUT are filtered.
+- **Windows PTY output via PeekNamedPipe.** ConPTY signals the pipe handle even without data; plain ReadFile would deadlock the event loop.
+- **Deferred PromptEnd anchor.** ConPTY sends OSC 6973 markers in a separate chunk before the screen-paint bytes. The anchor is applied after the next batch of bytes updates the vt100 screen.
+- **Windows exit via RIS + process::exit.** Matches upstream: write `\x1bc` (Reset to Initial State), restore console mode, then `process::exit(0)`. ClosePseudoConsole deadlocks in Windows Terminal.
 
 ## Common tasks
 
@@ -88,10 +92,14 @@ is start --shell bash       # force a specific shell
 is complete "git ch"        # JSON output (default, matches upstream schema)
 is complete "git ch" --text # ghost-tail text only
 
-# Windows: build + run
+# Windows: build + run (native)
 cargo build --release
 .\target\release\is.exe start
 .\target\release\is.exe start --shell cmd  # Windows CMD
+
+# Windows: cross-compile from WSL (requires cargo-xwin)
+cargo xwin build --release --target aarch64-pc-windows-msvc  # ARM64
+cargo xwin build --release --target x86_64-pc-windows-msvc   # x64
 ```
 
 ## Resource paths

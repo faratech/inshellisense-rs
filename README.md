@@ -22,7 +22,7 @@ bash, zsh, fish, pwsh, powershell, xonsh, nushell, and cmd.exe (Windows).
 |----------|--------|
 | Linux | Fully tested |
 | macOS | Compiles (POSIX-compatible), needs field testing |
-| Windows 10+ | ConPTY implementation complete, needs field testing |
+| Windows 10+ | Field-tested (ConPTY, PowerShell + Git Bash in Windows Terminal) |
 
 ## Why another autocomplete tool
 
@@ -102,8 +102,8 @@ description = "Say hello to a cat"
 
 ```
 ┌─────────────────┐   bytes   ┌────────────────┐
-│ user's terminal │──────────▶│ portable-pty   │
-│                 │           │ (bash wrapper) │
+│ user's terminal │──────────▶│  platform PTY  │
+│                 │           │ (shell wrapper)│
 │                 │◀──────────│                │
 └────────┬────────┘   bytes   └───────┬────────┘
          │                            │
@@ -120,7 +120,8 @@ description = "Say hello to a cat"
                               └────────────────┘
 ```
 
-Cold start: ~5 ms. Release binary: 1.7 MB stripped.
+Cold start: ~5 ms. Release binary: ~5.8 MB stripped (3.8 MB is the
+embedded zstd-compressed spec bundle).
 
 The suggestion engine parses the current command-line state using a
 tokenizer and resolver ported from inshellisense, walks a registry of
@@ -130,24 +131,20 @@ positions at the cursor via save/restore.
 
 ## Comparison with inshellisense
 
-insh-rs aims for behavioral parity with Microsoft's inshellisense on the
-specs it covers. Where it differs:
+inshellisense-rs aims for behavioral parity with Microsoft's inshellisense
+on the specs it covers. Where it differs:
 
-| | inshellisense | insh-rs |
+| | inshellisense | inshellisense-rs |
 |---|---|---|
 | Runtime | Node + V8 | native Rust binary |
 | Cold start | ~100 ms | ~5 ms |
 | Memory | ~60 MB | ~5.7 MB |
-| Binary size | 30+ MB (packaged) | 1.7 MB stripped |
-| Shell support | bash, zsh, fish, pwsh, nu, xonsh, cmd | bash only |
+| Binary size | 30+ MB (packaged) | ~5.8 MB stripped |
+| Shell support | bash, zsh, fish, pwsh, nu, xonsh, cmd | bash, zsh, fish, pwsh, powershell, xonsh, nu, cmd |
 | Fig spec coverage | ~715 specs via dynamic import | **1470/1470 pure (100.0%)** via the static extractor |
 | JS runtime for opaque closures | always on (Node) | **none** — pure Rust static extraction only |
 | Ghost-text rendering | yes | yes |
 | Right-arrow to accept | yes | yes |
-
-Phase 3 closes the spec coverage gap. Phase 6 closes the opaque-closure
-gap via `rquickjs`. Parity testing against an inshellisense oracle lands
-in phase 5.
 
 ## Roadmap
 
@@ -167,7 +164,7 @@ in phase 5.
 
 ## Credits
 
-insh-rs stands on the shoulders of:
+inshellisense-rs stands on the shoulders of:
 
 - **[inshellisense](https://github.com/microsoft/inshellisense)** by
   Microsoft — the algorithmic design, the shell integration protocol, the
@@ -181,7 +178,7 @@ insh-rs stands on the shoulders of:
 All three are MIT licensed. See [NOTICE](NOTICE) for full attribution and
 [LICENSES/](LICENSES/) for upstream license texts.
 
-**insh-rs is not affiliated with Microsoft, Amazon, Fig, or Hercules Labs.**
+**inshellisense-rs is not affiliated with Microsoft, Amazon, Fig, or Hercules Labs.**
 "inshellisense" is a trademark of Microsoft Corporation.
 
 ## License

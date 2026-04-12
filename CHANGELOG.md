@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to insh-rs are documented in this file.
+All notable changes to inshellisense-rs are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.0.1] — 2026-04-12
 
 First public release. 1:1 feature parity with Microsoft's inshellisense.
-Cross-platform (Linux, macOS, Windows). 29 crates, 5.7 MB binary
+Cross-platform (Linux, macOS, Windows). 29 crates, ~5.8 MB binary
 (vs upstream's 132 MB), 1470 specs bundled.
 
 ### Added
@@ -26,12 +26,13 @@ Cross-platform (Linux, macOS, Windows). 29 crates, 5.7 MB binary
   the popup even before the user finishes the command name.
 - **Parity scanner** (`cargo run --bin parity-scan`): systematic
   divergence detection across 6 categories (cli, init, doctor, complete,
-  specs, render) with rayon parallelism and ranked markdown report.
+  specs, render) with std::thread::scope parallelism and ranked
+  markdown report.
 - **Background spec loading**: registry decompresses + parses on a
   background thread; shell prompt appears in ~5 ms, suggestions ready
   in ~500 ms.
-- **libc::poll event loop**: true zero-CPU-when-idle, matching upstream's
-  libuv epoll model. No reader threads, no mpsc channels.
+- **Platform event loop**: libc::poll on Unix, WaitForMultipleObjects on
+  Windows. True zero-CPU-when-idle, matching upstream's libuv model.
 - **Single stdout writer**: renderers take `&mut impl Write` instead of
   owning separate Stdout handles; eliminates ANSI interleave risk.
 - Init snippets for all 7 shells (bash/zsh/fish/pwsh/powershell/xonsh/nu)
@@ -47,7 +48,8 @@ Cross-platform (Linux, macOS, Windows). 29 crates, 5.7 MB binary
 - `specs list` no longer includes nested path keys (`aws/ec2`) or junk
   entries (`-`, empty name).
 - SIGWINCH 0x0 guard prevents vt100 panic on transient zero-sized PTYs.
-- Startup clear-terminal (`\x1b[2J\x1b[3J\x1b[H`) matches upstream.
+- Startup clear-terminal (`\x1b[2J\x1b[3J\x1b[H`) matches upstream
+  (Unix only; skipped on Windows where ConPTY handles its own screen).
 
 ### Changed
 - Suggestion sort: priority-desc + stable insertion order (matches
@@ -73,9 +75,29 @@ Cross-platform (Linux, macOS, Windows). 29 crates, 5.7 MB binary
 - **Cross-platform**: platform abstraction layer (`src/platform/`) with
   Unix (forkpty/poll/termios) and Windows (ConPTY/WaitForMultipleObjects/
   SetConsoleMode) backends. macOS works via POSIX compatibility.
-- **Windows ConPTY**: CreatePseudoConsole + CreateProcessW, VT input/
-  output processing, SetConsoleCtrlHandler, Git Bash path discovery.
+- **Windows ConPTY**: CreatePseudoConsole + CreateProcessW with full
+  working I/O pipeline:
+  - `ReadConsoleInputW` for stdin (reads raw KEY_EVENTs, never blocks
+    on line mode). VK-to-VT conversion for arrow keys, Home/End, F1-F12.
+  - `PeekNamedPipe` gate on PTY output (ConPTY signals pipe handle
+    even without data; plain ReadFile deadlocks).
+  - `WaitForMultipleObjects` with dual-handle probe (prevents stdin
+    starvation from lowest-index-wins limitation).
+  - Deferred PromptEnd anchor: ConPTY sends OSC markers before screen-
+    paint bytes; anchor is applied after the next batch paints the screen.
+  - Fallback anchor from cursor position on first keystroke (for
+    terminals that strip custom OSC sequences entirely).
+  - Exit via `\x1bc` (RIS) + `process::exit(0)`, matching upstream.
+    ClosePseudoConsole deadlocks in Windows Terminal with nested ConPTY.
+  - Environment block deduplication (overrides win, sorted for Windows).
+  - Command-line quoting for paths with spaces in CreateProcessW.
+  - Console mode: save/restore input + output independently (Git Bash
+    stdout is a pipe; GetConsoleMode fails on it).
+  - Filter synthetic vk=0 KEY_EVENTs from ENABLE_VIRTUAL_TERMINAL_INPUT.
+  - SetConsoleCtrlHandler for Ctrl-C, Git Bash path discovery.
 - **Shell::Cmd** (Windows): PROMPT-based OSC 6973 marker injection.
+- **Shell detection** on Windows: defaults to pwsh, splits SHELL env var
+  on both `/` and `\`, strips `.exe` suffix, skips WSL's bash.exe.
 - Platform-aware paths: $USERPROFILE/$APPDATA on Windows.
 - Platform-aware PATH search: semicolons + .exe/.cmd/.bat on Windows.
 - Re-entry guard: running `is` inside an existing session prints status
@@ -430,7 +452,7 @@ loads **1002 specs** confirming runtime extras loading works.
 - **Added** `tools/extractor/` — Node + TypeScript extractor using
   `ts-morph`. Walks `@withfig/autocomplete/src/**/*.ts`, locates each
   file's default-exported Fig.Spec object literal, and converts the
-  pure-data subset into insh-rs's Rust JSON schema. Specs containing
+  pure-data subset into inshellisense-rs's Rust JSON schema. Specs containing
   any inline function (arrow, function expression, method) anywhere
   in their tree are classified as `partial` or `js_only` in the
   manifest and not extracted (phase 6 handles those via rquickjs).
