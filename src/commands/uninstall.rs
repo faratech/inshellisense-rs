@@ -10,7 +10,7 @@ use anyhow::Result;
 
 pub fn run() -> Result<()> {
     let Some(root) = paths::resource_root() else {
-        println!("insh-rs: no HOME — nothing to remove");
+        println!("is: no HOME — nothing to remove");
         return Ok(());
     };
     if !root.exists() {

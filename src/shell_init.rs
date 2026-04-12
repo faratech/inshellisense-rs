@@ -1,4 +1,4 @@
-//! `insh init <shell>` and `insh install`.
+//! `is init <shell>` and `is install`.
 //!
 //! `print_init(<shell>)` emits the one-line source snippet the user
 //! should add to their shell's rc file — byte-identical to upstream's
@@ -7,7 +7,7 @@
 //! line.
 //!
 //! `install()` is our own legacy convenience that appends an auto-exec
-//! wrapper to `~/.bashrc` (`exec insh start` on every interactive bash);
+//! wrapper to `~/.bashrc` (`exec is start` on every interactive bash);
 //! kept for backwards compatibility with the phase-0 flow, but not the
 //! default path.
 
@@ -17,16 +17,16 @@ use anyhow::Result;
 const MARKER: &str = "# >>> insh-rs init >>>";
 const MARKER_END: &str = "# <<< insh-rs init <<<";
 
-/// The auto-exec wrapper appended to `~/.bashrc` by `insh install`.
-/// Not used by `insh init bash` — that path emits upstream's source
+/// The auto-exec wrapper appended to `~/.bashrc` by `is install`.
+/// Not used by `is init bash` — that path emits upstream's source
 /// snippet instead.
 pub fn wrapper_snippet() -> String {
     format!(
         r#"{MARKER}
 if [[ $- == *i* ]] && [[ -z "${{INSH_RS:-}}" ]] && [[ -z "${{ISTERM:-}}" ]] \
    && [[ -z "${{VSCODE_RESOLVING_ENVIRONMENT:-}}" ]] \
-   && command -v insh >/dev/null 2>&1; then
-    exec insh start
+   && command -v is >/dev/null 2>&1; then
+    exec is start
 fi
 {MARKER_END}
 "#
@@ -95,7 +95,7 @@ pub fn install() -> Result<()> {
     let rc = home.join(".bashrc");
     let existing = std::fs::read_to_string(&rc).unwrap_or_default();
     if existing.contains(MARKER) {
-        println!("insh-rs: already installed in {}", rc.display());
+        println!("is: already installed in {}", rc.display());
         return Ok(());
     }
     let mut new = existing;
@@ -104,7 +104,7 @@ pub fn install() -> Result<()> {
     }
     new.push_str(&wrapper_snippet());
     std::fs::write(&rc, new)?;
-    println!("insh-rs: installed into {}", rc.display());
+    println!("is: installed into {}", rc.display());
     println!("Open a new terminal or run `exec bash` to try it.");
     Ok(())
 }

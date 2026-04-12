@@ -5,6 +5,62 @@ All notable changes to insh-rs are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.1] — 2026-04-12
+
+First public release. 1:1 feature parity with Microsoft's inshellisense,
+pure Rust, 6.3 MB binary (vs upstream's 132 MB), 1470 specs bundled.
+
+### Added
+- **Interactive popup TUI** (`--ui popup`): upstream-exact boxed layout
+  with `┌─┐│└─┘` borders, side-by-side suggestion + description columns,
+  `#7D56F4` active-row highlight (256-color fallback to index 105),
+  up/down/tab/escape navigation, SCO save/restore cursor, cursor-aware
+  padding with swap logic.
+- **Hybrid mode** (`--ui hybrid`, now default): ghost text + popup
+  simultaneously. Ghost tail follows the active popup cursor; right-arrow
+  accepts ghost, tab accepts popup selection.
+- **Full 1470-spec corpus** bundled as zstd-compressed JSON (74 MB raw →
+  3.8 MB compressed). Decoded at startup via ruzstd (pure Rust).
+- **Top-level command-name completion**: typing `una` shows `uname` in
+  the popup even before the user finishes the command name.
+- **Parity scanner** (`cargo run --bin parity-scan`): systematic
+  divergence detection across 6 categories (cli, init, doctor, complete,
+  specs, render) with rayon parallelism and ranked markdown report.
+- **Background spec loading**: registry decompresses + parses on a
+  background thread; shell prompt appears in ~5 ms, suggestions ready
+  in ~500 ms.
+- **libc::poll event loop**: true zero-CPU-when-idle, matching upstream's
+  libuv epoll model. No reader threads, no mpsc channels.
+- **Single stdout writer**: renderers take `&mut impl Write` instead of
+  owning separate Stdout handles; eliminates ANSI interleave risk.
+- Init snippets for all 7 shells (bash/zsh/fish/pwsh/powershell/xonsh/nu)
+  matching upstream's exact source-line format.
+
+### Fixed
+- Ghost text no longer wipes typed characters when arrowing left/right
+  through a command (cursor-navigation keys skip `renderer.clear()`).
+- Stranded popup top-border after Enter/Ctrl-C (submitting latch
+  suppresses redraw until next PromptStart).
+- Nested shells (`sudo su`) no longer show garbage suggestions (stale
+  prompt anchor auto-invalidated when cursor drifts >2 rows).
+- `specs list` no longer includes nested path keys (`aws/ec2`) or junk
+  entries (`-`, empty name).
+- SIGWINCH 0x0 guard prevents vt100 panic on transient zero-sized PTYs.
+- Startup clear-terminal (`\x1b[2J\x1b[3J\x1b[H`) matches upstream.
+
+### Changed
+- Suggestion sort: priority-desc + stable insertion order (matches
+  upstream's spec-file authored order, not alphabetical).
+- Option aliases: emit one suggestion per option group using upstream's
+  getLong/first-match logic (longest name when no partial, first match
+  when partial non-empty).
+- `init bash` emits upstream-parity source-line snippet; auto-exec
+  wrapper moved to `insh install` for backwards compat.
+- Direct `serde_json::from_slice` into `BTreeMap<String, Subcommand>`
+  (was double-parsing via Value intermediate), cutting cold start from
+  900 ms to 500 ms.
+- Popup signature uses u64 hash instead of 300-byte String allocation.
+
 ## [Unreleased]
 
 ### Phase 6.2e — 100.0% pure. Method-shorthand `generateSpec` fix.

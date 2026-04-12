@@ -196,7 +196,7 @@ fn try_load(path: &PathBuf) -> Option<Config> {
             Ok(c) => Some(c),
             Err(e) => {
                 eprintln!(
-                    "insh-rs: {} is invalid TOML: {}",
+                    "is: {} is invalid TOML: {}",
                     path.display(),
                     e
                 );
@@ -204,7 +204,7 @@ fn try_load(path: &PathBuf) -> Option<Config> {
             }
         },
         Err(e) => {
-            eprintln!("insh-rs: failed to read {}: {}", path.display(), e);
+            eprintln!("is: failed to read {}: {}", path.display(), e);
             None
         }
     }

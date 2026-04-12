@@ -1,18 +1,18 @@
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
-use insh_rs::{
-    commands, config::UiMode, env as insh_env, pty, resources, shell::Shell, shell_init,
+use inshellisense_rs::{
+    commands, config::UiMode, env as is_env, pty, resources, shell::Shell, shell_init,
 };
 
 /// IDE-style shell autocomplete in Rust. Drop-in compatible with Microsoft's
-/// inshellisense (`is`) — insh-rs ships both `insh` and `is` binaries, reads
-/// the same `~/.inshellisenserc` / `~/.config/inshellisense/rc.toml`, honors
-/// the same `ISTERM` / `ISTERM_LOGIN` / `ISTERM_TESTING` env vars, and emits
-/// the same OSC 6973 prompt markers.
+/// inshellisense — reads the same `~/.inshellisenserc` /
+/// `~/.config/inshellisense/rc.toml`, honors the same `ISTERM` /
+/// `ISTERM_LOGIN` / `ISTERM_TESTING` env vars, and emits the same OSC 6973
+/// prompt markers.
 #[derive(Parser)]
 #[command(
-    name = "insh",
-    bin_name = "insh",
+    name = "is",
+    bin_name = "is",
     version,
     about = "IDE-style shell autocomplete in Rust",
     long_about = None,
@@ -32,7 +32,7 @@ struct Cli {
     #[arg(short = 's', long, global = true, value_enum)]
     shell: Option<Shell>,
 
-    /// Check whether the current process is running inside an insh-rs
+    /// Check whether the current process is running inside an inshellisense-rs
     /// session; prints a one-line status and exits 0 (live) or 1 (not found).
     #[arg(short = 'c', long, global = true)]
     check: bool,
@@ -74,7 +74,7 @@ enum Cmd {
     /// Regenerate all shell init files and re-unpack resources.
     Reinit,
 
-    /// Convenience alias for `insh init --install-rc` — appends the bash
+    /// Convenience alias for `is init --install-rc` — appends the bash
     /// init snippet to ~/.bashrc. Kept from phase 0 for backwards compat.
     #[command(hide = true)]
     Install,
@@ -89,7 +89,7 @@ enum Cmd {
     #[command(subcommand)]
     Specs(SpecsCmd),
 
-    /// Deprecated alias for `specs list`. Use `insh specs list` instead.
+    /// Deprecated alias for `specs list`. Use `is specs list` instead.
     #[command(hide = true, alias = "listspecs")]
     ListSpecs,
 
@@ -129,24 +129,24 @@ pub fn main() -> Result<()> {
         return Ok(());
     }
     if cli.check {
-        if insh_env::session_active() {
-            println!("insh-rs session live");
+        if is_env::session_active() {
+            println!("inshellisense-rs session live");
             return Ok(());
         }
-        println!("insh-rs session not found");
+        println!("inshellisense-rs session not found");
         std::process::exit(1);
     }
 
     match cli.command.unwrap_or(Cmd::Start { ui: None }) {
         Cmd::Start { ui } => {
             let _ = resources::unpack();
-            let shell = cli.shell.unwrap_or_else(insh_rs::shell::detect);
+            let shell = cli.shell.unwrap_or_else(inshellisense_rs::shell::detect);
             if cli.verbose {
-                let cfg = insh_rs::config::load();
+                let cfg = inshellisense_rs::config::load();
                 let effective_ui = ui.unwrap_or(cfg.ui);
-                eprintln!("insh-rs: ui = {}", effective_ui.as_str());
-                eprintln!("insh-rs: shell = {}", shell.as_str());
-                eprintln!("insh-rs: login = {}", cli.login);
+                eprintln!("inshellisense-rs: ui = {}", effective_ui.as_str());
+                eprintln!("inshellisense-rs: shell = {}", shell.as_str());
+                eprintln!("inshellisense-rs: login = {}", cli.login);
             }
             pty::run_wrapped(shell, cli.login, ui)
         }
@@ -170,7 +170,7 @@ pub fn main() -> Result<()> {
         }
         Cmd::Specs(SpecsCmd::List { plain }) => commands::specs::list(plain),
         Cmd::ListSpecs => {
-            eprintln!("insh-rs: `list-specs` is deprecated; use `insh specs list` instead");
+            eprintln!("inshellisense-rs: `list-specs` is deprecated; use `is specs list` instead");
             commands::specs::list(true)
         }
         Cmd::Uninstall => commands::uninstall::run(),

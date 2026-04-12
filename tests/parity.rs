@@ -16,7 +16,7 @@
 //! runtime, runs every case, prints a summary, and fails if the pass
 //! rate drops below the configured threshold (currently 90%).
 
-use insh_rs::{spec::Registry, suggest::Engine};
+use inshellisense_rs::{spec::Registry, suggest::Engine};
 use serde::Deserialize;
 use std::sync::OnceLock;
 

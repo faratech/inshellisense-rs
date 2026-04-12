@@ -477,8 +477,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "insh-rs"
-version = "0.0.2"
+name = "inshellisense-rs"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "bytes",

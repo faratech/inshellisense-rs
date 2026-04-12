@@ -1,17 +1,14 @@
 [package]
-name = "insh-rs"
-version = "0.0.2"
+name = "inshellisense-rs"
+version = "0.0.1"
 edition = "2021"
 description = "Rust port of inshellisense: IDE-style autocomplete as ghost text for your shell"
 license = "MIT"
-
-[[bin]]
-name = "insh"
-path = "src/main.rs"
+authors = ["Fara Technologies LLC"]
 
 [[bin]]
 name = "is"
-path = "src/bin/is.rs"
+path = "src/main.rs"
 
 [[bin]]
 name = "parity-scan"

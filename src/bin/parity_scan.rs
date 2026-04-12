@@ -9,7 +9,7 @@
 //!         --corpus tests/parity \
 //!         --report /tmp/parity-report.md
 
-use insh_rs::parity::{self, report, Category, ScanConfig};
+use inshellisense_rs::parity::{self, report, Category, ScanConfig};
 use std::path::PathBuf;
 use std::process::ExitCode;
 

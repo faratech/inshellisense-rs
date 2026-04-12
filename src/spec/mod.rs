@@ -60,13 +60,13 @@ impl Registry {
         let mut decoder = match ruzstd::decoding::StreamingDecoder::new(BUNDLE_ZST) {
             Ok(d) => d,
             Err(e) => {
-                eprintln!("insh-rs: failed to start zstd decoder: {}", e);
+                eprintln!("is: failed to start zstd decoder: {}", e);
                 return;
             }
         };
         let mut decoded = Vec::with_capacity(80 * 1024 * 1024);
         if let Err(e) = decoder.read_to_end(&mut decoded) {
-            eprintln!("insh-rs: failed to decode spec bundle: {}", e);
+            eprintln!("is: failed to decode spec bundle: {}", e);
             return;
         }
         // Parse directly into the target type. `from_slice` skips the
@@ -77,7 +77,7 @@ impl Registry {
             match serde_json::from_slice(&decoded) {
                 Ok(m) => m,
                 Err(e) => {
-                    eprintln!("insh-rs: failed to parse spec bundle: {}", e);
+                    eprintln!("is: failed to parse spec bundle: {}", e);
                     return;
                 }
             };
@@ -107,7 +107,7 @@ impl Registry {
             } else if path.extension().and_then(|e| e.to_str()) == Some("json") {
                 let Ok(bytes) = std::fs::read_to_string(&path) else { continue };
                 let Ok(spec) = serde_json::from_str::<Subcommand>(&bytes) else {
-                    eprintln!("insh-rs: failed to parse {}", path.display());
+                    eprintln!("is: failed to parse {}", path.display());
                     continue;
                 };
                 // Derive the registry key from the path relative to the
@@ -172,7 +172,7 @@ impl Registry {
             };
             match toml::from_str::<Subcommand>(&src) {
                 Ok(spec) => self.insert(spec),
-                Err(e) => eprintln!("insh-rs: failed to load {}: {}", path.display(), e),
+                Err(e) => eprintln!("is: failed to load {}: {}", path.display(), e),
             }
         }
     }

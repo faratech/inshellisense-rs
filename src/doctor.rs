@@ -56,7 +56,7 @@ fn check_legacy_configs() -> i32 {
             eprintln!("  {RED_DASH} {}", s.as_str());
         }
         eprintln!(
-            "{YELLOW}  remove any ~/.inshellisense/ references from your shell profile and re-add them using `insh init --install-rc`{RESET}"
+            "{YELLOW}  remove any ~/.inshellisense/ references from your shell profile and re-add them using `is init --install-rc`{RESET}"
         );
         return 1;
     }
@@ -76,7 +76,7 @@ fn check_shell_configs() -> i32 {
             eprintln!("  {RED_DASH} {}", s.as_str());
         }
         eprintln!(
-            "{YELLOW}  run \x1b[4m\x1b[36minsh reinit{RESET}{YELLOW} to regenerate{RESET}"
+            "{YELLOW}  run \x1b[4m\x1b[36mis reinit{RESET}{YELLOW} to regenerate{RESET}"
         );
         return 1;
     }
@@ -95,13 +95,13 @@ fn check_shell_plugins() -> i32 {
         println!("{GREEN_CHECK} all shells have plugins installed");
     } else {
         eprintln!(
-            "{RED_BULLET} the following shells do not have the insh-rs plugin installed:"
+            "{RED_BULLET} the following shells do not have the inshellisense-rs plugin installed:"
         );
         for s in &without {
             eprintln!("  {RED_DASH} {}", s.as_str());
         }
         eprintln!(
-            "{YELLOW}  run \x1b[4m\x1b[36minsh init <shell> --install-rc{RESET}{YELLOW} or ignore if you prefer manual startup{RESET}"
+            "{YELLOW}  run \x1b[4m\x1b[36mis init <shell> --install-rc{RESET}{YELLOW} or ignore if you prefer manual startup{RESET}"
         );
         failed = 1;
     }

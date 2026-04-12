@@ -27,6 +27,11 @@ Thumbs.db
 # Committing would bloat the repo; users fetch or regenerate locally.
 /specs-data/extras/
 
+# Uncompressed bundle intermediate (75 MB). Only the zstd-compressed
+# bundle.json.zst (3.8 MB) is committed — it's what include_bytes!
+# embeds into the binary.
+specs-data/bundle.json
+
 # Secrets
 .env
 .env.*
