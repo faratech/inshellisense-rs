@@ -179,7 +179,7 @@ All three are MIT licensed. See [NOTICE](NOTICE) for full attribution and
 [LICENSES/](LICENSES/) for upstream license texts.
 
 **inshellisense-rs is not affiliated with Microsoft, Amazon, Fig, or Hercules Labs.**
-"inshellisense" is a trademark of Microsoft Corporation.
+"IntelliSense" is a registered trademark of Microsoft Corporation.
 
 ## License
 
