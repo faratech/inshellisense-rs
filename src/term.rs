@@ -13,6 +13,11 @@ pub struct TermTracker {
     cols: u16,
     cwd: String,
     state: CmdState,
+    /// Deferred PromptEnd: ConPTY sends OSC markers in a separate
+    /// chunk before the screen-painting bytes, so the cursor is at
+    /// (0,0) when PE fires. This flag defers anchor-setting until
+    /// after the next batch of bytes updates the vt100 screen.
+    pending_prompt_end: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -37,6 +42,7 @@ impl TermTracker {
             cols,
             cwd: String::new(),
             state: CmdState::default(),
+            pending_prompt_end: false,
         }
     }
 
@@ -136,6 +142,16 @@ impl TermTracker {
             }
         }
         self.parser.process(bytes);
+        // Apply any deferred PromptEnd AFTER processing this batch of
+        // bytes. ConPTY sends OSC markers in one chunk and screen-paint
+        // sequences in the next; by now the cursor has moved to the
+        // correct post-prompt position.
+        if self.pending_prompt_end && !bytes.is_empty() {
+            self.pending_prompt_end = false;
+            let (r, c) = self.parser.screen().cursor_position();
+            self.state.prompt_end_row = Some(r as usize);
+            self.state.prompt_end_col = Some(c as usize);
+        }
         for ev in events {
             match ev {
                 IsEvent::PromptStart => {
@@ -143,12 +159,22 @@ impl TermTracker {
                     self.state.prompt_end_row = None;
                     self.state.prompt_end_col = None;
                     self.state.command.clear();
+                    self.pending_prompt_end = false;
                 }
                 IsEvent::PromptEnd => {
                     self.state.in_prompt = false;
+                    // Try to set anchor now (works on Unix where OSC
+                    // markers and screen bytes arrive in the same chunk).
                     let (r, c) = self.parser.screen().cursor_position();
-                    self.state.prompt_end_row = Some(r as usize);
-                    self.state.prompt_end_col = Some(c as usize);
+                    if r > 0 || c > 0 {
+                        self.state.prompt_end_row = Some(r as usize);
+                        self.state.prompt_end_col = Some(c as usize);
+                    } else {
+                        // Cursor still at origin — ConPTY sent the OSC
+                        // marker before painting the screen. Defer until
+                        // the next feed() call processes the paint bytes.
+                        self.pending_prompt_end = true;
+                    }
                 }
                 IsEvent::Cwd(p) => self.cwd = p.clone(),
             }
