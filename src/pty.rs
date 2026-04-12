@@ -77,6 +77,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
             .context("forkpty failed")?;
 
     enable_raw_mode();
+    install_signal_handlers();
 
     // Clear the host terminal on startup — matches upstream's
     // `writeOutput(ansi.clearTerminal)` in ui-root.ts. Without this,
@@ -529,25 +530,59 @@ fn term_size() -> Option<(u16, u16)> {
     }
 }
 
+/// Saved original termios so we can restore on exit or signal.
+/// Using a raw static + unsafe because signal handlers can't access
+/// thread-locals or heap. The flag tracks whether the save is valid.
+static mut ORIG_TERMIOS: libc::termios = unsafe { std::mem::zeroed() };
+static mut ORIG_TERMIOS_SAVED: bool = false;
+
 fn enable_raw_mode() {
     unsafe {
-        let mut termios: libc::termios = std::mem::zeroed();
-        if libc::tcgetattr(libc::STDIN_FILENO, &mut termios) == 0 {
-            libc::cfmakeraw(&mut termios);
-            libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, &termios);
+        let p = std::ptr::addr_of_mut!(ORIG_TERMIOS);
+        if libc::tcgetattr(libc::STDIN_FILENO, p) == 0 {
+            ORIG_TERMIOS_SAVED = true;
+            let mut raw = *p;
+            libc::cfmakeraw(&mut raw);
+            libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, &raw);
         }
     }
 }
 
 fn disable_raw_mode() {
     unsafe {
-        let mut termios: libc::termios = std::mem::zeroed();
-        if libc::tcgetattr(libc::STDIN_FILENO, &mut termios) == 0 {
-            termios.c_lflag |= libc::ECHO | libc::ICANON | libc::ISIG | libc::IEXTEN;
-            termios.c_iflag |= libc::ICRNL | libc::IXON;
-            termios.c_oflag |= libc::OPOST;
-            libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, &termios);
+        if ORIG_TERMIOS_SAVED {
+            libc::tcsetattr(
+                libc::STDIN_FILENO,
+                libc::TCSANOW,
+                std::ptr::addr_of!(ORIG_TERMIOS),
+            );
         }
+    }
+}
+
+/// Install signal handlers that restore the terminal before exit.
+/// Without this, SIGTERM (kill), SIGHUP (terminal closed), or a
+/// second SIGINT after the child dies leaves the tty in raw mode —
+/// no echo, no line editing, unusable until `reset`.
+fn install_signal_handlers() {
+    extern "C" fn handler(sig: libc::c_int) {
+        unsafe {
+            if ORIG_TERMIOS_SAVED {
+                libc::tcsetattr(
+                    libc::STDIN_FILENO,
+                    libc::TCSANOW,
+                    std::ptr::addr_of!(ORIG_TERMIOS),
+                );
+            }
+            libc::signal(sig, libc::SIG_DFL);
+            libc::raise(sig);
+        }
+    }
+
+    unsafe {
+        libc::signal(libc::SIGTERM, handler as *const () as libc::sighandler_t);
+        libc::signal(libc::SIGHUP, handler as *const () as libc::sighandler_t);
+        libc::signal(libc::SIGINT, handler as *const () as libc::sighandler_t);
     }
 }
 
