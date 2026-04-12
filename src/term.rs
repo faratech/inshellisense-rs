@@ -142,10 +142,10 @@ impl TermTracker {
             }
         }
         self.parser.process(bytes);
-        // Apply any deferred PromptEnd AFTER processing this batch of
-        // bytes. ConPTY sends OSC markers in one chunk and screen-paint
-        // sequences in the next; by now the cursor has moved to the
-        // correct post-prompt position.
+        // Apply deferred PromptEnd from a PREVIOUS feed() call.
+        // ConPTY sends OSC markers before screen-paint bytes, so we
+        // must wait for a feed() with actual bytes before reading the
+        // cursor position.
         if self.pending_prompt_end && !bytes.is_empty() {
             self.pending_prompt_end = false;
             let (r, c) = self.parser.screen().cursor_position();
@@ -162,22 +162,24 @@ impl TermTracker {
                     self.pending_prompt_end = false;
                 }
                 IsEvent::PromptEnd => {
+                    // Always defer — on ConPTY the cursor hasn't moved
+                    // to the post-prompt position yet. On Unix, bytes
+                    // and events arrive together, so the second deferred
+                    // check below applies it in the same feed() call.
                     self.state.in_prompt = false;
-                    // Try to set anchor now (works on Unix where OSC
-                    // markers and screen bytes arrive in the same chunk).
-                    let (r, c) = self.parser.screen().cursor_position();
-                    if r > 0 || c > 0 {
-                        self.state.prompt_end_row = Some(r as usize);
-                        self.state.prompt_end_col = Some(c as usize);
-                    } else {
-                        // Cursor still at origin — ConPTY sent the OSC
-                        // marker before painting the screen. Defer until
-                        // the next feed() call processes the paint bytes.
-                        self.pending_prompt_end = true;
-                    }
+                    self.pending_prompt_end = true;
                 }
                 IsEvent::Cwd(p) => self.cwd = p.clone(),
             }
+        }
+        // Second deferred check: if PE fired in THIS call and bytes
+        // were non-empty (Unix — bytes and events in same chunk), the
+        // cursor is already at the correct post-prompt position.
+        if self.pending_prompt_end && !bytes.is_empty() {
+            self.pending_prompt_end = false;
+            let (r, c) = self.parser.screen().cursor_position();
+            self.state.prompt_end_row = Some(r as usize);
+            self.state.prompt_end_col = Some(c as usize);
         }
         self.refresh_command();
     }
