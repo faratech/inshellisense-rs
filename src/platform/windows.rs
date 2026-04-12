@@ -364,6 +364,13 @@ impl PtyHandle for WindowsPty {
                 if key.bKeyDown == 0 {
                     continue;
                 }
+                // Skip synthetic VT sequence chars injected by
+                // ENABLE_VIRTUAL_TERMINAL_INPUT (Windows Terminal's
+                // default). These have vk=0 and are terminal-generated
+                // noise, not real user keystrokes.
+                if key.wVirtualKeyCode == 0 {
+                    continue;
+                }
                 let ch = key.uChar.UnicodeChar;
                 if ch != 0 {
                     // Regular character — encode as UTF-8.
@@ -412,15 +419,41 @@ impl PtyHandle for WindowsPty {
 
     fn close(&mut self) {
         unsafe {
-            // Close BOTH pipes before ClosePseudoConsole. From MS docs:
-            // "Closing the output pipe handle first allows
-            //  ClosePseudoConsole to return faster since the
-            //  pseudoconsole can skip sending the final frame."
-            // Skipping the final frame avoids the white flash in
-            // Windows Terminal when a ConPTY session ends.
+            // node-pty PR #415 two-thread shutdown: ClosePseudoConsole
+            // emits a final frame on the output pipe and blocks until
+            // it's consumed. A drain thread must read concurrently.
+            //
+            // 1. Close input pipe (signals end of input).
+            // 2. Spawn drain thread on the output pipe.
+            // 3. Call ClosePseudoConsole on this thread — the drain
+            //    thread consumes the final frame so it can return.
+            // 4. Drain thread hits EOF and exits.
+            // 5. Close remaining handles.
             CloseHandle(self.pty_input_write);
-            CloseHandle(self.pty_output_read);
+
+            let h_output = self.pty_output_read as isize;
+            let drain = std::thread::spawn(move || {
+                let h = h_output as HANDLE;
+                let mut buf = [0u8; 4096];
+                loop {
+                    let mut n: u32 = 0;
+                    let ok = ReadFile(
+                        h,
+                        buf.as_mut_ptr(),
+                        buf.len() as u32,
+                        &mut n,
+                        ptr::null_mut(),
+                    );
+                    if ok == 0 || n == 0 {
+                        break;
+                    }
+                }
+            });
+
             ClosePseudoConsole(self.hpc);
+            let _ = drain.join();
+
+            CloseHandle(self.pty_output_read);
             CloseHandle(self.child_process);
             CloseHandle(self.child_thread);
         }
@@ -430,7 +463,8 @@ impl PtyHandle for WindowsPty {
 /// Saved original console modes for restore.
 static mut ORIG_INPUT_MODE: u32 = 0;
 static mut ORIG_OUTPUT_MODE: u32 = 0;
-static mut ORIG_MODE_SAVED: bool = false;
+static mut INPUT_MODE_SAVED: bool = false;
+static mut OUTPUT_MODE_SAVED: bool = false;
 
 pub fn term_size() -> Option<(u16, u16)> {
     unsafe {
@@ -449,19 +483,26 @@ pub fn term_size() -> Option<(u16, u16)> {
 
 pub fn enable_raw_mode() {
     unsafe {
-        let h = GetStdHandle(STD_INPUT_HANDLE);
-        let hout = GetStdHandle(STD_OUTPUT_HANDLE);
-        // Only modify modes if the handles are real console handles.
-        // Under MSYS2/mintty, stdin may be a pipe and GetConsoleMode
-        // will fail. Setting mode 0 on exit would freeze the terminal.
-        if GetConsoleMode(h, std::ptr::addr_of_mut!(ORIG_INPUT_MODE)) != 0 {
-            SetConsoleMode(h, ENABLE_WINDOW_INPUT);
-            ORIG_MODE_SAVED = true;
-        }
-        if GetConsoleMode(hout, std::ptr::addr_of_mut!(ORIG_OUTPUT_MODE)) != 0 {
+        // Save and modify input and output INDEPENDENTLY — in Git
+        // Bash (MSYS2), stdout may be a pipe so GetConsoleMode fails
+        // on it. We must still change the input mode to disable echo
+        // and VT input artifacts.
+        let h_in = GetStdHandle(STD_INPUT_HANDLE);
+        if GetConsoleMode(h_in, std::ptr::addr_of_mut!(ORIG_INPUT_MODE)) != 0 {
+            INPUT_MODE_SAVED = true;
             SetConsoleMode(
-                hout,
-                ORIG_OUTPUT_MODE | ENABLE_VIRTUAL_TERMINAL_PROCESSING | DISABLE_NEWLINE_AUTO_RETURN,
+                h_in,
+                ENABLE_PROCESSED_INPUT | ENABLE_WINDOW_INPUT,
+            );
+        }
+        let h_out = GetStdHandle(STD_OUTPUT_HANDLE);
+        if GetConsoleMode(h_out, std::ptr::addr_of_mut!(ORIG_OUTPUT_MODE)) != 0 {
+            OUTPUT_MODE_SAVED = true;
+            // Enable VT output (needed for powershell.exe). Do NOT
+            // set DISABLE_NEWLINE_AUTO_RETURN — causes flash on exit.
+            SetConsoleMode(
+                h_out,
+                ORIG_OUTPUT_MODE | ENABLE_VIRTUAL_TERMINAL_PROCESSING,
             );
         }
     }
@@ -469,11 +510,13 @@ pub fn enable_raw_mode() {
 
 pub fn disable_raw_mode() {
     unsafe {
-        if ORIG_MODE_SAVED {
-            let h = GetStdHandle(STD_INPUT_HANDLE);
-            SetConsoleMode(h, ORIG_INPUT_MODE);
-            let hout = GetStdHandle(STD_OUTPUT_HANDLE);
-            SetConsoleMode(hout, ORIG_OUTPUT_MODE);
+        if INPUT_MODE_SAVED {
+            let h_in = GetStdHandle(STD_INPUT_HANDLE);
+            SetConsoleMode(h_in, ORIG_INPUT_MODE);
+        }
+        if OUTPUT_MODE_SAVED {
+            let h_out = GetStdHandle(STD_OUTPUT_HANDLE);
+            SetConsoleMode(h_out, ORIG_OUTPUT_MODE);
         }
     }
 }

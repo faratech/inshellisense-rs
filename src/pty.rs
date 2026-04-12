@@ -155,6 +155,19 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
 
     loop {
         if pty.try_wait().is_some() {
+            // Drain remaining PTY output before shutting down.
+            // The child's final output (including console-mode-reset
+            // sequences) must reach the parent terminal.
+            loop {
+                let n = pty.read_pty(&mut pty_buf);
+                if n < 1 {
+                    break;
+                }
+                let bytes = &pty_buf[..n as usize];
+                let (clean, _) = ansi::scan(bytes);
+                out.write_all(&clean).ok();
+            }
+            out.flush().ok();
             break;
         }
 
@@ -357,17 +370,25 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     }
 
     renderer.clear(&mut out).ok();
-    drop(out); // release stdout lock before cleanup
+    // RIS (Reset to Initial State) — resets the entire terminal.
+    // This is how upstream inshellisense ensures the parent terminal
+    // recovers cleanly regardless of what ConPTY did to the state.
+    out.write_all(b"\x1bc").ok();
+    out.flush().ok();
+    drop(out);
     platform::disable_raw_mode();
-    let _ = std::panic::take_hook();
-    // On Windows, ClosePseudoConsole can deadlock or flash the
-    // terminal. Restore console mode (above), then exit immediately
-    // and let the OS tear down ConPTY + handles.
-    #[cfg(windows)]
-    std::process::exit(0);
     #[cfg(unix)]
     pty.close();
-    Ok(())
+    // On Windows, process::exit lets the OS tear down ConPTY.
+    // Calling ClosePseudoConsole explicitly causes deadlocks
+    // and white flashes in Windows Terminal.
+    #[cfg(windows)]
+    std::process::exit(0);
+    #[allow(unreachable_code)]
+    {
+        let _ = std::panic::take_hook();
+        Ok(())
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
