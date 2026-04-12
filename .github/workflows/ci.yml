@@ -39,7 +39,7 @@ jobs:
 
       - name: Check release binary size
         run: |
-          size=$(stat -c '%s' target/release/insh)
+          size=$(stat -c '%s' target/release/is)
           mb=$((size / 1024 / 1024))
           echo "Release binary: ${size} bytes (${mb} MB)"
           if [ $mb -gt 6 ]; then
@@ -57,11 +57,11 @@ jobs:
 
       - name: Smoke test binary
         run: |
-          ./target/release/insh --version
-          ./target/release/insh doctor
-          ./target/release/insh list-specs | head -20
-          ./target/release/insh complete "git ch"
-          ./target/release/insh complete "docker ru"
+          ./target/release/is --version
+          ./target/release/is doctor
+          ./target/release/is list-specs | head -20
+          ./target/release/is complete "git ch"
+          ./target/release/is complete "docker ru"
 
       - name: Report parity coverage
         run: |
