@@ -196,17 +196,29 @@ pub fn detect() -> Shell {
         return Shell::Bash;
     }
     if let Ok(shell_env) = std::env::var("SHELL") {
-        if let Some(name) = shell_env.rsplit('/').next() {
-            match name {
-                "bash" => return Shell::Bash,
-                "zsh" => return Shell::Zsh,
-                "fish" => return Shell::Fish,
-                "pwsh" => return Shell::Pwsh,
-                "powershell" => return Shell::Powershell,
-                "xonsh" => return Shell::Xonsh,
-                "nu" => return Shell::Nu,
-                _ => {}
-            }
+        // Extract the binary name from the path. Handle both `/`
+        // (Unix, MSYS2) and `\` (Windows) separators, and strip
+        // a trailing `.exe` if present.
+        let name = shell_env
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or("")
+            .strip_suffix(".exe")
+            .unwrap_or(
+                shell_env
+                    .rsplit(['/', '\\'])
+                    .next()
+                    .unwrap_or(""),
+            );
+        match name {
+            "bash" => return Shell::Bash,
+            "zsh" => return Shell::Zsh,
+            "fish" => return Shell::Fish,
+            "pwsh" => return Shell::Pwsh,
+            "powershell" => return Shell::Powershell,
+            "xonsh" => return Shell::Xonsh,
+            "nu" => return Shell::Nu,
+            _ => {}
         }
     }
     // Fallback: platform-specific default.
