@@ -102,7 +102,10 @@ pub fn main() -> Result<()> {
         }
         "doctor" => commands::doctor::run(),
         "complete" => {
-            let json = rest.iter().any(|a| a == "--json");
+            // Default output is JSON (matching upstream). --text
+            // switches to plain ghost-tail mode. --json accepted
+            // as a no-op for backwards compat.
+            let text_mode = rest.iter().any(|a| a == "--text");
             let cwd = parse_subcmd_flag(&rest, "--cwd").unwrap_or_else(|| ".".to_string());
             let line = rest
                 .iter()
@@ -110,7 +113,7 @@ pub fn main() -> Result<()> {
                 .find(|a| !a.starts_with('-'))
                 .cloned()
                 .unwrap_or_default();
-            commands::complete::run(&line, json, &cwd)
+            commands::complete::run(&line, text_mode, &cwd)
         }
         "specs" => {
             let sub2 = rest.get(1).map(|s| s.as_str()).unwrap_or("list");

@@ -1,4 +1,7 @@
-//! `insh complete <line>` — offline completion query.
+//! `is complete <line>` — offline completion query.
+//!
+//! Default output is JSON (matching upstream). The `--json` flag is
+//! accepted but is a no-op since JSON is already the default.
 
 use crate::{history, spec, suggest};
 use anyhow::Result;
@@ -7,7 +10,9 @@ pub fn run(line: &str, json: bool, cwd: &str) -> Result<()> {
     let hist = history::load();
     let registry = spec::Registry::new_with_defaults();
     let engine = suggest::Engine::new(registry, hist);
-    if json {
+
+    // Plain-text ghost-tail mode (legacy, triggered by --text).
+    if !json {
         let blob = engine.suggest_blob(line, cwd);
         let printable: Vec<serde_json::Value> = blob
             .into_iter()
@@ -28,6 +33,7 @@ pub fn run(line: &str, json: bool, cwd: &str) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&printable)?);
         return Ok(());
     }
+    // --text: print only the ghost-text tail suffix.
     if let Some(s) = engine.suggest(line, cwd) {
         println!("{}", s);
     }
