@@ -1,4 +1,4 @@
-insh-rs — IDE-style shell autocomplete in Rust
+inshellisense-rs — IDE-style shell autocomplete in Rust
 Copyright (c) 2026 Fara Technologies LLC
 Licensed under the MIT License (see LICENSE).
 
@@ -13,8 +13,8 @@ inshellisense
   https://github.com/microsoft/inshellisense
   License: MIT (see LICENSES/inshellisense-MIT.txt)
 
-  insh-rs is a Rust port of inshellisense. The following components are
-  derivative works:
+  inshellisense-rs is a Rust port of inshellisense. The following
+  components are derivative works:
     * src/spec/parser.rs        — port of src/runtime/parser.ts (lex state machine)
     * src/spec/resolver.rs      — port of src/runtime/runtime.ts (runSubcommand / runArg / runOption)
     * src/spec/model.rs         — Rust mirror of the Fig.Spec schema consumed by inshellisense
@@ -27,9 +27,9 @@ inshellisense
   https://github.com/withfig/autocomplete
   License: MIT (see LICENSES/withfig-autocomplete-MIT.txt)
 
-  insh-rs consumes the ~715 TypeScript completion specs in this library
-  via a build-time extractor (phase 3+). Any spec data derived from
-  upstream retains its original attribution.
+  inshellisense-rs consumes the ~1470 TypeScript completion specs in this
+  library via a build-time extractor. Any spec data derived from upstream
+  retains its original attribution.
 
 ─────────────────────────────────────────────────────────────────────────────
 
@@ -47,16 +47,15 @@ Cargo dependencies (transitive, loaded at build time): see Cargo.lock for
 the full list and `cargo license` for individual license details. Notable
 runtime dependencies:
 
-  * portable-pty        (MIT)       — https://github.com/wez/wezterm
   * vt100-ctt           (MIT)       — https://github.com/cowoder/vt100-ctt
-  * clap                (MIT/Apache-2.0)
-  * crossterm           (MIT)
   * serde, serde_json   (MIT/Apache-2.0)
   * toml                (MIT/Apache-2.0)
-  * once_cell           (MIT/Apache-2.0)
-  * dirs                (MIT/Apache-2.0)
   * anyhow              (MIT/Apache-2.0)
+  * libc                (MIT/Apache-2.0)
+  * unicode-width       (MIT/Apache-2.0)
+  * ruzstd              (MIT)
+  * windows-sys         (MIT/Apache-2.0) — Windows only
 
-insh-rs is not affiliated with, endorsed by, or sponsored by Microsoft,
-Amazon, Fig, or Hercules Labs Inc. "inshellisense" is a trademark of
-Microsoft Corporation.
+inshellisense-rs is not affiliated with, endorsed by, or sponsored by
+Microsoft, Amazon, Fig, or Hercules Labs Inc. "inshellisense" is a
+trademark of Microsoft Corporation.
