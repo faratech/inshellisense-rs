@@ -1,11 +1,11 @@
 # inshellisense-rs
 
-Grey ghost-text shell autocomplete — a Rust port of Microsoft's
+Cross-platform shell autocomplete — a Rust port of Microsoft's
 [inshellisense](https://github.com/microsoft/inshellisense).
 
 Type a partial command, see the best completion appear in grey after the
 cursor, press `→` to accept. Same PowerShell PSReadLine feel, implemented
-as a PTY wrapper around your existing bash so there's nothing to learn.
+as a PTY wrapper around your existing shell. Linux, macOS, and Windows.
 
 ```
 $ git ch█eckout        ← grey suggestion ─ press → to accept
@@ -13,18 +13,16 @@ $ git ch█eckout        ← grey suggestion ─ press → to accept
 
 ## Status
 
-**Beta — 100.0% of upstream `@withfig/autocomplete` fully pure-extracted,
-with pure Rust (no JS runtime).** 1470 of 1470 upstream specs extract
-cleanly — zero partials, zero js_only, zero errors. The top 53
-essentials
-(git, docker, cargo, npm, ssh, kubectl, systemctl, apt, curl, wget,
-find, grep, tar, make, vim, nvim, tmux, fzf, rg, fd, bat, eza, jq,
-ffmpeg, and 20 others) embedded directly into the 3.4 MB binary. The
-1352-spec extras tree loads via `INSH_RS_SPECS_DIR` or a future
-`is update-specs` tarball. Phase 5 (parity corpus + CI gate) and
-phase 6 (rquickjs JS runtime) are **not** in the plan — we got here
-with pure Rust and dropped phase 6 entirely. See
-[CHANGELOG.md](CHANGELOG.md) for the full phase history.
+**1:1 feature parity with upstream inshellisense.** 1470 specs bundled
+(zstd-compressed), lazy-loaded on demand. Pure Rust — no JS runtime, no
+Node.js. 29 crates, 5.7 MB binary (vs upstream's 132 MB). Supports
+bash, zsh, fish, pwsh, powershell, xonsh, nushell, and cmd.exe (Windows).
+
+| Platform | Status |
+|----------|--------|
+| Linux | Fully tested |
+| macOS | Compiles (POSIX-compatible), needs field testing |
+| Windows 10+ | ConPTY implementation complete, needs field testing |
 
 ## Why another autocomplete tool
 

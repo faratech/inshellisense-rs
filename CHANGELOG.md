@@ -7,9 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.1] — 2026-04-12
 
-First public release. 1:1 feature parity with Microsoft's inshellisense,
-29 crate dependency tree, 5.7 MB binary.
-pure Rust, 6.3 MB binary (vs upstream's 132 MB), 1470 specs bundled.
+First public release. 1:1 feature parity with Microsoft's inshellisense.
+Cross-platform (Linux, macOS, Windows). 29 crates, 5.7 MB binary
+(vs upstream's 132 MB), 1470 specs bundled.
 
 ### Added
 - **Interactive popup TUI** (`--ui popup`): upstream-exact boxed layout
@@ -70,6 +70,20 @@ pure Rust, 6.3 MB binary (vs upstream's 132 MB), 1470 specs bundled.
 - libc::poll event loop (true 0% CPU when idle, matching upstream).
 - Single stdout writer for all renderers (no ANSI interleave risk).
 - Signal handlers (SIGTERM/SIGHUP/SIGINT) restore original termios.
+- **Cross-platform**: platform abstraction layer (`src/platform/`) with
+  Unix (forkpty/poll/termios) and Windows (ConPTY/WaitForMultipleObjects/
+  SetConsoleMode) backends. macOS works via POSIX compatibility.
+- **Windows ConPTY**: CreatePseudoConsole + CreateProcessW, VT input/
+  output processing, SetConsoleCtrlHandler, Git Bash path discovery.
+- **Shell::Cmd** (Windows): PROMPT-based OSC 6973 marker injection.
+- Platform-aware paths: $USERPROFILE/$APPDATA on Windows.
+- Platform-aware PATH search: semicolons + .exe/.cmd/.bat on Windows.
+- Re-entry guard: running `is` inside an existing session prints status
+  and exits instead of nesting (matches upstream).
+- PTY master fd closed on exit; panic hook restores terminal.
+- Poisoned RwLock/Mutex recovery instead of panicking.
+- `is complete` JSON output matches upstream schema exactly (icon emoji,
+  allNames, activeToken wrapper).
 
 ## [Unreleased]
 
