@@ -67,6 +67,13 @@ pub fn main() -> Result<()> {
     let subcmd = rest.first().map(|s| s.as_str()).unwrap_or("start");
     match subcmd {
         "start" => {
+            // Re-entry guard: if already inside an inshellisense
+            // session, print confirmation and exit — don't nest.
+            // Matches upstream's behavior at commands/root.ts:25-29.
+            if is_env::session_active() {
+                println!("inshellisense-rs session live");
+                return Ok(());
+            }
             let ui = parse_subcmd_flag(&rest, "--ui").and_then(|v| parse_ui(&v));
             let _ = resources::unpack();
             let shell = shell.unwrap_or_else(inshellisense_rs::shell::detect);
