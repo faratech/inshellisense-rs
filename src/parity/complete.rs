@@ -9,7 +9,6 @@
 //! emits a flat `[...]`. The normalizer handles both.
 
 use super::{Case, CaseResult, Category, CategoryReport, ScanConfig};
-use rayon::prelude::*;
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
@@ -58,13 +57,11 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
         }
     };
 
-    // Run all test cases in parallel — each case is an isolated
-    // subprocess pair so there's no shared state to worry about.
-    // Rayon defaults to num_cpus threads which matches the available
-    // parallelism for subprocess-bound workloads like this.
-    let cases: Vec<Case> = entries
-        .par_iter()
-        .map(|entry| {
+    // Run all test cases in parallel via std::thread::scope.
+    let cases: Vec<Case> = std::thread::scope(|s| {
+        let handles: Vec<_> = entries
+            .iter()
+            .map(|entry| s.spawn(|| {
             let label = entry.label.clone().unwrap_or_else(|| entry.line.clone());
 
             let ours_json =
@@ -123,8 +120,10 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
                     impact,
                 }
             }
-        })
-        .collect();
+        }))
+            .collect();
+        handles.into_iter().map(|h| h.join().unwrap()).collect()
+    });
     report.cases = cases;
 
     report.summary = format!(

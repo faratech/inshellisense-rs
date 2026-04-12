@@ -1,134 +1,60 @@
 use anyhow::Result;
-use clap::{Args, Parser, Subcommand};
 use inshellisense_rs::{
     commands, config::UiMode, env as is_env, pty, resources, shell::Shell, shell_init,
 };
 
-/// IDE-style shell autocomplete in Rust. Drop-in compatible with Microsoft's
-/// inshellisense — reads the same `~/.inshellisenserc` /
-/// `~/.config/inshellisense/rc.toml`, honors the same `ISTERM` /
-/// `ISTERM_LOGIN` / `ISTERM_TESTING` env vars, and emits the same OSC 6973
-/// prompt markers.
-#[derive(Parser)]
-#[command(
-    name = "is",
-    bin_name = "is",
-    version,
-    about = "IDE-style shell autocomplete in Rust",
-    long_about = None,
-    disable_version_flag = true,
-)]
-struct Cli {
-    /// Print the current version and exit.
-    #[arg(short = 'v', long, global = true)]
-    version: bool,
-
-    /// Start the wrapped shell as a login shell.
-    #[arg(short = 'l', long, global = true)]
-    login: bool,
-
-    /// Shell to use (bash, zsh, fish, pwsh, powershell, xonsh, nu). Default
-    /// is auto-detected from the current environment.
-    #[arg(short = 's', long, global = true, value_enum)]
-    shell: Option<Shell>,
-
-    /// Check whether the current process is running inside an inshellisense-rs
-    /// session; prints a one-line status and exits 0 (live) or 1 (not found).
-    #[arg(short = 'c', long, global = true)]
-    check: bool,
-
-    /// Enable verbose diagnostic output.
-    #[arg(short = 'V', long, global = true)]
-    verbose: bool,
-
-    /// Deterministic test mode (sets ISTERM_TESTING, used by e2e tests).
-    #[arg(short = 'T', long, global = true, hide = true)]
-    test: bool,
-
-    #[command(subcommand)]
-    command: Option<Cmd>,
-}
-
-#[derive(Subcommand)]
-enum Cmd {
-    /// Start an interactive shell wrapped with autocomplete
-    /// (default when no subcommand is given). UI defaults to ghost
-    /// text; use `--ui popup` for the upstream-style popup TUI.
-    Start {
-        /// Override the suggestion UI mode. Defaults to the config
-        /// file's `ui` field (which defaults to `ghost`).
-        #[arg(long, value_enum)]
-        ui: Option<UiMode>,
-    },
-
-    /// Print or install the init snippet for the given shell.
-    Init {
-        /// Which shell to emit the init snippet for.
-        #[arg(value_enum)]
-        shell: Option<Shell>,
-        /// Instead of printing the snippet, append it to the shell's rc file.
-        #[arg(long = "install-rc")]
-        install_rc: bool,
-    },
-
-    /// Regenerate all shell init files and re-unpack resources.
-    Reinit,
-
-    /// Convenience alias for `is init --install-rc` — appends the bash
-    /// init snippet to ~/.bashrc. Kept from phase 0 for backwards compat.
-    #[command(hide = true)]
-    Install,
-
-    /// Run health checks and print resolved configuration.
-    Doctor,
-
-    /// Offline completion query: prints a suggestion for the given line.
-    Complete(CompleteArgs),
-
-    /// Manage loaded completion specs.
-    #[command(subcommand)]
-    Specs(SpecsCmd),
-
-    /// Deprecated alias for `specs list`. Use `is specs list` instead.
-    #[command(hide = true, alias = "listspecs")]
-    ListSpecs,
-
-    /// Remove cached resources (preserves user config).
-    Uninstall,
-}
-
-#[derive(Args)]
-struct CompleteArgs {
-    /// The command line so far (what the user has typed).
-    line: String,
-    /// Emit the full ranked Vec<Suggestion> as JSON instead of just the
-    /// top tail. Useful for inspection and parity testing.
-    #[arg(long)]
-    json: bool,
-    /// Override cwd (defaults to ".")
-    #[arg(long, default_value = ".")]
-    cwd: String,
-}
-
-#[derive(Subcommand)]
-enum SpecsCmd {
-    /// List the names of all loaded specs as a JSON array to stdout.
-    List {
-        /// Emit one name per line instead of a JSON array.
-        #[arg(long)]
-        plain: bool,
-    },
-}
-
 pub fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let args: Vec<String> = std::env::args().skip(1).collect();
 
-    // Top-level --version and --check short-circuit before dispatch.
-    if cli.version {
+    // Parse root flags (can appear before or after the subcommand).
+    let mut version = false;
+    let mut login = false;
+    let mut shell: Option<Shell> = None;
+    let mut check = false;
+    let mut verbose = false;
+    let mut rest: Vec<String> = Vec::new();
+
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "-v" | "--version" => version = true,
+            "-l" | "--login" => login = true,
+            "-c" | "--check" => check = true,
+            "-V" | "--verbose" => verbose = true,
+            "-T" | "--test" => {} // accepted, ignored (legacy)
+            "-h" | "--help" => {
+                print_help();
+                return Ok(());
+            }
+            "-s" | "--shell" => {
+                i += 1;
+                if i < args.len() {
+                    shell = parse_shell(&args[i]);
+                }
+            }
+            other => {
+                // Might be -s<value> (no space).
+                if let Some(val) = other.strip_prefix("-s") {
+                    shell = parse_shell(val);
+                } else if let Some(val) = other.strip_prefix("--shell=") {
+                    shell = parse_shell(val);
+                } else {
+                    rest.push(args[i].clone());
+                    // Collect all remaining args as subcommand args.
+                    rest.extend_from_slice(&args[i + 1..]);
+                    break;
+                }
+            }
+        }
+        i += 1;
+    }
+
+    // Top-level --version and --check short-circuit.
+    if version {
         println!("{}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
-    if cli.check {
+    if check {
         if is_env::session_active() {
             println!("inshellisense-rs session live");
             return Ok(());
@@ -137,21 +63,31 @@ pub fn main() -> Result<()> {
         std::process::exit(1);
     }
 
-    match cli.command.unwrap_or(Cmd::Start { ui: None }) {
-        Cmd::Start { ui } => {
+    // Dispatch on subcommand (first non-flag arg). Default = start.
+    let subcmd = rest.first().map(|s| s.as_str()).unwrap_or("start");
+    match subcmd {
+        "start" => {
+            let ui = parse_subcmd_flag(&rest, "--ui").and_then(|v| parse_ui(&v));
             let _ = resources::unpack();
-            let shell = cli.shell.unwrap_or_else(inshellisense_rs::shell::detect);
-            if cli.verbose {
+            let shell = shell.unwrap_or_else(inshellisense_rs::shell::detect);
+            if verbose {
                 let cfg = inshellisense_rs::config::load();
                 let effective_ui = ui.unwrap_or(cfg.ui);
                 eprintln!("inshellisense-rs: ui = {}", effective_ui.as_str());
                 eprintln!("inshellisense-rs: shell = {}", shell.as_str());
-                eprintln!("inshellisense-rs: login = {}", cli.login);
+                eprintln!("inshellisense-rs: login = {}", login);
             }
-            pty::run_wrapped(shell, cli.login, ui)
+            pty::run_wrapped(shell, login, ui)
         }
-        Cmd::Init { shell, install_rc } => {
-            let target = shell.unwrap_or(Shell::Bash);
+        "init" => {
+            let install_rc = rest.iter().any(|a| a == "--install-rc");
+            let target = rest
+                .iter()
+                .skip(1)
+                .find(|a| !a.starts_with('-'))
+                .and_then(|s| parse_shell(s))
+                .or(shell)
+                .unwrap_or(Shell::Bash);
             let _ = resources::unpack();
             if install_rc {
                 shell_init::install()
@@ -159,20 +95,105 @@ pub fn main() -> Result<()> {
                 shell_init::print_init(target.as_str())
             }
         }
-        Cmd::Reinit => commands::reinit::run(),
-        Cmd::Install => {
+        "reinit" => commands::reinit::run(),
+        "install" => {
             let _ = resources::unpack();
             shell_init::install()
         }
-        Cmd::Doctor => commands::doctor::run(),
-        Cmd::Complete(CompleteArgs { line, json, cwd }) => {
+        "doctor" => commands::doctor::run(),
+        "complete" => {
+            let json = rest.iter().any(|a| a == "--json");
+            let cwd = parse_subcmd_flag(&rest, "--cwd").unwrap_or_else(|| ".".to_string());
+            let line = rest
+                .iter()
+                .skip(1)
+                .find(|a| !a.starts_with('-'))
+                .cloned()
+                .unwrap_or_default();
             commands::complete::run(&line, json, &cwd)
         }
-        Cmd::Specs(SpecsCmd::List { plain }) => commands::specs::list(plain),
-        Cmd::ListSpecs => {
+        "specs" => {
+            let sub2 = rest.get(1).map(|s| s.as_str()).unwrap_or("list");
+            match sub2 {
+                "list" => {
+                    let plain = rest.iter().any(|a| a == "--plain");
+                    commands::specs::list(plain)
+                }
+                other => {
+                    eprintln!("is specs: unknown subcommand `{}`", other);
+                    std::process::exit(2);
+                }
+            }
+        }
+        "list-specs" | "listspecs" => {
             eprintln!("inshellisense-rs: `list-specs` is deprecated; use `is specs list` instead");
             commands::specs::list(true)
         }
-        Cmd::Uninstall => commands::uninstall::run(),
+        "uninstall" => commands::uninstall::run(),
+        other => {
+            eprintln!("is: unknown command `{}`\nRun `is --help` for usage.", other);
+            std::process::exit(2);
+        }
     }
+}
+
+fn parse_shell(s: &str) -> Option<Shell> {
+    match s.to_lowercase().as_str() {
+        "bash" => Some(Shell::Bash),
+        "zsh" => Some(Shell::Zsh),
+        "fish" => Some(Shell::Fish),
+        "pwsh" => Some(Shell::Pwsh),
+        "powershell" => Some(Shell::Powershell),
+        "xonsh" => Some(Shell::Xonsh),
+        "nu" => Some(Shell::Nu),
+        _ => None,
+    }
+}
+
+fn parse_ui(s: &str) -> Option<UiMode> {
+    match s.to_lowercase().as_str() {
+        "ghost" => Some(UiMode::Ghost),
+        "popup" => Some(UiMode::Popup),
+        "hybrid" => Some(UiMode::Hybrid),
+        _ => None,
+    }
+}
+
+/// Extract `--flag value` or `--flag=value` from a subcommand's args.
+fn parse_subcmd_flag(args: &[String], flag: &str) -> Option<String> {
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        if a == flag {
+            return it.next().cloned();
+        }
+        if let Some(val) = a.strip_prefix(&format!("{}=", flag)) {
+            return Some(val.to_string());
+        }
+    }
+    None
+}
+
+fn print_help() {
+    println!(
+        "IDE-style shell autocomplete in Rust
+
+Usage: is [OPTIONS] [COMMAND]
+
+Commands:
+  start      Start an interactive shell wrapped with autocomplete (default)
+  init       Print or install the init snippet for the given shell
+  reinit     Regenerate all shell init files and re-unpack resources
+  doctor     Run health checks and print resolved configuration
+  complete   Offline completion query: prints a suggestion for the given line
+  specs      Manage loaded completion specs
+  uninstall  Remove cached resources (preserves user config)
+
+Options:
+  -v, --version        Print the current version and exit
+  -l, --login          Start the wrapped shell as a login shell
+  -s, --shell <SHELL>  Shell to use (bash, zsh, fish, pwsh, powershell, xonsh, nu)
+  -c, --check          Check whether running inside an inshellisense-rs session
+  -V, --verbose        Enable verbose diagnostic output
+  -h, --help           Print this help"
+    );
 }

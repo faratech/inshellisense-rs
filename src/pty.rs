@@ -14,9 +14,7 @@ use crate::spec::Registry;
 use crate::suggest::Engine;
 use crate::term::TermTracker;
 use anyhow::{Context, Result};
-use portable_pty::{CommandBuilder, PtySize};
 use std::io::Write;
-use std::os::unix::io::AsRawFd;
 use std::thread;
 
 pub fn run_wrapped_shell() -> Result<()> {
@@ -49,44 +47,34 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     let target = shell.spawn_target(&shell_dir, &zsh_dotdir, login);
 
     let (cols, rows) = term_size().unwrap_or((80, 24));
-    let pty_system = portable_pty::native_pty_system();
-    let pair = pty_system
-        .openpty(PtySize {
-            rows,
-            cols,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .context("openpty failed")?;
 
-    let mut cmd = CommandBuilder::new(&shell_path);
-    for arg in &target.args {
-        cmd.arg(arg);
-    }
-    // Dual-guard: both ISTERM and INSH_RS are set so this coexists with
-    // upstream inshellisense's shell integration.
-    cmd.env("ISTERM", "1");
-    cmd.env("INSH_RS", "1");
+    // Build the environment for the child shell.
+    let mut child_env: Vec<(String, String)> = vec![
+        ("ISTERM".into(), "1".into()),
+        ("INSH_RS".into(), "1".into()),
+        ("TERM".into(), "xterm-256color".into()),
+    ];
     if login {
-        cmd.env("ISTERM_LOGIN", "1");
-        cmd.env("INSH_RS_LOGIN", "1");
+        child_env.push(("ISTERM_LOGIN".into(), "1".into()));
+        child_env.push(("INSH_RS_LOGIN".into(), "1".into()));
     }
-    cmd.env("TERM", "xterm-256color");
     for (k, v) in &target.env {
-        cmd.env(k, v);
+        child_env.push((k.clone(), v.clone()));
     }
     if let Ok(home) = std::env::var("HOME") {
-        cmd.env("HOME", home);
+        child_env.push(("HOME".into(), home));
     }
     if let Ok(path) = std::env::var("PATH") {
-        cmd.env("PATH", path);
+        child_env.push(("PATH".into(), path));
     }
 
-    let mut child = pair.slave.spawn_command(cmd).context("failed to spawn bash")?;
-    drop(pair.slave);
+    // Build argv: [shell_path, ...target.args].
+    let mut argv = vec![shell_path.clone()];
+    argv.extend(target.args.iter().cloned());
 
-    drop(pair.master.try_clone_reader()); // keep master alive for as_raw_fd
-    let mut writer = pair.master.take_writer().context("take writer")?;
+    let (master_fd, child_pid) =
+        spawn_pty(&shell_path, &argv, &child_env, rows, cols)
+            .context("forkpty failed")?;
 
     enable_raw_mode();
 
@@ -125,8 +113,8 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     // event loop uses libuv's epoll under the hood for exactly this —
     // blocking until data arrives on either the PTY master or stdin,
     // with zero CPU when idle. We match that model using libc::poll().
-    let pty_fd = pair.master.as_raw_fd().context("PTY master has no raw fd")?;
-    let stdin_fd = std::io::stdin().as_raw_fd();
+    let pty_fd = master_fd;
+    let stdin_fd = libc::STDIN_FILENO;
 
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
@@ -159,7 +147,10 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     let mut stdin_buf = [0u8; 1024];
 
     loop {
-        if let Ok(Some(_)) = child.try_wait() {
+        // Non-blocking child exit check.
+        let mut status: libc::c_int = 0;
+        let w = unsafe { libc::waitpid(child_pid, &mut status, libc::WNOHANG) };
+        if w > 0 {
             break;
         }
 
@@ -170,12 +161,13 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                 && (new_rows != tracker.rows() || new_cols != tracker.cols())
             {
                 tracker.resize(new_rows, new_cols);
-                let _ = pair.master.resize(PtySize {
-                    rows: new_rows,
-                    cols: new_cols,
-                    pixel_width: 0,
-                    pixel_height: 0,
-                });
+                let ws = libc::winsize {
+                    ws_row: new_rows,
+                    ws_col: new_cols,
+                    ws_xpixel: 0,
+                    ws_ypixel: 0,
+                };
+                unsafe { libc::ioctl(pty_fd, libc::TIOCSWINSZ, &ws) };
                 renderer.clear(&mut out).ok();
             }
         }
@@ -238,7 +230,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                     &tracker,
                     &mut renderer,
                     &mut out,
-                    &mut writer,
+                    pty_fd,
                     &mut submitting,
                 );
                 made_progress = true;
@@ -386,7 +378,7 @@ fn handle_stdin(
     tracker: &TermTracker,
     renderer: &mut Renderer,
     out: &mut impl Write,
-    writer: &mut Box<dyn Write + Send>,
+    master_fd: i32,
     submitting: &mut bool,
 ) {
     // Ghost-accept (right / End / Ctrl-E).
@@ -395,8 +387,7 @@ fn handle_stdin(
         if ghost_accept.contains(&bytes) {
             if let Some(tail) = pending_tail.take() {
                 renderer.clear(out).ok();
-                writer.write_all(tail.as_bytes()).ok();
-                writer.flush().ok();
+                pty_write(master_fd, tail.as_bytes());
                 *popup_mode = PopupMode::Hidden;
                 return;
             }
@@ -424,12 +415,11 @@ fn handle_stdin(
                     let tail = replacement_tail(selected, &partial);
                     renderer.clear(out).ok();
                     if !tail.is_empty() {
-                        writer.write_all(tail.as_bytes()).ok();
+                        pty_write(master_fd, tail.as_bytes());
                     }
                     if !matches!(selected.suggestion_type, SuggestionType::Folder) {
-                        writer.write_all(b" ").ok();
+                        pty_write(master_fd, b" ");
                     }
-                    writer.flush().ok();
                     *popup_mode = PopupMode::Hidden;
                     *pending_tail = None;
                     return;
@@ -453,8 +443,76 @@ fn handle_stdin(
         *submitting = true;
         *popup_mode = PopupMode::Hidden;
     }
-    writer.write_all(bytes).ok();
-    writer.flush().ok();
+    pty_write(master_fd, bytes);
+}
+
+/// Fork a child shell under a new PTY via libc::forkpty. Returns
+/// (master_fd, child_pid). The child never returns — it exec's.
+fn spawn_pty(
+    bin: &str,
+    argv: &[String],
+    env: &[(String, String)],
+    rows: u16,
+    cols: u16,
+) -> Result<(i32, libc::pid_t)> {
+    let mut master: libc::c_int = 0;
+    let ws = libc::winsize {
+        ws_row: rows,
+        ws_col: cols,
+        ws_xpixel: 0,
+        ws_ypixel: 0,
+    };
+    let pid = unsafe {
+        libc::forkpty(
+            &mut master,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            &ws,
+        )
+    };
+    match pid {
+        -1 => anyhow::bail!("forkpty failed: {}", std::io::Error::last_os_error()),
+        0 => {
+            // Child process: set env vars, then exec.
+            for (k, v) in env {
+                std::env::set_var(k, v);
+            }
+            let c_bin =
+                std::ffi::CString::new(bin.as_bytes()).expect("CString");
+            let c_argv: Vec<std::ffi::CString> = argv
+                .iter()
+                .map(|a| std::ffi::CString::new(a.as_bytes()).expect("CString"))
+                .collect();
+            let c_ptrs: Vec<*const libc::c_char> = c_argv
+                .iter()
+                .map(|a| a.as_ptr())
+                .chain(std::iter::once(std::ptr::null()))
+                .collect();
+            unsafe { libc::execvp(c_bin.as_ptr(), c_ptrs.as_ptr()) };
+            // execvp only returns on error.
+            eprintln!("is: execvp failed: {}", std::io::Error::last_os_error());
+            unsafe { libc::_exit(127) };
+        }
+        _ => Ok((master, pid)),
+    }
+}
+
+/// Write bytes to the PTY master fd.
+fn pty_write(fd: i32, data: &[u8]) {
+    let mut offset = 0;
+    while offset < data.len() {
+        let n = unsafe {
+            libc::write(
+                fd,
+                data[offset..].as_ptr() as *const libc::c_void,
+                data.len() - offset,
+            )
+        };
+        if n <= 0 {
+            break;
+        }
+        offset += n as usize;
+    }
 }
 
 fn term_size() -> Option<(u16, u16)> {

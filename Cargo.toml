@@ -15,8 +15,6 @@ name = "parity-scan"
 path = "src/bin/parity_scan.rs"
 
 [dependencies]
-clap = { version = "4", features = ["derive"] }
-portable-pty = "0.9"
 vt100 = { package = "vt100-ctt", version = "0.17", default-features = false }
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
@@ -25,7 +23,6 @@ toml = "1"
 libc = "0.2"
 unicode-width = "0.2"
 ruzstd = "0.8"
-rayon = "1"
 
 [features]
 default = []

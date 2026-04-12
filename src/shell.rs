@@ -10,10 +10,7 @@
 //! ZDOTDIR isolation for zsh. For now the rest of the codebase only cares
 //! about the enum variants and the one implemented path.
 
-use clap::ValueEnum;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ValueEnum)]
-#[value(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Shell {
     Bash,
     Zsh,

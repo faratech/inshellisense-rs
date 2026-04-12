@@ -148,9 +148,8 @@ impl Default for KeyBinding {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[value(rename_all = "lowercase")]
 pub enum UiMode {
     /// Grey ghost text inline after the cursor — PSReadLine style.
     Ghost,

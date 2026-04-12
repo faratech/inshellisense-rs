@@ -6,13 +6,9 @@
 //! the user visually compares.
 
 use super::{Case, CaseResult, Category, CategoryReport, ScanConfig};
-use portable_pty::{CommandBuilder, PtySize};
-use rayon::prelude::*;
 use serde::Deserialize;
 use std::fs;
-use std::io::{Read, Write};
 use std::path::Path;
-use std::thread;
 use std::time::{Duration, Instant};
 
 const PTY_ROWS: u16 = 40;
@@ -52,9 +48,10 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
     // own isolated PTY + subprocess pair, so there's no shared state
     // to contend over. This roughly 8x's throughput on a typical
     // 8-core box.
-    let cases: Vec<Case> = scenarios
-        .par_iter()
-        .map(|scenario| {
+    let cases: Vec<Case> = std::thread::scope(|s| {
+        let handles: Vec<_> = scenarios
+            .iter()
+            .map(|scenario| s.spawn(|| {
             let ours_bytes = run_scenario(&cfg.ours, scenario);
             let upstream_bytes = run_scenario(&cfg.upstream, scenario);
 
@@ -91,8 +88,10 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
                     impact,
                 }
             }
-        })
-        .collect();
+        }))
+            .collect();
+        handles.into_iter().map(|h| h.join().unwrap()).collect()
+    });
     report.cases = cases;
 
     report.summary = format!(
@@ -119,129 +118,88 @@ fn load_corpus(path: &Path) -> std::io::Result<Vec<Scenario>> {
 }
 
 fn run_scenario(bin: &Path, scenario: &Scenario) -> Vec<u8> {
-    let pty_system = portable_pty::native_pty_system();
-    let pair = match pty_system.openpty(PtySize {
-        rows: PTY_ROWS,
-        cols: PTY_COLS,
-        pixel_width: 0,
-        pixel_height: 0,
-    }) {
-        Ok(p) => p,
-        Err(_) => return Vec::new(),
+    let mut master: libc::c_int = 0;
+    let ws = libc::winsize {
+        ws_row: PTY_ROWS,
+        ws_col: PTY_COLS,
+        ws_xpixel: 0,
+        ws_ypixel: 0,
     };
-
-    let mut cmd = CommandBuilder::new(bin);
-    cmd.arg("start");
-    // Force pure popup mode so our Hybrid (ghost+popup) doesn't
-    // draw ghost text that upstream doesn't emit. Upstream doesn't
-    // understand --ui but tolerates unknown args gracefully on its
-    // own `start` subcommand (flag is a no-op there).
-    cmd.args(["--ui", "popup"]);
-    cmd.env("TERM", "xterm-256color");
-    // Intentionally don't set COLORTERM so both binaries fall back to
-    // the 256-color path (chalk's default on Linux ttys).
-    cmd.env_remove("COLORTERM");
-    // Both binaries need to find their resource trees (upstream
-    // wants `~/.inshellisense/`, ours wants `~/.insh-rs/`). Using an
-    // isolated HOME means neither exists → upstream prints
-    // "resources out of date". Keep the real HOME so both see their
-    // installed resources.
-    if let Ok(home) = std::env::var("HOME") {
-        cmd.env("HOME", home);
-    }
-    cmd.env("PS1", "$ ");
-    if let Ok(path) = std::env::var("PATH") {
-        cmd.env("PATH", path);
+    let pid = unsafe {
+        libc::forkpty(&mut master, std::ptr::null_mut(), std::ptr::null_mut(), &ws)
+    };
+    match pid {
+        -1 => return Vec::new(),
+        0 => {
+            // Child: exec the binary under test.
+            std::env::set_var("TERM", "xterm-256color");
+            std::env::remove_var("COLORTERM");
+            std::env::set_var("PS1", "$ ");
+            let c_bin = std::ffi::CString::new(bin.to_str().unwrap_or("")).unwrap();
+            let args = ["start", "--ui", "popup"];
+            let c_args: Vec<std::ffi::CString> = std::iter::once(c_bin.clone())
+                .chain(args.iter().map(|a| std::ffi::CString::new(*a).unwrap()))
+                .collect();
+            let c_ptrs: Vec<*const libc::c_char> = c_args.iter()
+                .map(|a| a.as_ptr())
+                .chain(std::iter::once(std::ptr::null()))
+                .collect();
+            unsafe { libc::execvp(c_bin.as_ptr(), c_ptrs.as_ptr()) };
+            unsafe { libc::_exit(127) };
+        }
+        _ => {}
     }
 
-    let mut child = match pair.slave.spawn_command(cmd) {
-        Ok(c) => c,
-        Err(_) => return Vec::new(),
-    };
-    drop(pair.slave);
+    let fd = master;
 
-    let mut reader = match pair.master.try_clone_reader() {
-        Ok(r) => r,
-        Err(_) => return Vec::new(),
-    };
-    let mut writer = match pair.master.take_writer() {
-        Ok(w) => w,
-        Err(_) => return Vec::new(),
-    };
-
-    // Reader thread → shared buffer.
-    let (tx, rx) = std::sync::mpsc::channel::<Vec<u8>>();
-    thread::spawn(move || {
+    let drain = |captured: &mut Vec<u8>, dur: Duration| {
+        let end = Instant::now() + dur;
         let mut buf = [0u8; 4096];
-        loop {
-            match reader.read(&mut buf) {
-                Ok(0) => break,
-                Ok(n) => {
-                    if tx.send(buf[..n].to_vec()).is_err() {
-                        break;
-                    }
+        while Instant::now() < end {
+            let mut fds = [libc::pollfd { fd, events: libc::POLLIN, revents: 0 }];
+            let remaining = (end - Instant::now()).as_millis().min(50) as i32;
+            let n = unsafe { libc::poll(fds.as_mut_ptr(), 1, remaining) };
+            if n > 0 && fds[0].revents & libc::POLLIN != 0 {
+                let r = unsafe { libc::read(fd, buf.as_mut_ptr() as _, buf.len()) };
+                if r > 0 {
+                    captured.extend_from_slice(&buf[..r as usize]);
                 }
-                Err(_) => break,
             }
         }
-    });
+    };
 
     let mut captured = Vec::new();
-    let drain_into = |captured: &mut Vec<u8>, rx: &std::sync::mpsc::Receiver<Vec<u8>>, dur: Duration| {
-        let end = Instant::now() + dur;
-        while Instant::now() < end {
-            if let Ok(chunk) = rx.recv_timeout(Duration::from_millis(50)) {
-                captured.extend_from_slice(&chunk);
-            }
-        }
-    };
+    drain(&mut captured, Duration::from_millis(5000));
 
-    drain_into(&mut captured, &rx, Duration::from_millis(5000));
-
-    // Type the scenario keys one char at a time with a generous
-    // per-char settle. Upstream's `getSuggestions()` is fully async
-    // and takes ~500-1000ms per invocation (Node SEA startup + spec
-    // lookup). If we type too fast, upstream falls behind and
-    // emits clear-only cycles for the trailing chars, leaving the
-    // popup showing results for the first keystroke only. 800ms
-    // matches upstream's typical resolve latency on this machine.
     for ch in scenario.keys.chars() {
         let mut buf = [0u8; 4];
         let s = ch.encode_utf8(&mut buf);
-        let _ = writer.write_all(s.as_bytes());
-        let _ = writer.flush();
-        drain_into(&mut captured, &rx, Duration::from_millis(800));
+        unsafe { libc::write(fd, s.as_bytes().as_ptr() as _, s.len()) };
+        drain(&mut captured, Duration::from_millis(800));
     }
 
-    // Wait for async suggestion resolution.
-    drain_into(&mut captured, &rx, Duration::from_millis(scenario.settle_ms));
+    drain(&mut captured, Duration::from_millis(scenario.settle_ms));
 
-    // Optional follow-up keys (e.g. tab, escape).
     if let Some(then) = &scenario.then {
         for ch in then.chars() {
             let mut buf = [0u8; 4];
             let s = ch.encode_utf8(&mut buf);
-            let _ = writer.write_all(s.as_bytes());
-            let _ = writer.flush();
-            drain_into(&mut captured, &rx, Duration::from_millis(150));
+            unsafe { libc::write(fd, s.as_bytes().as_ptr() as _, s.len()) };
+            drain(&mut captured, Duration::from_millis(150));
         }
-        drain_into(
-            &mut captured,
-            &rx,
-            Duration::from_millis(scenario.then_settle_ms.unwrap_or(500)),
-        );
+        drain(&mut captured, Duration::from_millis(scenario.then_settle_ms.unwrap_or(500)));
     }
 
-    // Ctrl-C + exit to shut down cleanly.
-    let _ = writer.write_all(b"\x03");
-    let _ = writer.flush();
-    drain_into(&mut captured, &rx, Duration::from_millis(200));
-    let _ = writer.write_all(b"exit\r");
-    let _ = writer.flush();
-    drain_into(&mut captured, &rx, Duration::from_millis(500));
+    unsafe { libc::write(fd, b"\x03".as_ptr() as _, 1) };
+    drain(&mut captured, Duration::from_millis(200));
+    unsafe { libc::write(fd, b"exit\r".as_ptr() as _, 5) };
+    drain(&mut captured, Duration::from_millis(500));
 
-    let _ = child.kill();
-    let _ = child.wait();
+    unsafe {
+        libc::kill(pid, libc::SIGKILL);
+        libc::waitpid(pid, std::ptr::null_mut(), 0);
+        libc::close(fd);
+    }
 
     captured
 }
