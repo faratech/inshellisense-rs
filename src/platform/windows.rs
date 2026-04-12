@@ -371,15 +371,23 @@ impl PtyHandle for WindowsPty {
                 if key.wVirtualKeyCode == 0 {
                     continue;
                 }
+                // Keys like Backspace, Tab, Return have non-zero
+                // UnicodeChar (0x08, 0x09, 0x0D) but need specific
+                // byte values. Handle them via vkey BEFORE the
+                // generic ch!=0 path.
                 let ch = key.uChar.UnicodeChar;
-                if ch != 0 {
+                let handled_by_vkey = matches!(
+                    key.wVirtualKeyCode,
+                    VK_BACK | VK_TAB | VK_RETURN | VK_ESCAPE
+                );
+                if ch != 0 && !handled_by_vkey {
                     // Regular character — encode as UTF-8.
                     if let Some(c) = char::from_u32(ch as u32) {
                         let encoded = c.encode_utf8(&mut buf[total..]);
                         total += encoded.len();
                     }
                 } else {
-                    // No character — generate VT sequence from vkey.
+                    // Generate the correct byte from vkey.
                     let seq: &[u8] = match key.wVirtualKeyCode {
                         VK_BACK => b"\x7f",
                         VK_TAB => b"\t",
