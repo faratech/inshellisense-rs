@@ -1,5 +1,5 @@
-//! Materialize vendored shell integration scripts into `~/.insh-rs/shell/`
-//! and generate per-shell init files into `~/.insh-rs/init/<shell>/`.
+//! Materialize vendored shell integration scripts into `~/.inshellisense/shell/`
+//! and generate per-shell init files into `~/.inshellisense/init/<shell>/`.
 //!
 //! This is the equivalent of upstream's `unpackResources` + `createShellConfigs`
 //! flow (`/tmp/inshellisense/src/utils/shell.ts:106-134`). Called eagerly
@@ -16,7 +16,7 @@ use std::fs;
 
 /// Every shell integration script we vendor, keyed by filename.
 /// The extractor's output filename is what gets written into
-/// `~/.insh-rs/shell/`.
+/// `~/.inshellisense/shell/`.
 const SHELL_SCRIPTS: &[(&str, &str)] = &[
     ("shellIntegration.bash", include_str!("../shell/shellIntegration.bash")),
     ("bash-preexec.sh", include_str!("../shell/bash-preexec.sh")),
@@ -41,7 +41,7 @@ pub const ALL_SHELLS: &[Shell] = &[
     Shell::Nu,
 ];
 
-/// Ensure `~/.insh-rs/` exists and contains the current version's
+/// Ensure `~/.inshellisense/` exists and contains the current version's
 /// shell integration scripts + init files for every supported shell.
 ///
 /// Returns the resource root path for logging/verification.
@@ -97,48 +97,48 @@ fn write_init_file(shell: Shell) -> Result<()> {
     Ok(())
 }
 
-/// The contents of `~/.insh-rs/init/<shell>/init.<ext>` — a one-line
+/// The contents of `~/.inshellisense/init/<shell>/init.<ext>` — a one-line
 /// source directive that pulls in the vendored shell integration.
 fn init_file_contents(shell: Shell) -> String {
     let shell_dir = paths::shell_dir()
         .map(|p| p.display().to_string())
-        .unwrap_or_else(|| "$HOME/.insh-rs/shell".to_string());
+        .unwrap_or_else(|| "$HOME/.inshellisense/shell".to_string());
     match shell {
         Shell::Bash => format!(
-            "# insh-rs bash init — sourced from ~/.bashrc\n\
+            "# inshellisense-rs bash init — sourced from ~/.bashrc\n\
              if [ -f '{sd}/shellIntegration.bash' ]; then\n\
                  source '{sd}/shellIntegration.bash'\n\
              fi\n",
             sd = shell_dir
         ),
         Shell::Zsh => format!(
-            "# insh-rs zsh init — sourced from ~/.zshrc\n\
+            "# inshellisense-rs zsh init — sourced from ~/.zshrc\n\
              if [[ -f '{sd}/shellIntegration-rc.zsh' ]]; then\n\
                  source '{sd}/shellIntegration-rc.zsh'\n\
              fi\n",
             sd = shell_dir
         ),
         Shell::Fish => format!(
-            "# insh-rs fish init — sourced from ~/.config/fish/config.fish\n\
+            "# inshellisense-rs fish init — sourced from ~/.config/fish/config.fish\n\
              if test -f '{sd}/shellIntegration.fish'\n\
                  source '{sd}/shellIntegration.fish'\n\
              end\n",
             sd = shell_dir
         ),
         Shell::Pwsh | Shell::Powershell => format!(
-            "# insh-rs powershell init — sourced from $PROFILE\n\
+            "# inshellisense-rs powershell init — sourced from $PROFILE\n\
              if ( Test-Path '{sd}/shellIntegration.ps1' -PathType Leaf ) {{\n\
                  . '{sd}/shellIntegration.ps1'\n\
              }}\n",
             sd = shell_dir
         ),
         Shell::Xonsh => format!(
-            "# insh-rs xonsh init\n\
+            "# inshellisense-rs xonsh init\n\
              p'{sd}/shellIntegration.xsh'.exists() and source '{sd}/shellIntegration.xsh'\n",
             sd = shell_dir
         ),
         Shell::Nu => format!(
-            "# insh-rs nu init\n\
+            "# inshellisense-rs nu init\n\
              if ('{sd}/shellIntegration.nu' | path exists) {{ source '{sd}/shellIntegration.nu' }}\n",
             sd = shell_dir
         ),
@@ -150,7 +150,7 @@ fn init_file_contents(shell: Shell) -> String {
     }
 }
 
-/// Populate `~/.insh-rs/zsh-dotdir/` with the four zsh startup files that
+/// Populate `~/.inshellisense/zsh-dotdir/` with the four zsh startup files that
 /// zsh reads when ZDOTDIR is set. Each is a thin wrapper that sources the
 /// user's original rc (via `USER_ZDOTDIR`) + our shell integration.
 ///
@@ -160,10 +160,10 @@ fn populate_zsh_dotdir() -> Result<()> {
     fs::create_dir_all(&dir)?;
     let shell_dir = paths::shell_dir()
         .map(|p| p.display().to_string())
-        .unwrap_or_else(|| "$HOME/.insh-rs/shell".to_string());
+        .unwrap_or_else(|| "$HOME/.inshellisense/shell".to_string());
 
     let env_contents = format!(
-        "# insh-rs zsh .zshenv — sources user's original then our env hook\n\
+        "# inshellisense-rs zsh .zshenv — sources user's original then our env hook\n\
          if [[ -n \"${{USER_ZDOTDIR:-}}\" && -f \"${{USER_ZDOTDIR}}/.zshenv\" ]]; then\n\
              source \"${{USER_ZDOTDIR}}/.zshenv\"\n\
          fi\n\
@@ -173,7 +173,7 @@ fn populate_zsh_dotdir() -> Result<()> {
         sd = shell_dir
     );
     let rc_contents = format!(
-        "# insh-rs zsh .zshrc\n\
+        "# inshellisense-rs zsh .zshrc\n\
          if [[ -n \"${{USER_ZDOTDIR:-}}\" && -f \"${{USER_ZDOTDIR}}/.zshrc\" ]]; then\n\
              source \"${{USER_ZDOTDIR}}/.zshrc\"\n\
          fi\n\
@@ -183,7 +183,7 @@ fn populate_zsh_dotdir() -> Result<()> {
         sd = shell_dir
     );
     let login_contents = format!(
-        "# insh-rs zsh .zlogin\n\
+        "# inshellisense-rs zsh .zlogin\n\
          if [[ -n \"${{USER_ZDOTDIR:-}}\" && -f \"${{USER_ZDOTDIR}}/.zlogin\" ]]; then\n\
              source \"${{USER_ZDOTDIR}}/.zlogin\"\n\
          fi\n\
@@ -193,7 +193,7 @@ fn populate_zsh_dotdir() -> Result<()> {
         sd = shell_dir
     );
     let profile_contents = format!(
-        "# insh-rs zsh .zprofile\n\
+        "# inshellisense-rs zsh .zprofile\n\
          if [[ -n \"${{USER_ZDOTDIR:-}}\" && -f \"${{USER_ZDOTDIR}}/.zprofile\" ]]; then\n\
              source \"${{USER_ZDOTDIR}}/.zprofile\"\n\
          fi\n\
@@ -210,7 +210,7 @@ fn populate_zsh_dotdir() -> Result<()> {
     Ok(())
 }
 
-/// Remove the entire `~/.insh-rs/` tree. Called by `insh uninstall`.
+/// Remove the entire `~/.inshellisense/` tree. Called by `insh uninstall`.
 /// Returns Ok(()) if already absent.
 pub fn remove_all() -> Result<()> {
     let Some(root) = paths::resource_root() else {

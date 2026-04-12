@@ -54,7 +54,7 @@ impl Shell {
     /// Compute the binary, argv, and env overrides needed to spawn this
     /// shell under a PTY with our integration script sourced at startup.
     ///
-    /// `shell_dir` is the path to `~/.insh-rs/shell/` (absolute). If the
+    /// `shell_dir` is the path to `~/.inshellisense/shell/` (absolute). If the
     /// directory doesn't exist yet, callers should run
     /// `crate::resources::unpack()` first.
     pub fn spawn_target(
@@ -148,7 +148,7 @@ impl Shell {
         SpawnTarget { binary, args, env }
     }
 
-    /// Filename for the generated init file in ~/.insh-rs/init/<shell>/<file>.
+    /// Filename for the generated init file in ~/.inshellisense/init/<shell>/<file>.
     pub fn init_file_name(self) -> &'static str {
         match self {
             Shell::Bash => "init.sh",

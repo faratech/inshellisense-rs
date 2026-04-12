@@ -27,7 +27,7 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
     // We only fail when upstream has specs we're missing. Having more
     // specs than upstream is a win (we're ahead on corpus coverage),
     // not a divergence — the popup still works for the extra commands,
-    // and users on insh-rs benefit from the extras.
+    // and users on inshellisense-rs benefit from the extras.
     if only_upstream.is_empty() {
         report.push_pass("specs list");
     } else {

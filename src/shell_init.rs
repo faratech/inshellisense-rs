@@ -14,8 +14,8 @@
 use crate::shell::Shell;
 use anyhow::Result;
 
-const MARKER: &str = "# >>> insh-rs init >>>";
-const MARKER_END: &str = "# <<< insh-rs init <<<";
+const MARKER: &str = "# >>> inshellisense-rs init >>>";
+const MARKER_END: &str = "# <<< inshellisense-rs init <<<";
 
 /// The auto-exec wrapper appended to `~/.bashrc` by `is install`.
 /// Not used by `is init bash` — that path emits upstream's source
@@ -35,17 +35,17 @@ fi
 
 /// Upstream-parity init snippet for each shell. The path template
 /// matches `~/.inshellisense/init/<shell>/init.<ext>` shape — we use
-/// `~/.insh-rs/` but otherwise emit byte-identical lines so migrating
+/// `~/.inshellisense/` but otherwise emit byte-identical lines so migrating
 /// users can swap out the path and everything else stays the same.
 pub fn source_snippet(shell: Shell) -> String {
     let init_rel = match shell {
-        Shell::Bash => "~/.insh-rs/init/bash/init.sh",
-        Shell::Zsh => "~/.insh-rs/init/zsh/init.zsh",
-        Shell::Fish => "~/.insh-rs/init/fish/init.fish",
-        Shell::Pwsh => "~/.insh-rs/init/pwsh/init.ps1",
-        Shell::Powershell => "~/.insh-rs/init/pwsh/init.ps1",
-        Shell::Xonsh => "~/.insh-rs/init/xonsh/init.xsh",
-        Shell::Nu => "~/.insh-rs/init/nu/init.nu",
+        Shell::Bash => "~/.inshellisense/init/bash/init.sh",
+        Shell::Zsh => "~/.inshellisense/init/zsh/init.zsh",
+        Shell::Fish => "~/.inshellisense/init/fish/init.fish",
+        Shell::Pwsh => "~/.inshellisense/init/pwsh/init.ps1",
+        Shell::Powershell => "~/.inshellisense/init/pwsh/init.ps1",
+        Shell::Xonsh => "~/.inshellisense/init/xonsh/init.xsh",
+        Shell::Nu => "~/.inshellisense/init/nu/init.nu",
         #[cfg(windows)]
         Shell::Cmd => return String::new(), // cmd.exe uses PROMPT env var, no init snippet
     };

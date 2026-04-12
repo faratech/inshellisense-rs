@@ -4,7 +4,7 @@
 //!   1. Legacy config scan — detects old `~/.inshellisense/init/...`
 //!      references in shell rc files (users migrating from upstream).
 //!   2. Shell config existence — every supported shell should have a
-//!      generated init file under `~/.insh-rs/init/<shell>/`.
+//!      generated init file under `~/.inshellisense/init/<shell>/`.
 //!   3. Shell plugin check — the user's rc file should source our init
 //!      file as its LAST non-whitespace line.
 //!
@@ -46,7 +46,7 @@ pub fn run() -> Result<()> {
 }
 
 /// Suite 1 — scan shell rc files for old `~/.inshellisense/...` references
-/// that should be removed when migrating to insh-rs.
+/// that should be removed when migrating to inshellisense-rs.
 fn check_legacy_configs() -> i32 {
     let shells_with_legacy = shells_with_legacy_config();
     if !shells_with_legacy.is_empty() {
@@ -65,7 +65,7 @@ fn check_legacy_configs() -> i32 {
 }
 
 /// Suite 2 — check that every supported shell has a generated init file
-/// under `~/.insh-rs/init/<shell>/init.<ext>`.
+/// under `~/.inshellisense/init/<shell>/init.<ext>`.
 fn check_shell_configs() -> i32 {
     let shells_without = shells_without_init_file();
     if !shells_without.is_empty() {
@@ -116,7 +116,7 @@ fn check_shell_plugins() -> i32 {
             eprintln!("  {RED_DASH} {}", s.as_str());
         }
         eprintln!(
-            "{YELLOW}  the insh-rs source line must be the last non-whitespace line in the rc file — upstream inshellisense has the same requirement{RESET}"
+            "{YELLOW}  the inshellisense-rs source line must be the last non-whitespace line in the rc file — upstream inshellisense has the same requirement{RESET}"
         );
         failed = 1;
     }
@@ -149,7 +149,7 @@ fn shells_with_legacy_config() -> Vec<Shell> {
         .iter()
         .copied()
         .filter(|&s| rc_file_contains(s, "~/.inshellisense") || rc_file_contains(s, "inshellisense/init"))
-        .filter(|&s| !rc_file_contains(s, "insh-rs")) // upstream users aren't legacy from our POV
+        .filter(|&s| !rc_file_contains(s, "inshellisense-rs")) // upstream users aren't legacy from our POV
         .collect()
 }
 
@@ -203,7 +203,7 @@ fn rc_file_contains(shell: Shell, needle: &str) -> bool {
 fn insh_rs_marker() -> &'static str {
     // Whatever string is unique to our install snippet. Matches the
     // MARKER constant in src/shell_init.rs.
-    "# >>> insh-rs init >>>"
+    "# >>> inshellisense-rs init >>>"
 }
 
 fn is_last_non_whitespace(contents: &str, marker: &str) -> bool {
@@ -212,7 +212,7 @@ fn is_last_non_whitespace(contents: &str, marker: &str) -> bool {
     };
     // Find the end of the block (the closing MARKER_END).
     let after = &contents[idx + marker.len()..];
-    let end_marker = "# <<< insh-rs init <<<";
+    let end_marker = "# <<< inshellisense-rs init <<<";
     let Some(end_rel) = after.find(end_marker) else {
         // Open marker without close — treat as corrupt
         return false;
@@ -237,19 +237,19 @@ mod tests {
 
     #[test]
     fn last_line_check_positive() {
-        let s = "foo\nbar\n# >>> insh-rs init >>>\nline\n# <<< insh-rs init <<<\n";
-        assert!(is_last_non_whitespace(s, "# >>> insh-rs init >>>"));
+        let s = "foo\nbar\n# >>> inshellisense-rs init >>>\nline\n# <<< inshellisense-rs init <<<\n";
+        assert!(is_last_non_whitespace(s, "# >>> inshellisense-rs init >>>"));
     }
 
     #[test]
     fn last_line_check_negative() {
-        let s = "foo\n# >>> insh-rs init >>>\nline\n# <<< insh-rs init <<<\nalias ll=ls\n";
-        assert!(!is_last_non_whitespace(s, "# >>> insh-rs init >>>"));
+        let s = "foo\n# >>> inshellisense-rs init >>>\nline\n# <<< inshellisense-rs init <<<\nalias ll=ls\n";
+        assert!(!is_last_non_whitespace(s, "# >>> inshellisense-rs init >>>"));
     }
 
     #[test]
     fn last_line_check_missing_end() {
-        let s = "# >>> insh-rs init >>>\n(no close)\n";
-        assert!(!is_last_non_whitespace(s, "# >>> insh-rs init >>>"));
+        let s = "# >>> inshellisense-rs init >>>\n(no close)\n";
+        assert!(!is_last_non_whitespace(s, "# >>> inshellisense-rs init >>>"));
     }
 }

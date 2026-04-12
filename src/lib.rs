@@ -1,4 +1,4 @@
-//! insh-rs library crate — exposes the internal modules so integration
+//! inshellisense-rs library crate — exposes the internal modules so integration
 //! tests and external consumers can drive the suggestion engine, spec
 //! registry, parser, and generator runtime directly.
 //!

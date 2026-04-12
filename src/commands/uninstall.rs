@@ -1,8 +1,8 @@
 //! `insh uninstall` — remove cached resources, preserving user config.
 //!
 //! Port of `/tmp/inshellisense/src/commands/uninstall.ts`. Deletes the
-//! `~/.insh-rs/` resource tree (log/, shell/, init/, zsh-dotdir/, spec/,
-//! version.txt) but leaves `~/.config/insh-rs/` (user config, key
+//! `~/.inshellisense/` resource tree (log/, shell/, init/, zsh-dotdir/, spec/,
+//! version.txt) but leaves `~/.config/inshellisense/` (user config, key
 //! bindings, user specs) intact. Idempotent — re-running is safe.
 
 use crate::{paths, resources};
@@ -15,12 +15,12 @@ pub fn run() -> Result<()> {
     };
     if !root.exists() {
         println!("• {} not present — nothing to do", root.display());
-        println!("  user config at ~/.config/insh-rs/ preserved");
+        println!("  user config at ~/.config/inshellisense/ preserved");
         return Ok(());
     }
     resources::remove_all()?;
     println!("✓ removed {}", root.display());
-    println!("  user config at ~/.config/insh-rs/ preserved");
-    println!("  run `cargo uninstall insh-rs` to remove the binary");
+    println!("  user config at ~/.config/inshellisense/ preserved");
+    println!("  run `cargo uninstall inshellisense-rs` to remove the binary");
     Ok(())
 }

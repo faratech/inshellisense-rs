@@ -1,4 +1,4 @@
-//! `parity-scan` — standalone tool that compares insh-rs against
+//! `parity-scan` — standalone tool that compares inshellisense-rs against
 //! upstream inshellisense across six categories (cli, init, doctor,
 //! complete, specs, render) and emits a markdown report.
 //!
@@ -148,12 +148,12 @@ fn main() -> ExitCode {
 
 fn print_help() {
     println!(
-        "parity-scan — compare insh-rs against upstream inshellisense
+        "parity-scan — compare inshellisense-rs against upstream inshellisense
 
 Usage: parity-scan [OPTIONS]
 
 Options:
-  --ours <PATH>        Path to insh-rs binary (default: target/release/insh)
+  --ours <PATH>        Path to inshellisense-rs binary (default: target/release/insh)
   --upstream <PATH>    Path to upstream binary
   --corpus <DIR>       Corpus directory (default: tests/parity)
   --report <PATH>      Output markdown report (default: /tmp/parity-report.md)

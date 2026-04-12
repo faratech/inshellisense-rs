@@ -1,6 +1,6 @@
 //! Dual-guard env var helpers.
 //!
-//! insh-rs coexists with Microsoft's upstream inshellisense: we read BOTH
+//! inshellisense-rs coexists with Microsoft's upstream inshellisense: we read BOTH
 //! `INSH_RS` and `ISTERM` for session detection, and we SET both whenever
 //! we spawn a wrapped shell. Same for the `_LOGIN` and `_TESTING` suffixes.
 //! This makes our binary drop-in compatible with upstream shell integrations

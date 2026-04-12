@@ -27,7 +27,7 @@ The binary is ~5.8 MB stripped (3.8 MB of that is the embedded zstd-compressed s
 - **`src/suggest.rs`** — Suggestion engine. Consumes registry + history, returns ranked `Vec<Suggestion>`.
 - **`src/term.rs`** — Headless vt100 terminal tracker. Feeds PTY output through `vt100-ctt` parser to extract the current command text.
 - **`src/ansi.rs`** — OSC 6973 stream scanner (prompt-start/end/cwd markers).
-- **`src/config.rs`** — TOML config loader. Reads `~/.inshellisenserc`, `~/.config/inshellisense/rc.toml`, `~/.config/insh-rs/rc.toml` (or `%APPDATA%` on Windows). Accepts both camelCase and snake_case field names.
+- **`src/config.rs`** — TOML config loader. Reads `~/.inshellisenserc`, `~/.config/inshellisense/rc.toml`, `~/.config/inshellisense/rc.toml` (or `%APPDATA%` on Windows). Accepts both camelCase and snake_case field names.
 - **`src/shell.rs`** — Shell enum (Bash, Zsh, Fish, Pwsh, Powershell, Xonsh, Nu, Cmd on Windows). Detection, spawn targets, init snippets.
 - **`src/parity/`** — Dev-only parity scanner (`cargo run --bin parity-scan`).
 
@@ -106,7 +106,7 @@ cargo xwin build --release --target x86_64-pc-windows-msvc   # x64
 
 | | Unix | Windows |
 |---|---|---|
-| Resource root | `~/.insh-rs/` | `%USERPROFILE%\.insh-rs\` |
-| User config | `~/.config/insh-rs/rc.toml` | `%APPDATA%\insh-rs\rc.toml` |
-| User specs | `~/.config/insh-rs/specs/*.toml` | `%APPDATA%\insh-rs\specs\*.toml` |
+| Resource root | `~/.inshellisense/` | `%USERPROFILE%\.inshellisense\` |
+| User config | `~/.config/inshellisense/rc.toml` | `%APPDATA%\inshellisense\rc.toml` |
+| User specs | `~/.config/inshellisense/specs/*.toml` | `%APPDATA%\inshellisense\specs\*.toml` |
 | Upstream compat | `~/.inshellisenserc` | `%USERPROFILE%\.inshellisenserc` |

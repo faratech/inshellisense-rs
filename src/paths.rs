@@ -2,11 +2,11 @@
 //! in one place.
 //!
 //! The layout mirrors upstream inshellisense's `~/.inshellisense/` tree,
-//! just renamed to `~/.insh-rs/`. User config stays under the XDG-standard
-//! `~/.config/insh-rs/` per our own convention.
+//! just renamed to `~/.inshellisense/`. User config stays under the XDG-standard
+//! `~/.config/inshellisense-rs/` per our own convention.
 //!
 //! ```text
-//! ~/.insh-rs/
+//! ~/.inshellisense/
 //!   version.txt              # package version that unpacked this tree
 //!   log/                     # verbose-mode debug logs
 //!   shell/                   # canonical shell integration scripts
@@ -66,9 +66,9 @@ pub fn config_dir() -> Option<PathBuf> {
     }
 }
 
-/// `~/.insh-rs/` — the resource root.
+/// `~/.inshellisense/` — the resource root.
 pub fn resource_root() -> Option<PathBuf> {
-    home().map(|h| h.join(".insh-rs"))
+    home().map(|h| h.join(".inshellisense"))
 }
 
 pub fn version_file() -> Option<PathBuf> {
@@ -79,37 +79,37 @@ pub fn log_dir() -> Option<PathBuf> {
     resource_root().map(|r| r.join("log"))
 }
 
-/// `~/.insh-rs/shell/` — vendored shell integration scripts.
+/// `~/.inshellisense/shell/` — vendored shell integration scripts.
 pub fn shell_dir() -> Option<PathBuf> {
     resource_root().map(|r| r.join("shell"))
 }
 
-/// `~/.insh-rs/init/<shell>/` — the per-shell generated init file directory.
+/// `~/.inshellisense/init/<shell>/` — the per-shell generated init file directory.
 pub fn init_dir(shell: Shell) -> Option<PathBuf> {
     resource_root().map(|r| r.join("init").join(shell.as_str()))
 }
 
-/// `~/.insh-rs/init/<shell>/init.<ext>` — the actual generated init file.
+/// `~/.inshellisense/init/<shell>/init.<ext>` — the actual generated init file.
 pub fn init_file(shell: Shell) -> Option<PathBuf> {
     init_dir(shell).map(|d| d.join(shell.init_file_name()))
 }
 
-/// `~/.insh-rs/zsh-dotdir/` — the isolated ZDOTDIR for zsh wrapping.
+/// `~/.inshellisense/zsh-dotdir/` — the isolated ZDOTDIR for zsh wrapping.
 pub fn zsh_dotdir() -> Option<PathBuf> {
     resource_root().map(|r| r.join("zsh-dotdir"))
 }
 
-/// `~/.insh-rs/spec/` — runtime extras spec loader target.
+/// `~/.inshellisense/spec/` — runtime extras spec loader target.
 pub fn spec_dir() -> Option<PathBuf> {
     resource_root().map(|r| r.join("spec"))
 }
 
-/// User-config root. XDG-standard: `~/.config/insh-rs/`.
+/// User-config root. XDG-standard: `~/.config/inshellisense-rs/`.
 pub fn user_config_dir() -> Option<PathBuf> {
-    config_dir().map(|c| c.join("insh-rs"))
+    config_dir().map(|c| c.join("inshellisense"))
 }
 
-/// `~/.config/insh-rs/rc.toml` — the primary config file path.
+/// `~/.config/inshellisense-rs/rc.toml` — the primary config file path.
 pub fn user_config_file() -> Option<PathBuf> {
     user_config_dir().map(|d| d.join("rc.toml"))
 }

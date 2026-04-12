@@ -6,7 +6,7 @@ use std::time::SystemTime;
 
 pub fn write_markdown(report: &Report, out_path: &Path) -> std::io::Result<()> {
     let mut s = String::new();
-    s.push_str("# Parity scan — insh-rs vs upstream inshellisense\n\n");
+    s.push_str("# Parity scan — inshellisense-rs vs upstream inshellisense\n\n");
     let ts = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .map(|d| d.as_secs())

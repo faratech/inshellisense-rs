@@ -50,10 +50,10 @@ fn normalize(s: &str) -> String {
     let no_ansi = strip_ansi(s);
     let mut out = no_ansi;
     // Paths
-    for p in ["/root/.insh-rs", "/root/.inshellisense"] {
+    for p in ["/root/.inshellisense", "/root/.inshellisense"] {
         out = out.replace(p, "<CACHE>");
     }
-    for p in ["insh-rs", "inshellisense"] {
+    for p in ["inshellisense-rs", "inshellisense"] {
         out = out.replace(p, "<PROG>");
     }
     // Version strings: v1.2.3 or 1.2.3

@@ -4,7 +4,7 @@
 //! Load order (last one wins per field):
 //!   1. `~/.inshellisenserc` (upstream, for compat)
 //!   2. `~/.config/inshellisense/rc.toml` (upstream XDG, for compat)
-//!   3. `~/.config/insh-rs/rc.toml` (our own)
+//!   3. `~/.config/inshellisense/rc.toml` (our own)
 //!
 //! Every file is optional; missing files fall back to defaults. Invalid
 //! TOML produces a readable error via anyhow instead of aborting.

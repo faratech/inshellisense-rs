@@ -1,4 +1,4 @@
-//! Parity scanner — systematic divergence detection between insh-rs
+//! Parity scanner — systematic divergence detection between inshellisense-rs
 //! and upstream inshellisense.
 //!
 //! See `/root/.claude/plans/whimsical-weaving-hanrahan.md` for the full

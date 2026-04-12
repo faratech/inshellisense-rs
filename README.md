@@ -81,11 +81,11 @@ In the wrapped shell:
 
 ## User-defined specs
 
-Drop TOML files in `~/.config/insh-rs/specs/` to add or override commands.
+Drop TOML files in `~/.config/inshellisense/specs/` to add or override commands.
 The schema mirrors the Rust model in [`src/spec/model.rs`](src/spec/model.rs).
 
 ```toml
-# ~/.config/insh-rs/specs/hello.toml
+# ~/.config/inshellisense/specs/hello.toml
 names = ["hello"]
 description = "Say hello"
 

@@ -213,7 +213,7 @@ impl Registry {
         let Some(base) = crate::paths::config_dir() else {
             return;
         };
-        let dir = base.join("insh-rs").join("specs");
+        let dir = base.join("inshellisense-rs").join("specs");
         let Ok(read_dir) = std::fs::read_dir(&dir) else {
             return;
         };

@@ -46,16 +46,16 @@ fn normalize(s: &str) -> String {
     let mut out = s.to_string();
     // Path replacements — order matters: longest first.
     let paths = [
-        "/root/.insh-rs",
         "/root/.inshellisense",
-        "~/.insh-rs",
+        "/root/.inshellisense",
+        "~/.inshellisense",
         "~/.inshellisense",
     ];
     for p in paths {
         out = out.replace(p, "<CACHE>");
     }
     // Program names
-    for p in ["inshellisense", "insh-rs", "insh", "ISTERM", "INSH_RS"] {
+    for p in ["inshellisense", "inshellisense-rs", "insh", "ISTERM", "INSH_RS"] {
         out = out.replace(p, "<PROG>");
     }
     out
