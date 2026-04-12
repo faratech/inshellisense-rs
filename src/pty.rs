@@ -14,7 +14,6 @@ use crate::spec::Registry;
 use crate::suggest::Engine;
 use crate::term::TermTracker;
 use anyhow::{Context, Result};
-use crossterm::terminal::{self, ClearType};
 use portable_pty::{CommandBuilder, PtySize};
 use std::io::Write;
 use std::os::unix::io::AsRawFd;
@@ -49,10 +48,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     let zsh_dotdir = paths::zsh_dotdir().context("no HOME directory")?;
     let target = shell.spawn_target(&shell_dir, &zsh_dotdir, login);
 
-    let (cols, rows) = terminal::size()
-        .ok()
-        .filter(|(c, r)| *c > 0 && *r > 0)
-        .unwrap_or((80, 24));
+    let (cols, rows) = term_size().unwrap_or((80, 24));
     let pty_system = portable_pty::native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
@@ -92,7 +88,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     drop(pair.master.try_clone_reader()); // keep master alive for as_raw_fd
     let mut writer = pair.master.take_writer().context("take writer")?;
 
-    terminal::enable_raw_mode().ok();
+    enable_raw_mode();
 
     // Clear the host terminal on startup — matches upstream's
     // `writeOutput(ansi.clearTerminal)` in ui-root.ts. Without this,
@@ -168,7 +164,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
         }
 
         // SIGWINCH — one TIOCGWINSZ ioctl per wakeup.
-        if let Ok((new_cols, new_rows)) = terminal::size() {
+        if let Some((new_cols, new_rows)) = term_size() {
             if new_cols > 0
                 && new_rows > 0
                 && (new_rows != tracker.rows() || new_cols != tracker.cols())
@@ -373,8 +369,8 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
         // parks the thread when there's no activity.
     }
 
-    terminal::disable_raw_mode().ok();
-    let _ = crossterm::execute!(std::io::stdout(), terminal::Clear(ClearType::CurrentLine));
+    disable_raw_mode();
+    let _ = std::io::stdout().write_all(b"\x1b[2K");
     Ok(())
 }
 
@@ -459,6 +455,42 @@ fn handle_stdin(
     }
     writer.write_all(bytes).ok();
     writer.flush().ok();
+}
+
+fn term_size() -> Option<(u16, u16)> {
+    unsafe {
+        let mut ws: libc::winsize = std::mem::zeroed();
+        if libc::ioctl(libc::STDOUT_FILENO, libc::TIOCGWINSZ, &mut ws) == 0
+            && ws.ws_col > 0
+            && ws.ws_row > 0
+        {
+            Some((ws.ws_col, ws.ws_row))
+        } else {
+            None
+        }
+    }
+}
+
+fn enable_raw_mode() {
+    unsafe {
+        let mut termios: libc::termios = std::mem::zeroed();
+        if libc::tcgetattr(libc::STDIN_FILENO, &mut termios) == 0 {
+            libc::cfmakeraw(&mut termios);
+            libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, &termios);
+        }
+    }
+}
+
+fn disable_raw_mode() {
+    unsafe {
+        let mut termios: libc::termios = std::mem::zeroed();
+        if libc::tcgetattr(libc::STDIN_FILENO, &mut termios) == 0 {
+            termios.c_lflag |= libc::ECHO | libc::ICANON | libc::ISIG | libc::IEXTEN;
+            termios.c_iflag |= libc::ICRNL | libc::IXON;
+            termios.c_oflag |= libc::OPOST;
+            libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, &termios);
+        }
+    }
 }
 
 fn find_on_path(binary: &str) -> Result<String> {

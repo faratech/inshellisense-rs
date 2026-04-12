@@ -11,7 +11,7 @@ use crate::spec::model::{
     Arg, CacheSpec, Generator, PostProcess, PostProcessKind, ProjectFileReader, ScriptInput,
     Subcommand, Suggestion, SuggestionType, Template,
 };
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::Command;
@@ -24,8 +24,8 @@ struct CacheEntry {
     values: Vec<Suggestion>,
 }
 
-static CACHE: Lazy<Mutex<HashMap<String, CacheEntry>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static CACHE: LazyLock<Mutex<HashMap<String, CacheEntry>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub fn suggestions_for_arg(arg: &Arg, cwd: &str, prefix: &str) -> Vec<Suggestion> {
     let mut out: Vec<Suggestion> = arg.suggestions.clone();

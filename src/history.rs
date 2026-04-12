@@ -38,7 +38,7 @@ fn candidates() -> Vec<PathBuf> {
     if let Ok(hf) = std::env::var("HISTFILE") {
         v.push(PathBuf::from(hf));
     }
-    if let Some(home) = dirs::home_dir() {
+    if let Some(home) = crate::paths::home() {
         v.push(home.join(".bash_history"));
     }
     v

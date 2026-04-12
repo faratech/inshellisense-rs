@@ -55,8 +55,8 @@ pub const fn max_lines(max_suggestions: u8) -> usize {
 fn active_bg_on() -> &'static str {
     // Check once, cache. We never flip between terminals within one
     // run so a static OnceLock is fine.
-    use once_cell::sync::Lazy;
-    static BG: Lazy<&'static str> = Lazy::new(|| {
+    use std::sync::LazyLock;
+    static BG: LazyLock<&'static str> = LazyLock::new(|| {
         if is_truecolor() {
             "\x1b[48;2;125;86;244m"
         } else {

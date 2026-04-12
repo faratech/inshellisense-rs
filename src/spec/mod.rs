@@ -155,7 +155,7 @@ impl Registry {
     }
 
     fn load_toml_dir(&mut self) {
-        let Some(base) = dirs::config_dir() else {
+        let Some(base) = crate::paths::config_dir() else {
             return;
         };
         let dir = base.join("insh-rs").join("specs");

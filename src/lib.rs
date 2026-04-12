@@ -4,6 +4,8 @@
 //!
 //! The binary (`src/main.rs`) is thin CLI plumbing that uses this crate.
 
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
 pub mod ansi;
 pub mod commands;
 pub mod config;

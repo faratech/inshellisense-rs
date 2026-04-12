@@ -102,7 +102,7 @@ impl Shell {
                 // Include existing user configs so our wrapper doesn't
                 // shadow them — matches upstream's ordering.
                 args.push("--rc".into());
-                if let Some(home) = dirs::home_dir() {
+                if let Some(home) = crate::paths::home() {
                     let candidates = [
                         home.join(".xonshrc"),
                         home.join(".config/xonsh/rc.xsh"),

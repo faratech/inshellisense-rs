@@ -37,8 +37,11 @@ use std::path::PathBuf;
 pub struct Config {
     pub bindings: Bindings,
     pub specs: SpecsConfig,
+    #[serde(alias = "useAliases")]
     pub use_aliases: bool,
+    #[serde(alias = "useNerdFont")]
     pub use_nerd_font: bool,
+    #[serde(alias = "maxSuggestions")]
     pub max_suggestions: u8,
     pub ui: UiMode,
 }
@@ -59,9 +62,13 @@ impl Default for Config {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct Bindings {
+    #[serde(alias = "nextSuggestion")]
     pub next_suggestion: KeyBinding,
+    #[serde(alias = "previousSuggestion")]
     pub previous_suggestion: KeyBinding,
+    #[serde(alias = "acceptSuggestion")]
     pub accept_suggestion: KeyBinding,
+    #[serde(alias = "dismissSuggestions")]
     pub dismiss_suggestions: KeyBinding,
 }
 

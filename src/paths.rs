@@ -40,7 +40,18 @@ use crate::shell::Shell;
 use std::path::PathBuf;
 
 pub fn home() -> Option<PathBuf> {
-    dirs::home_dir()
+    std::env::var_os("HOME").map(PathBuf::from)
+}
+
+/// XDG config dir: `$XDG_CONFIG_HOME` or `$HOME/.config`.
+pub fn config_dir() -> Option<PathBuf> {
+    if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
+        let p = PathBuf::from(xdg);
+        if p.is_absolute() {
+            return Some(p);
+        }
+    }
+    home().map(|h| h.join(".config"))
 }
 
 /// `~/.insh-rs/` — the resource root.
@@ -83,7 +94,7 @@ pub fn spec_dir() -> Option<PathBuf> {
 
 /// User-config root. XDG-standard: `~/.config/insh-rs/`.
 pub fn user_config_dir() -> Option<PathBuf> {
-    dirs::config_dir().map(|c| c.join("insh-rs"))
+    config_dir().map(|c| c.join("insh-rs"))
 }
 
 /// `~/.config/insh-rs/rc.toml` — the primary config file path.
@@ -97,7 +108,7 @@ pub fn upstream_config_files() -> Vec<PathBuf> {
     if let Some(home) = home() {
         out.push(home.join(".inshellisenserc"));
     }
-    if let Some(cfg) = dirs::config_dir() {
+    if let Some(cfg) = config_dir() {
         out.push(cfg.join("inshellisense").join("rc.toml"));
     }
     out

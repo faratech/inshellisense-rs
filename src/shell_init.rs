@@ -91,7 +91,7 @@ pub fn print_init(shell: &str) -> Result<()> {
 }
 
 pub fn install() -> Result<()> {
-    let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("no HOME"))?;
+    let home = crate::paths::home().ok_or_else(|| anyhow::anyhow!("no HOME"))?;
     let rc = home.join(".bashrc");
     let existing = std::fs::read_to_string(&rc).unwrap_or_default();
     if existing.contains(MARKER) {
