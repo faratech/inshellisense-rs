@@ -41,8 +41,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     // Make sure the vendored shell integration scripts are on disk.
     let _ = crate::resources::unpack();
 
-    let shell_path = platform::find_on_path(shell.as_str())
-        .ok_or_else(|| anyhow::anyhow!("shell not found on PATH: {}", shell.as_str()))?;
+    let shell_path = find_shell_binary(shell)?;
     let shell_dir = paths::shell_dir().context("no HOME directory")?;
     let zsh_dotdir = paths::zsh_dotdir().context("no HOME directory")?;
     let target = shell.spawn_target(&shell_dir, &zsh_dotdir, login);
@@ -179,7 +178,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
         if pty_ready {
             loop {
                 let n = pty.read_pty(&mut pty_buf);
-                if n <= 0 {
+                if n < 1 {
                     break;
                 }
                 let bytes = &pty_buf[..n as usize];
@@ -199,6 +198,13 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
 
         // Read stdin if ready.
         if stdin_ready {
+            // Fallback for ConPTY: OSC 6973 markers are stripped, so
+            // the prompt anchor is never set via events. Infer it from
+            // the cursor position the moment the user starts typing —
+            // the cursor is sitting right after the prompt.
+            if !tracker.has_prompt_anchor() {
+                tracker.set_fallback_anchor();
+            }
             let n = pty.read_stdin(&mut stdin_buf);
             if n > 0 {
                 let bytes = stdin_buf[..n as usize].to_vec();
@@ -485,6 +491,36 @@ fn replacement_tail(suggestion: &Suggestion, partial: &str) -> String {
         s.push_str(target);
         s
     }
+}
+
+/// Resolve the binary path for a shell, with platform-specific logic.
+///
+/// On Windows, `bash.exe` on PATH is often WSL's bash
+/// (`C:\Windows\System32\bash.exe`), NOT a native shell. Prefer known
+/// Git Bash / MSYS2 install paths via `find_git_bash()`.
+fn find_shell_binary(shell: Shell) -> Result<String> {
+    #[cfg(windows)]
+    {
+        if shell == Shell::Bash {
+            // Try known Git Bash / MSYS2 install locations first.
+            if let Some(p) = platform::find_git_bash() {
+                return Ok(p);
+            }
+            // Fall through to PATH, but skip WSL's bash.exe.
+            if let Some(p) = platform::find_on_path("bash") {
+                let lower = p.to_lowercase();
+                if !lower.contains("windows\\system32") && !lower.contains("windows/system32") {
+                    return Ok(p);
+                }
+            }
+            anyhow::bail!(
+                "bash not found — install Git for Windows or MSYS2, \
+                 or use `is start --shell pwsh`"
+            );
+        }
+    }
+    platform::find_on_path(shell.as_str())
+        .ok_or_else(|| anyhow::anyhow!("shell not found on PATH: {}", shell.as_str()))
 }
 
 #[cfg(test)]

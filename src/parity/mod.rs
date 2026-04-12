@@ -11,6 +11,7 @@ pub mod cli;
 pub mod complete;
 pub mod doctor;
 pub mod init;
+#[cfg(unix)]
 pub mod render;
 pub mod report;
 pub mod specs;
@@ -26,6 +27,7 @@ pub enum Category {
     Doctor,
     Complete,
     Specs,
+    #[cfg(unix)]
     Render,
 }
 
@@ -37,19 +39,23 @@ impl Category {
             Category::Doctor => "doctor",
             Category::Complete => "complete",
             Category::Specs => "specs",
+            #[cfg(unix)]
             Category::Render => "render",
         }
     }
 
-    pub fn all() -> [Category; 6] {
-        [
+    pub fn all() -> Vec<Category> {
+        #[allow(unused_mut)]
+        let mut v = vec![
             Category::Cli,
             Category::Init,
             Category::Doctor,
             Category::Complete,
             Category::Specs,
-            Category::Render,
-        ]
+        ];
+        #[cfg(unix)]
+        v.push(Category::Render);
+        v
     }
 
     pub fn parse(s: &str) -> Option<Self> {
@@ -59,6 +65,7 @@ impl Category {
             "doctor" => Some(Category::Doctor),
             "complete" => Some(Category::Complete),
             "specs" => Some(Category::Specs),
+            #[cfg(unix)]
             "render" => Some(Category::Render),
             _ => None,
         }
@@ -204,6 +211,7 @@ pub fn run_scan(cfg: &ScanConfig) -> Report {
             Category::Doctor => doctor::run(cfg),
             Category::Complete => complete::run(cfg),
             Category::Specs => specs::run(cfg),
+            #[cfg(unix)]
             Category::Render => render::run(cfg),
         };
         if cfg.verbose {

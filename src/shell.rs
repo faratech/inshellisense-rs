@@ -209,7 +209,19 @@ pub fn detect() -> Shell {
             }
         }
     }
-    // Fallback: bash is the most common assumption on Linux.
+    // Fallback: platform-specific default.
+    #[cfg(windows)]
+    {
+        // Prefer pwsh (PowerShell Core), then legacy powershell, then cmd.
+        if crate::platform::find_on_path("pwsh").is_some() {
+            return Shell::Pwsh;
+        }
+        if crate::platform::find_on_path("powershell").is_some() {
+            return Shell::Powershell;
+        }
+        return Shell::Cmd;
+    }
+    #[cfg(not(windows))]
     Shell::Bash
 }
 

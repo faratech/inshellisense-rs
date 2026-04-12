@@ -142,6 +142,11 @@ fn init_file_contents(shell: Shell) -> String {
              if ('{sd}/shellIntegration.nu' | path exists) {{ source '{sd}/shellIntegration.nu' }}\n",
             sd = shell_dir
         ),
+        #[cfg(windows)]
+        Shell::Cmd => {
+            // cmd.exe uses the PROMPT env var set at spawn time, no init file needed.
+            String::new()
+        }
     }
 }
 

@@ -46,6 +46,8 @@ pub fn source_snippet(shell: Shell) -> String {
         Shell::Powershell => "~/.insh-rs/init/pwsh/init.ps1",
         Shell::Xonsh => "~/.insh-rs/init/xonsh/init.xsh",
         Shell::Nu => "~/.insh-rs/init/nu/init.nu",
+        #[cfg(windows)]
+        Shell::Cmd => return String::new(), // cmd.exe uses PROMPT env var, no init snippet
     };
     match shell {
         Shell::Bash => format!(
@@ -72,6 +74,8 @@ pub fn source_snippet(shell: Shell) -> String {
             "\n\nif ( '{0}' | path exists ) {{ source {0} }}\n",
             init_rel
         ),
+        #[cfg(windows)]
+        Shell::Cmd => unreachable!(), // handled above by early return
     }
 }
 

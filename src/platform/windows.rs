@@ -9,13 +9,41 @@ use super::{PtyHandle, PtyResult, RawDescriptor};
 use std::mem;
 use std::ptr;
 use windows_sys::Win32::Foundation::*;
-use windows_sys::Win32::Security::*;
 use windows_sys::Win32::Storage::FileSystem::*;
 use windows_sys::Win32::System::Console::*;
 use windows_sys::Win32::System::Pipes::*;
 use windows_sys::Win32::System::Threading::*;
 
 const PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE: usize = 0x00020016;
+
+// Virtual-key constants (defined locally to avoid pulling in
+// Win32_UI_Input_KeyboardAndMouse just for these).
+const VK_BACK: u16 = 0x08;
+const VK_TAB: u16 = 0x09;
+const VK_RETURN: u16 = 0x0D;
+const VK_ESCAPE: u16 = 0x1B;
+const VK_PRIOR: u16 = 0x21; // Page Up
+const VK_NEXT: u16 = 0x22; // Page Down
+const VK_END: u16 = 0x23;
+const VK_HOME: u16 = 0x24;
+const VK_LEFT: u16 = 0x25;
+const VK_UP: u16 = 0x26;
+const VK_RIGHT: u16 = 0x27;
+const VK_DOWN: u16 = 0x28;
+const VK_INSERT: u16 = 0x2D;
+const VK_DELETE: u16 = 0x2E;
+const VK_F1: u16 = 0x70;
+const VK_F2: u16 = 0x71;
+const VK_F3: u16 = 0x72;
+const VK_F4: u16 = 0x73;
+const VK_F5: u16 = 0x74;
+const VK_F6: u16 = 0x75;
+const VK_F7: u16 = 0x76;
+const VK_F8: u16 = 0x77;
+const VK_F9: u16 = 0x78;
+const VK_F10: u16 = 0x79;
+const VK_F11: u16 = 0x7A;
+const VK_F12: u16 = 0x7B;
 
 pub struct WindowsPty {
     hpc: HPCON,
@@ -28,7 +56,7 @@ pub struct WindowsPty {
 
 impl WindowsPty {
     pub fn spawn(
-        bin: &str,
+        _bin: &str,
         argv: &[String],
         env: &[(String, String)],
         rows: u16,
@@ -105,24 +133,38 @@ impl WindowsPty {
                 return Err("UpdateProcThreadAttribute failed".into());
             }
 
-            // Build the command line as a wide string.
-            let cmd_line = if argv.len() > 1 {
-                argv.join(" ")
-            } else {
-                bin.to_string()
-            };
+            // Build the command line as a wide string, quoting any
+            // arguments that contain spaces or quotes.
+            let cmd_line = argv
+                .iter()
+                .map(|arg| {
+                    if arg.contains(' ') || arg.contains('"') {
+                        format!("\"{}\"", arg.replace('"', "\\\""))
+                    } else {
+                        arg.clone()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
             let mut cmd_wide: Vec<u16> = cmd_line.encode_utf16().chain(std::iter::once(0)).collect();
 
             // Build environment block (null-separated, double-null terminated).
-            let mut env_block: Vec<u16> = Vec::new();
-            // Inherit parent env first.
-            for (k, v) in std::env::vars() {
-                let entry = format!("{}={}", k, v);
-                env_block.extend(entry.encode_utf16());
-                env_block.push(0);
-            }
-            // Override with our env vars.
+            // Windows uses the FIRST occurrence of a duplicate key, so
+            // overrides must come before inherited vars. We use a BTreeMap
+            // with uppercased keys (Windows env vars are case-insensitive)
+            // to deduplicate, and the sorted output satisfies Windows'
+            // expectation of a sorted environment block.
+            let mut env_map = std::collections::BTreeMap::<String, (String, String)>::new();
+            // Overrides first — these must win.
             for (k, v) in env {
+                env_map.insert(k.to_uppercase(), (k.clone(), v.clone()));
+            }
+            // Inherit parent vars only if not already overridden.
+            for (k, v) in std::env::vars() {
+                env_map.entry(k.to_uppercase()).or_insert((k, v));
+            }
+            let mut env_block: Vec<u16> = Vec::new();
+            for (_upper, (k, v)) in &env_map {
                 let entry = format!("{}={}", k, v);
                 env_block.extend(entry.encode_utf16());
                 env_block.push(0);
@@ -220,6 +262,13 @@ impl PtyHandle for WindowsPty {
 
     fn poll(&self, timeout_ms: i32) -> (bool, bool) {
         unsafe {
+            // WaitForMultipleObjects with bWaitAll=FALSE only reports the
+            // lowest-index signaled handle. Probe the other handle with a
+            // zero-timeout WaitForSingleObject so both are reported.
+            //
+            // Console input handles are signaled when ANY event (key,
+            // mouse, focus, resize) is queued — read_stdin() filters for
+            // key-down events via ReadConsoleInputW.
             let handles = [self.pty_output_read, self.stdin_handle];
             let result = WaitForMultipleObjects(
                 2,
@@ -228,39 +277,137 @@ impl PtyHandle for WindowsPty {
                 timeout_ms as u32,
             );
             match result {
-                WAIT_OBJECT_0 => (true, false),
-                v if v == WAIT_OBJECT_0 + 1 => (false, true),
+                WAIT_OBJECT_0 => {
+                    let stdin_also =
+                        WaitForSingleObject(self.stdin_handle, 0) == WAIT_OBJECT_0;
+                    (true, stdin_also)
+                }
+                v if v == WAIT_OBJECT_0 + 1 => {
+                    let pty_also =
+                        WaitForSingleObject(self.pty_output_read, 0) == WAIT_OBJECT_0;
+                    (pty_also, true)
+                }
                 _ => (false, false),
             }
         }
     }
 
     fn read_pty(&self, buf: &mut [u8]) -> isize {
-        let mut read: u32 = 0;
-        let ok = unsafe {
-            ReadFile(
+        unsafe {
+            // ConPTY signals the pipe handle even when no data is
+            // pending, so ReadFile after poll() can still block.
+            // Use PeekNamedPipe as a gate, but read the full buffer
+            // size (not just `avail`) so we get larger chunks and
+            // avoid splitting OSC 6973 sequences across reads.
+            let mut avail: u32 = 0;
+            if PeekNamedPipe(
+                self.pty_output_read,
+                ptr::null_mut(),
+                0,
+                ptr::null_mut(),
+                &mut avail,
+                ptr::null_mut(),
+            ) == 0
+            {
+                return -1; // pipe broken
+            }
+            if avail == 0 {
+                return 0;
+            }
+            let mut read: u32 = 0;
+            let ok = ReadFile(
                 self.pty_output_read,
                 buf.as_mut_ptr(),
                 buf.len() as u32,
                 &mut read,
                 ptr::null_mut(),
-            )
-        };
-        if ok == 0 { -1 } else { read as isize }
+            );
+            if ok == 0 { -1 } else { read as isize }
+        }
     }
 
     fn read_stdin(&self, buf: &mut [u8]) -> isize {
-        let mut read: u32 = 0;
-        let ok = unsafe {
-            ReadFile(
-                self.stdin_handle,
-                buf.as_mut_ptr(),
-                buf.len() as u32,
-                &mut read,
-                ptr::null_mut(),
-            )
-        };
-        if ok == 0 { -1 } else { read as isize }
+        unsafe {
+            // Read console input events directly — no relay thread/pipe.
+            // ReadConsoleInputW returns individual INPUT_RECORD events
+            // regardless of console mode, so it never blocks on line
+            // input. Non-key events are consumed and discarded.
+            let mut total: usize = 0;
+            loop {
+                // Stop if we'd overflow the buffer.
+                if total + 16 > buf.len() {
+                    break;
+                }
+                // Check for pending events before reading.
+                let mut pending: u32 = 0;
+                if GetNumberOfConsoleInputEvents(self.stdin_handle, &mut pending) == 0
+                    || pending == 0
+                {
+                    break;
+                }
+                let mut rec: INPUT_RECORD = mem::zeroed();
+                let mut num_read: u32 = 0;
+                if ReadConsoleInputW(
+                    self.stdin_handle,
+                    &mut rec,
+                    1,
+                    &mut num_read,
+                ) == 0 || num_read == 0
+                {
+                    break;
+                }
+                // Only process key-down events.
+                if rec.EventType != KEY_EVENT as u16 {
+                    continue;
+                }
+                let key = rec.Event.KeyEvent;
+                if key.bKeyDown == 0 {
+                    continue;
+                }
+                let ch = key.uChar.UnicodeChar;
+                if ch != 0 {
+                    // Regular character — encode as UTF-8.
+                    if let Some(c) = char::from_u32(ch as u32) {
+                        let encoded = c.encode_utf8(&mut buf[total..]);
+                        total += encoded.len();
+                    }
+                } else {
+                    // No character — generate VT sequence from vkey.
+                    let seq: &[u8] = match key.wVirtualKeyCode {
+                        VK_BACK => b"\x7f",
+                        VK_TAB => b"\t",
+                        VK_RETURN => b"\r",
+                        VK_ESCAPE => b"\x1b",
+                        VK_UP => b"\x1b[A",
+                        VK_DOWN => b"\x1b[B",
+                        VK_RIGHT => b"\x1b[C",
+                        VK_LEFT => b"\x1b[D",
+                        VK_HOME => b"\x1b[H",
+                        VK_END => b"\x1b[F",
+                        VK_INSERT => b"\x1b[2~",
+                        VK_DELETE => b"\x1b[3~",
+                        VK_PRIOR => b"\x1b[5~",
+                        VK_NEXT => b"\x1b[6~",
+                        VK_F1 => b"\x1bOP",
+                        VK_F2 => b"\x1bOQ",
+                        VK_F3 => b"\x1bOR",
+                        VK_F4 => b"\x1bOS",
+                        VK_F5 => b"\x1b[15~",
+                        VK_F6 => b"\x1b[17~",
+                        VK_F7 => b"\x1b[18~",
+                        VK_F8 => b"\x1b[19~",
+                        VK_F9 => b"\x1b[20~",
+                        VK_F10 => b"\x1b[21~",
+                        VK_F11 => b"\x1b[23~",
+                        VK_F12 => b"\x1b[24~",
+                        _ => continue,
+                    };
+                    buf[total..total + seq.len()].copy_from_slice(seq);
+                    total += seq.len();
+                }
+            }
+            if total == 0 { -1 } else { total as isize }
+        }
     }
 
     fn close(&mut self) {
@@ -298,11 +445,10 @@ pub fn enable_raw_mode() {
         let h = GetStdHandle(STD_INPUT_HANDLE);
         GetConsoleMode(h, std::ptr::addr_of_mut!(ORIG_CONSOLE_MODE));
         ORIG_MODE_SAVED = true;
-        // Enable VT input processing, disable line input + echo.
-        SetConsoleMode(
-            h,
-            ENABLE_VIRTUAL_TERMINAL_INPUT | ENABLE_WINDOW_INPUT,
-        );
+        // Disable line input + echo. Do NOT set
+        // ENABLE_VIRTUAL_TERMINAL_INPUT — we use ReadConsoleInputW
+        // which reads raw KEY_EVENTs and converts to VT ourselves.
+        SetConsoleMode(h, ENABLE_WINDOW_INPUT);
         // Enable VT output on stdout.
         let hout = GetStdHandle(STD_OUTPUT_HANDLE);
         let mut out_mode: u32 = 0;

@@ -48,6 +48,20 @@ impl TermTracker {
         &self.state
     }
 
+    pub fn has_prompt_anchor(&self) -> bool {
+        self.state.prompt_end_row.is_some()
+    }
+
+    /// Fallback for platforms where OSC 6973 markers are stripped
+    /// (e.g. Windows ConPTY). Called when the user starts typing
+    /// but no PromptEnd has been received — the cursor is sitting
+    /// right after the prompt, so its position IS the prompt end.
+    pub fn set_fallback_anchor(&mut self) {
+        let (r, c) = self.parser.screen().cursor_position();
+        self.state.prompt_end_row = Some(r as usize);
+        self.state.prompt_end_col = Some(c as usize);
+    }
+
     pub fn rows(&self) -> u16 {
         self.rows
     }
