@@ -63,7 +63,7 @@ impl Registry {
         // Curated hand-ported specs override the bundle.
         for spec in crate::curated::all() {
             let name = spec.name().to_string();
-            r.lazy.lock().unwrap().remove(&name);
+            r.lazy.lock().unwrap_or_else(|e| e.into_inner()).remove(&name);
             if !r.specs.get_mut().contains_key(&name) {
                 r.insert(spec);
             }
@@ -111,7 +111,7 @@ impl Registry {
                 }
             };
         {
-            let mut lazy = self.lazy.lock().unwrap();
+            let mut lazy = self.lazy.lock().unwrap_or_else(|e| e.into_inner());
             for (key, raw) in map {
                 lazy.insert(key, raw.get().as_bytes().to_vec());
             }
@@ -168,7 +168,7 @@ impl Registry {
             return Some(s);
         }
         let raw = {
-            let mut lazy = self.lazy.lock().unwrap();
+            let mut lazy = self.lazy.lock().unwrap_or_else(|e| e.into_inner());
             lazy.remove(name)
         };
         if let Some(raw) = raw {
@@ -188,7 +188,7 @@ impl Registry {
 
     /// Returns all registered names (both parsed and lazy).
     pub fn names(&self) -> Vec<String> {
-        let lazy = self.lazy.lock().unwrap();
+        let lazy = self.lazy.lock().unwrap_or_else(|e| e.into_inner());
         let specs = unsafe { &*self.specs.get() };
         let mut names: Vec<String> = specs.keys().cloned().collect();
         names.extend(lazy.keys().cloned());
@@ -198,13 +198,13 @@ impl Registry {
     }
 
     pub fn len(&self) -> usize {
-        let lazy = self.lazy.lock().unwrap();
+        let lazy = self.lazy.lock().unwrap_or_else(|e| e.into_inner());
         let specs = unsafe { &*self.specs.get() };
         specs.len() + lazy.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        let lazy = self.lazy.lock().unwrap();
+        let lazy = self.lazy.lock().unwrap_or_else(|e| e.into_inner());
         let specs = unsafe { &*self.specs.get() };
         specs.is_empty() && lazy.is_empty()
     }

@@ -79,6 +79,15 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     enable_raw_mode();
     install_signal_handlers();
 
+    // Panic hook: if anything in the main loop panics, restore the
+    // terminal before printing the panic message. Without this, a
+    // panic leaves the tty in raw mode (no echo, unusable).
+    let prev_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        disable_raw_mode();
+        prev_hook(info);
+    }));
+
     // Clear the host terminal on startup — matches upstream's
     // `writeOutput(ansi.clearTerminal)` in ui-root.ts. Without this,
     // any leftover output from before `insh start` was invoked stays
@@ -280,7 +289,9 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                 // suggestions. Typed keystrokes still reach bash
                 // normally — the user just doesn't see the popup for
                 // the ~500ms it takes the registry to load.
-                let engine_guard = engine.read().ok();
+                let engine_guard = engine.read().map_err(|e| {
+                    eprintln!("is: engine lock poisoned: {e}");
+                }).ok();
                 let Some(engine_ref) = engine_guard.as_ref().and_then(|g| g.as_ref()) else {
                     last_cmd_signature = state.command.clone();
                     continue;
@@ -362,7 +373,9 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
         // parks the thread when there's no activity.
     }
 
+    unsafe { libc::close(pty_fd); }
     disable_raw_mode();
+    let _ = std::panic::take_hook(); // restore default panic hook
     let _ = std::io::stdout().write_all(b"\x1b[2K");
     Ok(())
 }

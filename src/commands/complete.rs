@@ -43,9 +43,7 @@ pub fn run(line: &str, text_mode: bool, cwd: &str) -> Result<()> {
                 "icon": icon,
                 "allNames": names,
                 "priority": s.priority.unwrap_or(50),
-                "insertValue": s.insert_value,
                 "type": format!("{:?}", s.suggestion_type).to_lowercase(),
-                "hidden": s.hidden,
             })
         })
         .collect();
