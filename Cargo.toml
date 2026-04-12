@@ -43,3 +43,7 @@ default = []
 lto = "thin"
 codegen-units = 1
 strip = true
+
+[[bin]]
+name = "profile-startup"
+path = "src/bin/profile-startup.rs"

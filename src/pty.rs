@@ -110,9 +110,26 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
         out.flush().ok();
     }
 
-    let registry = Registry::new_with_defaults();
-    let hist = history::load();
-    let engine = Engine::new(registry, hist);
+    // Load the 1470-spec registry on a background thread so the
+    // user's shell prompt appears immediately (~5ms) instead of
+    // blocking ~500ms on zstd decompression + JSON parsing. Popup
+    // suggestions are gated on the engine being ready — until then,
+    // typed keystrokes still reach bash normally and the popup just
+    // stays hidden. The engine typically finishes loading before
+    // the user has finished typing their first partial command.
+    let engine: std::sync::Arc<std::sync::RwLock<Option<Engine>>> =
+        std::sync::Arc::new(std::sync::RwLock::new(None));
+    {
+        let engine = engine.clone();
+        thread::spawn(move || {
+            let registry = Registry::new_with_defaults();
+            let hist = history::load();
+            let built = Engine::new(registry, hist);
+            if let Ok(mut slot) = engine.write() {
+                *slot = Some(built);
+            }
+        });
+    }
 
     let (pty_tx, pty_rx) = mpsc::channel::<Vec<u8>>();
     let (stdin_tx, stdin_rx) = mpsc::channel::<Vec<u8>>();
@@ -287,7 +304,19 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
 
             // Default: clear any drawn UI (bash will repaint the same
             // cells) and forward the bytes into the shell.
-            renderer.clear().ok();
+            //
+            // EXCEPT: if the key is pure cursor navigation (left/right
+            // arrow, up/down history, home/end, Ctrl-A/E while the
+            // cursor is in the middle of typed text), do NOT clear.
+            // GhostRenderer::clear() emits `\x1b[K` (erase-line-right)
+            // from the current cursor position — which wipes the
+            // user's typed characters AHEAD of the cursor when they
+            // arrow-left into the middle of a command. Navigation
+            // keys don't modify the command text, so the ghost is
+            // still valid and should be left alone.
+            if !is_cursor_navigation(&bytes) {
+                renderer.clear().ok();
+            }
             // If the user is submitting a command (Enter or Ctrl-C),
             // latch the `submitting` flag so the next redraw
             // suppresses the popup until a fresh PromptStart arrives.
@@ -339,18 +368,35 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                     popup_mode = PopupMode::Hidden;
                 }
 
-                ranked = engine.suggest_blob(&state.command, &cwd);
+                // The engine loads on a background thread; if it
+                // hasn't finished yet, this tick is a noop for
+                // suggestions. Typed keystrokes still reach bash
+                // normally — the user just doesn't see the popup for
+                // the ~500ms it takes the registry to load.
+                let engine_guard = engine.read().ok();
+                let Some(engine_ref) = engine_guard.as_ref().and_then(|g| g.as_ref()) else {
+                    last_cmd_signature = state.command.clone();
+                    continue;
+                };
 
-                // Ghost tail tracks the active popup entry in Hybrid /
-                // Popup; in pure Ghost it's whatever the engine picked
-                // as top (which is the same as ranked[0]).
+                ranked = engine_ref.suggest_blob(&state.command, &cwd);
+
+                // Ghost text is only SAFE to draw when the cursor is at
+                // the very end of the command line. If the user has
+                // arrow-keyed into the middle of their text, writing
+                // grey ghost chars at the current cursor would
+                // overwrite their typed characters. Pop-ups are still
+                // safe (they draw on a separate line below/above), but
+                // ghost must be suppressed.
+                let cursor_at_end = tracker.cursor_at_command_end();
+
                 let active_cursor = match popup_mode {
                     PopupMode::Visible { cursor } if !ranked.is_empty() => {
                         cursor.min(ranked.len() - 1)
                     }
                     _ => 0,
                 };
-                let tail = if !ranked.is_empty() && has_ghost {
+                let tail = if !ranked.is_empty() && has_ghost && cursor_at_end {
                     let partial = current_partial(&state.command);
                     let t = replacement_tail(&ranked[active_cursor], &partial);
                     // The replacement_tail helper returns a string that
@@ -360,12 +406,12 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                     // engine's tail for display, while still using the
                     // richer `replacement_tail` value at accept time.
                     if t.starts_with('\x08') {
-                        engine.suggest(&state.command, &cwd)
+                        engine_ref.suggest(&state.command, &cwd)
                     } else {
                         Some(t)
                     }
-                } else if has_ghost {
-                    engine.suggest(&state.command, &cwd)
+                } else if has_ghost && cursor_at_end {
+                    engine_ref.suggest(&state.command, &cwd)
                 } else {
                     None
                 };
@@ -422,6 +468,29 @@ fn find_on_path(binary: &str) -> Result<String> {
         }
     }
     anyhow::bail!("not found on PATH: {}", binary)
+}
+
+/// Is this stdin chunk a pure cursor-navigation key that doesn't
+/// modify the command text? These keys should NOT trigger a clear of
+/// the ghost renderer because clearing emits `\x1b[K` (erase line
+/// right) which wipes any typed characters ahead of the cursor.
+fn is_cursor_navigation(bytes: &[u8]) -> bool {
+    matches!(
+        bytes,
+        // Arrow keys (CSI form and SS3 form)
+        b"\x1b[A" | b"\x1b[B" | b"\x1b[D"
+        | b"\x1bOA" | b"\x1bOB" | b"\x1bOD"
+        // Home / End (CSI, VT, SS3 variants)
+        | b"\x1b[H" | b"\x1b[1~" | b"\x1bOH"
+        // Page up / down
+        | b"\x1b[5~" | b"\x1b[6~"
+        // Ctrl-A (home) — Ctrl-E is intentionally EXCLUDED here
+        // because it's a ghost-accept key in our bindings, and is
+        // handled in the accept-path before this.
+        | b"\x01"
+        // Meta-B / Meta-F (word navigation in bash)
+        | b"\x1bb" | b"\x1bf"
+    )
 }
 
 /// Current partial token being typed on the command line — the substring

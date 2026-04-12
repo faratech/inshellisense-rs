@@ -64,6 +64,34 @@ impl TermTracker {
             .saturating_sub(self.state.cursor_row.saturating_add(1))
     }
 
+    /// Is the cursor positioned at the end of the current command
+    /// text? Used to suppress ghost-text redraws when the user has
+    /// moved their cursor into the middle of their command — in that
+    /// case the terminal cells ahead of the cursor are real typed
+    /// characters, and writing ghost text over them would corrupt
+    /// the line.
+    ///
+    /// Returns `true` when there's no active command (nothing to be
+    /// mid-edit in).
+    pub fn cursor_at_command_end(&self) -> bool {
+        let Some(pc) = self.state.prompt_end_col else {
+            return true;
+        };
+        let Some(pr) = self.state.prompt_end_row else {
+            return true;
+        };
+        let expected_row = pr as u16;
+        // Single-line case: cursor_col should be at prompt_end_col + command.len()
+        if self.state.cursor_row == expected_row {
+            let expected_col = pc + self.state.command.chars().count();
+            return self.state.cursor_col as usize == expected_col;
+        }
+        // Multi-line: assume at end if cursor_row > prompt_end_row.
+        // We don't track the wrapped last-row col precisely for the
+        // MVP — multi-line ghost is a follow-up.
+        self.state.cursor_row as usize > pr
+    }
+
     /// Called on SIGWINCH — tell the headless vt parser about the new
     /// geometry so cursor tracking stays consistent with the real tty.
     pub fn resize(&mut self, rows: u16, cols: u16) {
