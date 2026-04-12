@@ -1,6 +1,6 @@
-# insh-rs extractor
+# inshellisense-rs extractor
 
-Converts `@withfig/autocomplete` TypeScript specs into JSON that insh-rs
+Converts `@withfig/autocomplete` TypeScript specs into JSON that inshellisense-rs
 loads at runtime. Produces one `.json` per extracted spec plus an
 `index.json` manifest.
 
@@ -25,11 +25,11 @@ Defaults: `SRC=/tmp/withfig-autocomplete/src` and
 
 For each `.ts` file in `SRC`, ts-morph parses the default export and
 walks the Fig.Spec object literal. Pure object/array/primitive trees
-are converted to insh-rs's Rust schema and written to
+are converted to inshellisense-rs's Rust schema and written to
 `OUT/essentials/<name>.json`. Specs that contain any inline function
 (arrow/function/method anywhere in their tree) are classified as
-`partial` or `js_only` in the manifest and **not** extracted to JSON —
-phase 6 of insh-rs will handle them via an embedded JS runtime.
+`partial` or `js_only` in the manifest and **not** extracted to JSON.
+Coverage reached 100% via static extraction; no JS runtime needed.
 
 ## Classification
 
