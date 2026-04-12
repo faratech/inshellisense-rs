@@ -23,6 +23,7 @@
 
 use crate::ansi;
 use crate::spec::model::{Suggestion, SuggestionType};
+use std::hash::{Hash, Hasher};
 use std::io::{self, Write};
 use unicode_width::UnicodeWidthStr;
 
@@ -86,18 +87,16 @@ pub enum Direction {
     Below,
 }
 
-pub struct PopupRenderer<W: Write> {
-    out: W,
+pub struct PopupRenderer {
     max_suggestions: u8,
     last_drawn_rows: u16,
     last_direction: Direction,
-    last_signature: Option<String>,
+    last_signature: Option<u64>,
 }
 
-impl<W: Write> PopupRenderer<W> {
-    pub fn new(out: W, max_suggestions: u8) -> Self {
+impl PopupRenderer {
+    pub fn new(max_suggestions: u8) -> Self {
         Self {
-            out,
             max_suggestions: max_suggestions.max(1),
             last_drawn_rows: 0,
             last_direction: Direction::Below,
@@ -107,25 +106,14 @@ impl<W: Write> PopupRenderer<W> {
 
     /// Legacy non-interactive entry point — renders with `cursor=0` and
     /// `direction=Below` centered at column 0.
-    pub fn draw(&mut self, _tail: Option<&str>, all: &[Suggestion]) -> io::Result<()> {
-        self.draw_full(all, 0, Direction::Below, 0, 80)
-    }
-
-    /// Interactive entry point. `cursor_col` and `term_cols` are used
-    /// for upstream-style cursor-aware padding.
-    pub fn draw_with(
-        &mut self,
-        _tail: Option<&str>,
-        all: &[Suggestion],
-        cursor: usize,
-        direction: Direction,
-    ) -> io::Result<()> {
-        self.draw_full(all, cursor, direction, 0, 80)
+    pub fn draw(&mut self, out: &mut impl Write, _tail: Option<&str>, all: &[Suggestion]) -> io::Result<()> {
+        self.draw_full(out, all, 0, Direction::Below, 0, 80)
     }
 
     /// Full interactive draw with cursor X + terminal columns.
     pub fn draw_full(
         &mut self,
+        out: &mut impl Write,
         all: &[Suggestion],
         cursor: usize,
         direction: Direction,
@@ -133,7 +121,7 @@ impl<W: Write> PopupRenderer<W> {
         term_cols: u16,
     ) -> io::Result<()> {
         if all.is_empty() {
-            self.clear()?;
+            self.clear(out)?;
             return Ok(());
         }
 
@@ -204,28 +192,30 @@ impl<W: Write> PopupRenderer<W> {
             rows.push((row_pad, data));
         }
 
-        // Signature: skip redraw when nothing visible has changed.
-        let sig = build_signature(visible, active_in_page, direction, &active_desc, padding);
-        if Some(&sig) == self.last_signature.as_ref() && self.last_direction == direction {
+        // Signature hash: skip redraw when nothing visible has changed.
+        // Uses a u64 hash instead of formatting a 300-byte String to
+        // avoid per-draw allocations.
+        let sig = signature_hash(visible, active_in_page, direction, &active_desc, padding);
+        if Some(sig) == self.last_signature && self.last_direction == direction {
             return Ok(());
         }
-        self.clear()?;
+        self.clear(out)?;
 
         // Upstream uses SCO save/restore (`\x1b[s` / `\x1b[u`) rather
         // than DECSC/DECRC (`\x1b7` / `\x1b8`). Some terminals only
         // implement one correctly, and chalk/ansi-escapes settled on
         // SCO — we match for byte-for-byte parity.
-        self.out.write_all(ansi::CURSOR_HIDE.as_bytes())?;
-        self.out.write_all(b"\x1b[s")?;
+        out.write_all(ansi::CURSOR_HIDE.as_bytes())?;
+        out.write_all(b"\x1b[s")?;
 
         match direction {
             Direction::Below => {
-                self.out.write_all(b"\x1b[E")?; // CNL with no count
+                out.write_all(b"\x1b[E")?; // CNL with no count
             }
             Direction::Above => {
                 // Move cursor up `rows.len()` lines using repeated CPL.
                 for _ in 0..rows.len() {
-                    self.out.write_all(b"\x1b[F")?;
+                    out.write_all(b"\x1b[F")?;
                 }
             }
         }
@@ -234,17 +224,17 @@ impl<W: Write> PopupRenderer<W> {
             // Upstream emits `\x1b[1C` (CUF by 1) repeated N times,
             // not `\x1b[{N}C`. Match that byte pattern exactly.
             for _ in 0..*pad {
-                self.out.write_all(b"\x1b[1C")?;
+                out.write_all(b"\x1b[1C")?;
             }
-            self.out.write_all(data.as_bytes())?;
+            out.write_all(data.as_bytes())?;
             if i + 1 < rows.len() {
-                self.out.write_all(b"\x1b[E")?; // CNL no count
+                out.write_all(b"\x1b[E")?; // CNL no count
             }
         }
 
-        self.out.write_all(b"\x1b[u")?; // SCO restore
-        self.out.write_all(ansi::CURSOR_SHOW.as_bytes())?;
-        self.out.flush()?;
+        out.write_all(b"\x1b[u")?; // SCO restore
+        out.write_all(ansi::CURSOR_SHOW.as_bytes())?;
+        out.flush()?;
 
         self.last_drawn_rows = rows.len() as u16;
         self.last_direction = direction;
@@ -252,33 +242,33 @@ impl<W: Write> PopupRenderer<W> {
         Ok(())
     }
 
-    pub fn clear(&mut self) -> io::Result<()> {
+    pub fn clear(&mut self, out: &mut impl Write) -> io::Result<()> {
         if self.last_drawn_rows == 0 {
             self.last_signature = None;
             return Ok(());
         }
         let rows = self.last_drawn_rows;
-        self.out.write_all(ansi::CURSOR_HIDE.as_bytes())?;
-        self.out.write_all(b"\x1b[s")?;
+        out.write_all(ansi::CURSOR_HIDE.as_bytes())?;
+        out.write_all(b"\x1b[s")?;
         match self.last_direction {
             Direction::Below => {
-                self.out.write_all(b"\x1b[E")?;
+                out.write_all(b"\x1b[E")?;
             }
             Direction::Above => {
                 for _ in 0..rows {
-                    self.out.write_all(b"\x1b[F")?;
+                    out.write_all(b"\x1b[F")?;
                 }
             }
         }
         for i in 0..rows {
-            self.out.write_all(b"\x1b[2K")?;
+            out.write_all(b"\x1b[2K")?;
             if i + 1 < rows {
-                self.out.write_all(b"\x1b[E")?;
+                out.write_all(b"\x1b[E")?;
             }
         }
-        self.out.write_all(b"\x1b[u")?;
-        self.out.write_all(ansi::CURSOR_SHOW.as_bytes())?;
-        self.out.flush()?;
+        out.write_all(b"\x1b[u")?;
+        out.write_all(ansi::CURSOR_SHOW.as_bytes())?;
+        out.flush()?;
         self.last_drawn_rows = 0;
         self.last_signature = None;
         Ok(())
@@ -376,19 +366,22 @@ fn render_description_box(description: &str) -> Vec<String> {
     out
 }
 
-fn build_signature(
+fn signature_hash(
     visible: &[Suggestion],
     active: usize,
     direction: Direction,
     desc: &str,
     padding: usize,
-) -> String {
-    let dir = match direction {
-        Direction::Above => "^",
-        Direction::Below => "v",
-    };
-    let rows: Vec<String> = visible.iter().map(|s| s.name.clone()).collect();
-    format!("{}|{}|{}|{}|{}", dir, active, padding, rows.join("\n"), desc)
+) -> u64 {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    for s in visible {
+        s.name.hash(&mut h);
+    }
+    active.hash(&mut h);
+    (direction == Direction::Above).hash(&mut h);
+    desc.hash(&mut h);
+    padding.hash(&mut h);
+    h.finish()
 }
 
 /// Upstream icon table (from /tmp/inshellisense/src/runtime/suggestion.ts).
@@ -642,12 +635,12 @@ mod tests {
     #[test]
     fn draw_full_emits_active_bg() {
         let mut buf: Vec<u8> = Vec::new();
-        let mut r = PopupRenderer::new(&mut buf, 5);
+        let mut r = PopupRenderer::new(5);
         let sugs = vec![
             mk("checkout", "Switch branches", SuggestionType::Subcommand),
             mk("cherry-pick", "Apply the changes", SuggestionType::Subcommand),
         ];
-        r.draw_full(&sugs, 0, Direction::Below, 10, 120).unwrap();
+        r.draw_full(&mut buf, &sugs, 0, Direction::Below, 10, 120).unwrap();
         let s = String::from_utf8_lossy(&buf);
         // Active bg is either truecolor (48;2;125;86;244) or 256-color
         // indexed (48;5;105) depending on COLORTERM.

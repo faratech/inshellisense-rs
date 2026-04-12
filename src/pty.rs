@@ -16,10 +16,9 @@ use crate::term::TermTracker;
 use anyhow::{Context, Result};
 use crossterm::terminal::{self, ClearType};
 use portable_pty::{CommandBuilder, PtySize};
-use std::io::{Read, Write};
-use std::sync::mpsc;
+use std::io::Write;
+use std::os::unix::io::AsRawFd;
 use std::thread;
-use std::time::Duration;
 
 pub fn run_wrapped_shell() -> Result<()> {
     run_wrapped(Shell::Bash, false, None)
@@ -90,7 +89,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     let mut child = pair.slave.spawn_command(cmd).context("failed to spawn bash")?;
     drop(pair.slave);
 
-    let mut reader = pair.master.try_clone_reader().context("clone reader")?;
+    drop(pair.master.try_clone_reader()); // keep master alive for as_raw_fd
     let mut writer = pair.master.take_writer().context("take writer")?;
 
     terminal::enable_raw_mode().ok();
@@ -110,13 +109,8 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
         out.flush().ok();
     }
 
-    // Load the 1470-spec registry on a background thread so the
-    // user's shell prompt appears immediately (~5ms) instead of
-    // blocking ~500ms on zstd decompression + JSON parsing. Popup
-    // suggestions are gated on the engine being ready — until then,
-    // typed keystrokes still reach bash normally and the popup just
-    // stays hidden. The engine typically finishes loading before
-    // the user has finished typing their first partial command.
+    // Background engine load — ~500ms of zstd + JSON parse off the
+    // critical path so the shell prompt appears instantly.
     let engine: std::sync::Arc<std::sync::RwLock<Option<Engine>>> =
         std::sync::Arc::new(std::sync::RwLock::new(None));
     {
@@ -131,42 +125,12 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
         });
     }
 
-    let (pty_tx, pty_rx) = mpsc::channel::<Vec<u8>>();
-    let (stdin_tx, stdin_rx) = mpsc::channel::<Vec<u8>>();
-
-    // Reader thread: PTY -> channel
-    thread::spawn(move || {
-        let mut buf = [0u8; 4096];
-        loop {
-            match reader.read(&mut buf) {
-                Ok(0) => break,
-                Ok(n) => {
-                    if pty_tx.send(buf[..n].to_vec()).is_err() {
-                        break;
-                    }
-                }
-                Err(_) => break,
-            }
-        }
-    });
-
-    // Stdin thread: user keys -> channel
-    thread::spawn(move || {
-        let stdin = std::io::stdin();
-        let mut handle = stdin.lock();
-        let mut buf = [0u8; 1024];
-        loop {
-            match handle.read(&mut buf) {
-                Ok(0) => break,
-                Ok(n) => {
-                    if stdin_tx.send(buf[..n].to_vec()).is_err() {
-                        break;
-                    }
-                }
-                Err(_) => break,
-            }
-        }
-    });
+    // Get the raw file descriptors we need to poll. Upstream's Node.js
+    // event loop uses libuv's epoll under the hood for exactly this —
+    // blocking until data arrives on either the PTY master or stdin,
+    // with zero CPU when idle. We match that model using libc::poll().
+    let pty_fd = pair.master.as_raw_fd().context("PTY master has no raw fd")?;
+    let stdin_fd = std::io::stdin().as_raw_fd();
 
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
@@ -179,7 +143,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     let has_ghost = matches!(effective_ui, UiMode::Ghost | UiMode::Hybrid);
     let bindings: Bindings = cfg.bindings.clone();
     let max_popup_rows = cfg.max_suggestions.max(1) as usize + 1 /* desc line */ + 4 /* desc overflow headroom */;
-    let mut renderer = Renderer::new(std::io::stdout(), effective_ui, cfg.max_suggestions);
+    let mut renderer = Renderer::new(effective_ui, cfg.max_suggestions);
 
     // Shared suggestion state.
     let mut pending_tail: Option<String> = None; // ghost mode
@@ -195,19 +159,15 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     // wherever the cursor happened to be.
     let mut submitting = false;
 
+    let mut pty_buf = [0u8; 4096];
+    let mut stdin_buf = [0u8; 1024];
+
     loop {
-        if let Ok(Some(status)) = child.try_wait() {
-            let _ = status;
+        if let Ok(Some(_)) = child.try_wait() {
             break;
         }
 
-        // Poll for SIGWINCH — crossterm::terminal::size() is a single
-        // TIOCGWINSZ ioctl, cheap enough per tick. If dimensions
-        // changed, tell the vt parser and the slave PTY so readline
-        // re-wraps at the new width. Guard against (0, 0) which some
-        // PTY allocators report transiently — feeding bytes into a
-        // zero-sized vt100 grid panics.
-        let mut made_progress = false;
+        // SIGWINCH — one TIOCGWINSZ ioctl per wakeup.
         if let Ok((new_cols, new_rows)) = terminal::size() {
             if new_cols > 0
                 && new_rows > 0
@@ -220,115 +180,73 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                     pixel_width: 0,
                     pixel_height: 0,
                 });
-                renderer.clear().ok();
+                renderer.clear(&mut out).ok();
+            }
+        }
+
+        // Block until the PTY or stdin has data, exactly like
+        // upstream's libuv epoll_wait. CPU usage is 0% when idle.
+        // The 50ms timeout ensures we still check child exit and
+        // SIGWINCH even when no I/O arrives.
+        let mut fds = [
+            libc::pollfd { fd: pty_fd, events: libc::POLLIN, revents: 0 },
+            libc::pollfd { fd: stdin_fd, events: libc::POLLIN, revents: 0 },
+        ];
+        let nready = unsafe { libc::poll(fds.as_mut_ptr(), 2, 50) };
+        if nready <= 0 {
+            continue; // timeout or error — loop back to check child + SIGWINCH
+        }
+
+        let mut made_progress = false;
+
+        // Read PTY output if ready.
+        if fds[0].revents & libc::POLLIN != 0 {
+            // Non-blocking read: drain all available bytes.
+            loop {
+                let n = unsafe {
+                    libc::read(pty_fd, pty_buf.as_mut_ptr() as *mut libc::c_void, pty_buf.len())
+                };
+                if n <= 0 {
+                    break;
+                }
+                let bytes = &pty_buf[..n as usize];
+                let (clean, osc_events) = ansi::scan(bytes);
+                out.write_all(&clean).ok();
+                out.flush().ok();
+                tracker.feed(&clean, &osc_events);
+                made_progress = true;
+                // Check if more data is available without blocking.
+                let mut peek = [libc::pollfd { fd: pty_fd, events: libc::POLLIN, revents: 0 }];
+                let more = unsafe { libc::poll(peek.as_mut_ptr(), 1, 0) };
+                if more <= 0 {
+                    break;
+                }
+            }
+        }
+
+        // Read stdin if ready.
+        if fds[1].revents & libc::POLLIN != 0 {
+            let n = unsafe {
+                libc::read(stdin_fd, stdin_buf.as_mut_ptr() as *mut libc::c_void, stdin_buf.len())
+            };
+            if n > 0 {
+                let bytes = stdin_buf[..n as usize].to_vec();
+                handle_stdin(
+                    &bytes,
+                    has_ghost,
+                    has_popup,
+                    &mut pending_tail,
+                    &mut popup_mode,
+                    &ranked,
+                    &bindings,
+                    &tracker,
+                    &mut renderer,
+                    &mut out,
+                    &mut writer,
+                    &mut submitting,
+                );
                 made_progress = true;
             }
-        }
-
-        // Drain PTY output.
-        while let Ok(bytes) = pty_rx.try_recv() {
-            let (clean, events) = ansi::scan(&bytes);
-            out.write_all(&clean).ok();
-            out.flush().ok();
-            tracker.feed(&clean, &events);
-            made_progress = true;
-        }
-
-        // Drain user stdin and forward to PTY, intercepting popup keys
-        // when the popup is visible and ghost-accept keys when a ghost
-        // tail is pending.
-        while let Ok(bytes) = stdin_rx.try_recv() {
-            // Ghost-accept (right / End / Ctrl-E) works in Ghost and
-            // Hybrid modes. It accepts whatever tail the renderer is
-            // currently showing — which in Hybrid mode is the tail of
-            // the popup's *active* entry, not just the top.
-            if has_ghost {
-                let ghost_accept: &[&[u8]] = &[b"\x1b[C", b"\x1b[F", b"\x05"];
-                if ghost_accept.contains(&bytes.as_slice()) {
-                    if let Some(tail) = pending_tail.take() {
-                        renderer.clear().ok();
-                        writer.write_all(tail.as_bytes()).ok();
-                        writer.flush().ok();
-                        popup_mode = PopupMode::Hidden;
-                        made_progress = true;
-                        continue;
-                    }
-                }
-            }
-
-            if has_popup {
-                if let PopupMode::Visible { cursor } = popup_mode {
-                    if !ranked.is_empty() {
-                        if bindings.next_suggestion.matches(&bytes) {
-                            let new_cursor = (cursor + 1).min(ranked.len() - 1);
-                            popup_mode = PopupMode::Visible { cursor: new_cursor };
-                            made_progress = true;
-                            continue;
-                        }
-                        if bindings.previous_suggestion.matches(&bytes) {
-                            let new_cursor = cursor.saturating_sub(1);
-                            popup_mode = PopupMode::Visible { cursor: new_cursor };
-                            made_progress = true;
-                            continue;
-                        }
-                        if bindings.accept_suggestion.matches(&bytes) {
-                            let selected = &ranked[cursor.min(ranked.len() - 1)];
-                            let partial = current_partial(&tracker.state().command);
-                            let tail = replacement_tail(selected, &partial);
-                            renderer.clear().ok();
-                            if !tail.is_empty() {
-                                writer.write_all(tail.as_bytes()).ok();
-                            }
-                            if !matches!(selected.suggestion_type, SuggestionType::Folder) {
-                                writer.write_all(b" ").ok();
-                            }
-                            writer.flush().ok();
-                            popup_mode = PopupMode::Hidden;
-                            pending_tail = None;
-                            made_progress = true;
-                            continue;
-                        }
-                        if bindings.dismiss_suggestions.matches(&bytes) {
-                            renderer.clear().ok();
-                            popup_mode = PopupMode::Dismissed;
-                            made_progress = true;
-                            continue;
-                        }
-                        // Anything else: close the popup and fall
-                        // through to forward the byte into the shell.
-                        renderer.clear().ok();
-                        popup_mode = PopupMode::Hidden;
-                    }
-                }
-            }
-
-            // Default: clear any drawn UI (bash will repaint the same
-            // cells) and forward the bytes into the shell.
-            //
-            // EXCEPT: if the key is pure cursor navigation (left/right
-            // arrow, up/down history, home/end, Ctrl-A/E while the
-            // cursor is in the middle of typed text), do NOT clear.
-            // GhostRenderer::clear() emits `\x1b[K` (erase-line-right)
-            // from the current cursor position — which wipes the
-            // user's typed characters AHEAD of the cursor when they
-            // arrow-left into the middle of a command. Navigation
-            // keys don't modify the command text, so the ghost is
-            // still valid and should be left alone.
-            if !is_cursor_navigation(&bytes) {
-                renderer.clear().ok();
-            }
-            // If the user is submitting a command (Enter or Ctrl-C),
-            // latch the `submitting` flag so the next redraw
-            // suppresses the popup until a fresh PromptStart arrives.
-            // `bytes` may be a 1- or 2-byte chunk: `\r`, `\n`, `\r\n`,
-            // or `\x03` (SIGINT).
-            if bytes.iter().any(|&b| b == b'\r' || b == b'\n' || b == 0x03) {
-                submitting = true;
-                popup_mode = PopupMode::Hidden;
-            }
-            writer.write_all(&bytes).ok();
-            writer.flush().ok();
-            made_progress = true;
         }
 
         if made_progress {
@@ -347,18 +265,18 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                     ranked.clear();
                     pending_tail = None;
                     popup_mode = PopupMode::Hidden;
-                    renderer.clear().ok();
+                    renderer.clear(&mut out).ok();
                     last_cmd_signature.clear();
                 } else {
                     // Still post-Enter but pre-PromptStart. Make sure
                     // nothing is drawn this tick.
-                    renderer.clear().ok();
+                    renderer.clear(&mut out).ok();
                 }
             } else if state.command.is_empty() {
                 ranked.clear();
                 pending_tail = None;
                 popup_mode = PopupMode::Hidden;
-                renderer.clear().ok();
+                renderer.clear(&mut out).ok();
                 last_cmd_signature.clear();
             } else {
                 // Re-arm a dismissed popup on any edit to the line.
@@ -428,6 +346,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                     let term_cols = tracker.cols();
                     renderer
                         .draw_popup_interactive(
+                            &mut out,
                             tail.as_deref(),
                             &ranked,
                             active_cursor,
@@ -441,22 +360,105 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                     };
                 } else if has_popup && ranked.is_empty() {
                     popup_mode = PopupMode::Hidden;
-                    renderer.clear().ok();
+                    renderer.clear(&mut out).ok();
                 } else if !has_popup {
                     // Pure Ghost mode.
-                    renderer.draw(tail.as_deref(), &ranked).ok();
+                    renderer.draw(&mut out, tail.as_deref(), &ranked).ok();
                 }
 
                 last_cmd_signature = state.command.clone();
             }
-        } else {
-            thread::sleep(Duration::from_millis(5));
         }
+        // No else-sleep needed — recv_timeout at the top of the loop
+        // parks the thread when there's no activity.
     }
 
     terminal::disable_raw_mode().ok();
     let _ = crossterm::execute!(std::io::stdout(), terminal::Clear(ClearType::CurrentLine));
     Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn handle_stdin(
+    bytes: &[u8],
+    has_ghost: bool,
+    has_popup: bool,
+    pending_tail: &mut Option<String>,
+    popup_mode: &mut PopupMode,
+    ranked: &[Suggestion],
+    bindings: &Bindings,
+    tracker: &TermTracker,
+    renderer: &mut Renderer,
+    out: &mut impl Write,
+    writer: &mut Box<dyn Write + Send>,
+    submitting: &mut bool,
+) {
+    // Ghost-accept (right / End / Ctrl-E).
+    if has_ghost {
+        let ghost_accept: &[&[u8]] = &[b"\x1b[C", b"\x1b[F", b"\x05"];
+        if ghost_accept.contains(&bytes) {
+            if let Some(tail) = pending_tail.take() {
+                renderer.clear(out).ok();
+                writer.write_all(tail.as_bytes()).ok();
+                writer.flush().ok();
+                *popup_mode = PopupMode::Hidden;
+                return;
+            }
+        }
+    }
+    // Popup key interception.
+    if has_popup {
+        if let PopupMode::Visible { cursor } = *popup_mode {
+            if !ranked.is_empty() {
+                if bindings.next_suggestion.matches(bytes) {
+                    *popup_mode = PopupMode::Visible {
+                        cursor: (cursor + 1).min(ranked.len() - 1),
+                    };
+                    return;
+                }
+                if bindings.previous_suggestion.matches(bytes) {
+                    *popup_mode = PopupMode::Visible {
+                        cursor: cursor.saturating_sub(1),
+                    };
+                    return;
+                }
+                if bindings.accept_suggestion.matches(bytes) {
+                    let selected = &ranked[cursor.min(ranked.len() - 1)];
+                    let partial = current_partial(&tracker.state().command);
+                    let tail = replacement_tail(selected, &partial);
+                    renderer.clear(out).ok();
+                    if !tail.is_empty() {
+                        writer.write_all(tail.as_bytes()).ok();
+                    }
+                    if !matches!(selected.suggestion_type, SuggestionType::Folder) {
+                        writer.write_all(b" ").ok();
+                    }
+                    writer.flush().ok();
+                    *popup_mode = PopupMode::Hidden;
+                    *pending_tail = None;
+                    return;
+                }
+                if bindings.dismiss_suggestions.matches(bytes) {
+                    renderer.clear(out).ok();
+                    *popup_mode = PopupMode::Dismissed;
+                    return;
+                }
+                // Anything else: close popup, fall through.
+                renderer.clear(out).ok();
+                *popup_mode = PopupMode::Hidden;
+            }
+        }
+    }
+    // Default forward path.
+    if !is_cursor_navigation(bytes) {
+        renderer.clear(out).ok();
+    }
+    if bytes.iter().any(|&b| b == b'\r' || b == b'\n' || b == 0x03) {
+        *submitting = true;
+        *popup_mode = PopupMode::Hidden;
+    }
+    writer.write_all(bytes).ok();
+    writer.flush().ok();
 }
 
 fn find_on_path(binary: &str) -> Result<String> {
@@ -484,10 +486,10 @@ fn is_cursor_navigation(bytes: &[u8]) -> bool {
         | b"\x1b[H" | b"\x1b[1~" | b"\x1bOH"
         // Page up / down
         | b"\x1b[5~" | b"\x1b[6~"
-        // Ctrl-A (home) — Ctrl-E is intentionally EXCLUDED here
-        // because it's a ghost-accept key in our bindings, and is
-        // handled in the accept-path before this.
-        | b"\x01"
+        // Ctrl-A (home), Ctrl-B (back-char), Ctrl-F (forward-char).
+        // Ctrl-E is intentionally EXCLUDED — it's a ghost-accept
+        // key handled in the accept path before this.
+        | b"\x01" | b"\x02" | b"\x06"
         // Meta-B / Meta-F (word navigation in bash)
         | b"\x1bb" | b"\x1bf"
     )

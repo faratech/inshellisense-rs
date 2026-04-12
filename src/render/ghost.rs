@@ -7,42 +7,41 @@
 use crate::ansi;
 use std::io::{self, Write};
 
-pub struct GhostRenderer<W: Write> {
-    out: W,
+#[derive(Default)]
+pub struct GhostRenderer {
     last: Option<String>,
 }
 
-impl<W: Write> GhostRenderer<W> {
-    pub fn new(out: W) -> Self {
-        Self { out, last: None }
+impl GhostRenderer {
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub fn draw(&mut self, tail: Option<&str>) -> io::Result<()> {
+    pub fn draw(&mut self, out: &mut impl Write, tail: Option<&str>) -> io::Result<()> {
         let new = tail.map(|s| s.to_string());
         if new == self.last {
             return Ok(());
         }
-        self.last = new.clone();
-        self.out.write_all(ansi::save_cursor().as_bytes())?;
-        self.out.write_all(ansi::ERASE_LINE_RIGHT.as_bytes())?;
+        self.last = new;
+        out.write_all(ansi::save_cursor().as_bytes())?;
+        out.write_all(ansi::ERASE_LINE_RIGHT.as_bytes())?;
         if let Some(tail) = tail {
-            self.out
-                .write_all(format!("{}{}{}", ansi::GREY_FG, tail, ansi::RESET).as_bytes())?;
+            out.write_all(format!("{}{}{}", ansi::GREY_FG, tail, ansi::RESET).as_bytes())?;
         }
-        self.out.write_all(ansi::restore_cursor().as_bytes())?;
-        self.out.flush()?;
+        out.write_all(ansi::restore_cursor().as_bytes())?;
+        out.flush()?;
         Ok(())
     }
 
-    pub fn clear(&mut self) -> io::Result<()> {
+    pub fn clear(&mut self, out: &mut impl Write) -> io::Result<()> {
         if self.last.is_none() {
             return Ok(());
         }
         self.last = None;
-        self.out.write_all(ansi::save_cursor().as_bytes())?;
-        self.out.write_all(ansi::ERASE_LINE_RIGHT.as_bytes())?;
-        self.out.write_all(ansi::restore_cursor().as_bytes())?;
-        self.out.flush()?;
+        out.write_all(ansi::save_cursor().as_bytes())?;
+        out.write_all(ansi::ERASE_LINE_RIGHT.as_bytes())?;
+        out.write_all(ansi::restore_cursor().as_bytes())?;
+        out.flush()?;
         Ok(())
     }
 }
