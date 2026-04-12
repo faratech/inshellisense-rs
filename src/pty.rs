@@ -147,6 +147,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     let mut ranked: Vec<Suggestion> = Vec::new();
     let mut popup_mode = PopupMode::Hidden;
     let mut last_cmd_signature = String::new();
+    let mut last_stdin_was_history = false;
     // Set to true after the user submits a command (Enter/Ctrl-C) so the
     // next redraw is suppressed until bash emits the next PromptStart.
     // Without this we race bash's echo: we clear the popup, forward `\r`,
@@ -231,6 +232,11 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
             let n = pty.read_stdin(&mut stdin_buf);
             if n > 0 {
                 let bytes = stdin_buf[..n as usize].to_vec();
+                // Track Up/Down for history-hide behavior (upstream:
+                // suggestionManager.ts:172-174).
+                last_stdin_was_history =
+                    bytes == b"\x1b[A" || bytes == b"\x1b[B"
+                    || bytes == b"\x1bOA" || bytes == b"\x1bOB";
                 handle_stdin(
                     &bytes,
                     has_ghost,
@@ -279,9 +285,13 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                 renderer.clear(&mut out).ok();
                 last_cmd_signature.clear();
             } else {
-                // Re-arm a dismissed popup on any edit to the line.
+                // Re-arm a dismissed popup on any edit to the line,
+                // UNLESS the change came from Up/Down history navigation
+                // (upstream: suggestionManager.ts:172-174). We detect
+                // history by checking if the last stdin was an arrow key.
                 if popup_mode == PopupMode::Dismissed
                     && state.command != last_cmd_signature
+                    && !last_stdin_was_history
                 {
                     popup_mode = PopupMode::Hidden;
                 }
@@ -458,11 +468,21 @@ fn handle_stdin(
                 if bindings.dismiss_suggestions.matches(bytes) {
                     renderer.clear(out).ok();
                     *popup_mode = PopupMode::Dismissed;
-                    return;
+                    // Don't return — forward the key to the shell
+                    // (upstream returns false here).
+                }
+                // Return/Ctrl-C: clear and forward (upstream:
+                // suggestionManager.ts:203-205).
+                else if bytes.iter().any(|&b| b == b'\r' || b == 0x03) {
+                    renderer.clear(out).ok();
+                    *popup_mode = PopupMode::Hidden;
+                    // Fall through to forward path.
                 }
                 // Anything else: close popup, fall through.
-                renderer.clear(out).ok();
-                *popup_mode = PopupMode::Hidden;
+                else {
+                    renderer.clear(out).ok();
+                    *popup_mode = PopupMode::Hidden;
+                }
             }
         }
     }
