@@ -16,10 +16,11 @@ pub fn list(plain: bool) -> Result<()> {
     // they're not standalone commands a user would invoke — `specs
     // list` should only surface the top-level primary names. Match
     // upstream's behavior exactly.
-    let names: Vec<&str> = registry
+    let names: Vec<String> = registry
         .names()
+        .into_iter()
         .filter(|n| !n.contains('/'))
-        .filter(|n| !n.is_empty() && *n != "-")
+        .filter(|n| !n.is_empty() && n != "-")
         .collect();
     if plain {
         for name in &names {

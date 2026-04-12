@@ -5,12 +5,12 @@
 //! surface covers everything inshellisense's runtime actually consumes plus
 //! the HIGH-priority fields from the plan.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Root spec form — a command like `git` resolves to one of these.
 pub type Spec = Subcommand;
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default)]
 pub struct Subcommand {
     /// Primary name plus any aliases. Always at least one entry.
@@ -38,7 +38,7 @@ pub struct Subcommand {
     pub icon: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default)]
 pub struct Opt {
     #[serde(deserialize_with = "de_string_or_vec")]
@@ -63,7 +63,7 @@ pub struct Opt {
     pub icon: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default)]
 pub struct Arg {
     pub name: Option<String>,
@@ -89,7 +89,7 @@ pub struct Arg {
     pub load_spec: Option<LoadSpec>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum Generator {
     /// Run a shell script; optionally split and post-process output.
@@ -125,7 +125,7 @@ pub enum Generator {
     },
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectFileReader {
     /// `package.json` → keys of `scripts` → suggestion per key.
@@ -140,7 +140,7 @@ pub enum ProjectFileReader {
     CargoWorkspaceMembers,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum ScriptInput {
     /// A raw shell command string — run with `sh -c`.
@@ -152,7 +152,7 @@ pub enum ScriptInput {
     FnTemplate { template: String },
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PostProcess {
     /// No post-processing; values come from `split_on` directly.
@@ -171,7 +171,7 @@ impl Default for PostProcess {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PostProcessKind {
     SplitLines {},
@@ -183,7 +183,7 @@ pub enum PostProcessKind {
     TableColumn { index: u8, sep: String },
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum LoadSpec {
     /// Look up another spec by name — resolved lazily by the Registry.
@@ -194,7 +194,7 @@ pub enum LoadSpec {
     Function { fn_id: u32 },
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Template {
     Filepaths,
@@ -203,7 +203,7 @@ pub enum Template {
     Help,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum FilterStrategy {
     #[default]
@@ -212,7 +212,7 @@ pub enum FilterStrategy {
     Fuzzy,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum Repeatable {
     /// `true`/`false` literal.
@@ -227,7 +227,7 @@ impl Default for Repeatable {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default)]
 pub struct ParserDirectives {
     pub flags_are_posix_noncompliant: bool,
@@ -235,7 +235,7 @@ pub struct ParserDirectives {
     pub option_arg_separators: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct CacheSpec {
     pub strategy: CacheStrategy,
@@ -253,7 +253,7 @@ impl Default for CacheSpec {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CacheStrategy {
     #[default]
@@ -261,7 +261,7 @@ pub enum CacheStrategy {
     StaleWhileRevalidate,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default)]
 pub struct Suggestion {
     pub name: String,
@@ -278,7 +278,7 @@ pub struct Suggestion {
     pub deprecated: bool,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SuggestionType {
     #[default]

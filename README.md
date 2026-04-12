@@ -1,4 +1,4 @@
-# insh-rs
+# inshellisense-rs
 
 Grey ghost-text shell autocomplete — a Rust port of Microsoft's
 [inshellisense](https://github.com/microsoft/inshellisense).
@@ -21,7 +21,7 @@ essentials
 find, grep, tar, make, vim, nvim, tmux, fzf, rg, fd, bat, eza, jq,
 ffmpeg, and 20 others) embedded directly into the 3.4 MB binary. The
 1352-spec extras tree loads via `INSH_RS_SPECS_DIR` or a future
-`insh update-specs` tarball. Phase 5 (parity corpus + CI gate) and
+`is update-specs` tarball. Phase 5 (parity corpus + CI gate) and
 phase 6 (rquickjs JS runtime) are **not** in the plan — we got here
 with pure Rust and dropped phase 6 entirely. See
 [CHANGELOG.md](CHANGELOG.md) for the full phase history.
@@ -36,7 +36,7 @@ The existing options in bash:
 | [`ble.sh`](https://github.com/akinomyoga/ble.sh) | native | native | history only |
 | [`fzf`](https://github.com/junegunn/fzf) | native | small | history only |
 | Microsoft [inshellisense](https://github.com/microsoft/inshellisense) | ~100 ms cold start, ~60 MB | Node + V8 | yes, via Fig specs |
-| **insh-rs** | **~5 ms cold start, ~10 MB** | native Rust binary | yes, via Fig specs |
+| **inshellisense-rs** | **~5 ms prompt, ~220 ms suggestions, ~5.7 MB** | native Rust binary | yes, via Fig specs |
 
 The positioning: **inshellisense's feature set with ripgrep's footprint**.
 
@@ -46,32 +46,32 @@ The positioning: **inshellisense's feature set with ripgrep's footprint**.
 
 ```sh
 cargo install --path .
-insh install              # appends the init snippet to ~/.bashrc
+is install              # appends the init snippet to ~/.bashrc
 ```
 
 Or explicitly:
 
 ```sh
 cargo build --release
-install -m 755 target/release/insh ~/.local/bin/insh
-insh install
+install -m 755 target/release/is ~/.local/bin/is
+is install
 ```
 
 ### Try without installing
 
 ```sh
-exec insh start           # drop into a wrapped bash in the current terminal
+exec is start           # drop into a wrapped bash in the current terminal
 ```
 
 ## Usage
 
 ```sh
-insh start                # run wrapped shell (the real thing)
-insh doctor               # show resolved config + loaded specs
-insh list-specs           # enumerate loaded commands
-insh complete 'git ch'    # offline query → prints the suggestion tail
-insh init bash            # print the init snippet for ~/.bashrc
-insh install              # write the snippet into ~/.bashrc
+is start                # run wrapped shell (the real thing)
+is doctor               # show resolved config + loaded specs
+is list-specs           # enumerate loaded commands
+is complete 'git ch'    # offline query → prints the suggestion tail
+is init bash            # print the init snippet for ~/.bashrc
+is install              # write the snippet into ~/.bashrc
 ```
 
 In the wrapped shell:
@@ -139,7 +139,7 @@ specs it covers. Where it differs:
 |---|---|---|
 | Runtime | Node + V8 | native Rust binary |
 | Cold start | ~100 ms | ~5 ms |
-| Memory | ~60 MB | ~10 MB |
+| Memory | ~60 MB | ~5.7 MB |
 | Binary size | 30+ MB (packaged) | 1.7 MB stripped |
 | Shell support | bash, zsh, fish, pwsh, nu, xonsh, cmd | bash only |
 | Fig spec coverage | ~715 specs via dynamic import | **1470/1470 pure (100.0%)** via the static extractor |

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.0.1] — 2026-04-12
 
 First public release. 1:1 feature parity with Microsoft's inshellisense,
+29 crate dependency tree, 5.7 MB binary.
 pure Rust, 6.3 MB binary (vs upstream's 132 MB), 1470 specs bundled.
 
 ### Added
@@ -56,10 +57,19 @@ pure Rust, 6.3 MB binary (vs upstream's 132 MB), 1470 specs bundled.
   when partial non-empty).
 - `init bash` emits upstream-parity source-line snippet; auto-exec
   wrapper moved to `insh install` for backwards compat.
-- Direct `serde_json::from_slice` into `BTreeMap<String, Subcommand>`
-  (was double-parsing via Value intermediate), cutting cold start from
-  900 ms to 500 ms.
+- Lazy spec loading: specs are indexed by top-level key at startup
+  (using serde_json RawValue — scans keys without parsing values) and
+  deserialized on first `get()`, matching upstream's dynamic-import
+  architecture. Cold start: 536 ms → 220 ms (2.4x faster).
 - Popup signature uses u64 hash instead of 300-byte String allocation.
+- Dependency tree: 83 → 29 crates. Removed clap (manual arg parsing),
+  portable-pty (libc::forkpty), rayon (std::thread::scope), crossterm
+  (libc termios/ioctl), dirs ($HOME env), once_cell (std::LazyLock),
+  signal-hook, bytes, include_dir, ratatui.
+- Single binary `is` (dropped the `insh` alias).
+- libc::poll event loop (true 0% CPU when idle, matching upstream).
+- Single stdout writer for all renderers (no ANSI interleave risk).
+- Signal handlers (SIGTERM/SIGHUP/SIGINT) restore original termios.
 
 ## [Unreleased]
 

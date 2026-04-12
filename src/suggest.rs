@@ -187,7 +187,7 @@ impl Engine {
             if !name.to_lowercase().starts_with(&partial_lc) {
                 continue;
             }
-            let spec = match self.registry.get(name) {
+            let spec = match self.registry.get(&name) {
                 Some(s) => s,
                 None => continue,
             };
