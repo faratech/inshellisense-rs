@@ -43,12 +43,23 @@ pub enum IsEvent {
 ///
 /// Also returns the bytes to forward to the vt100 parser — those are the
 /// same cleaned bytes (we never let our custom OSCs reach any parser).
+/// Win32 input mode enable sequence — Windows Terminal sends this
+/// through PTY output and it must be stripped (upstream: ui-root.ts:95).
+const WIN32_INPUT_MODE: &[u8] = b"\x1b[?9001h";
+
 pub fn scan(input: &[u8]) -> (Vec<u8>, Vec<IsEvent>) {
     let mut out = Vec::with_capacity(input.len());
     let mut events = Vec::new();
     let mut i = 0;
     let needle = b"\x1b]6973;";
     while i < input.len() {
+        // Strip Win32 input mode sequence (CSI ?9001h).
+        if i + WIN32_INPUT_MODE.len() <= input.len()
+            && &input[i..i + WIN32_INPUT_MODE.len()] == WIN32_INPUT_MODE
+        {
+            i += WIN32_INPUT_MODE.len();
+            continue;
+        }
         if i + needle.len() <= input.len() && &input[i..i + needle.len()] == needle {
             // Find terminator: BEL (0x07) or ST (ESC \\)
             let start = i + needle.len();

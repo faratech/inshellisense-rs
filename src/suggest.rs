@@ -16,15 +16,25 @@ use crate::spec::{
     resolver::{self, ResolveResult},
     Registry,
 };
+use std::collections::HashMap;
 
 pub struct Engine {
     registry: Registry,
     history: Vec<String>,
+    aliases: HashMap<String, String>,
 }
 
 impl Engine {
     pub fn new(registry: Registry, history: Vec<String>) -> Self {
-        Self { registry, history }
+        Self {
+            registry,
+            history,
+            aliases: HashMap::new(),
+        }
+    }
+
+    pub fn set_aliases(&mut self, aliases: HashMap<String, String>) {
+        self.aliases = aliases;
     }
 
     /// Ghost-text tail: the portion of the top suggestion after the current
@@ -49,7 +59,11 @@ impl Engine {
 
     /// Full suggestion blob — sorted and filtered.
     pub fn suggest_blob(&self, line: &str, cwd: &str) -> Vec<Suggestion> {
-        let tokens = spec::parse_command(line);
+        // Expand aliases before resolving — if the first word is an alias,
+        // suggestions should reflect the expanded command (upstream:
+        // runtime.ts:110).
+        let expanded = crate::alias::expand(line, &self.aliases);
+        let tokens = spec::parse_command(&expanded);
         if tokens.is_empty() {
             return Vec::new();
         }
@@ -57,15 +71,28 @@ impl Engine {
 
         // First-word completion — when the user has typed exactly one
         // token with no trailing space, they are *still typing the
-        // command name*. Upstream always returns top-level commands
-        // starting with that partial, regardless of whether the token
-        // is already a fully-formed registered command. e.g. `git`
-        // returns `[git, git-cliff, git-flow, git-profile]`, not git's
-        // subcommands. Subcommands only appear once the user presses
-        // space.
-        let trailing_space = line.ends_with(char::is_whitespace);
+        // command name*. Include both spec names and alias names,
+        // with aliases at priority 100 (upstream: runtime.ts:412-426).
+        let trailing_space = expanded.ends_with(char::is_whitespace);
         if tokens.len() == 1 && !trailing_space {
-            return self.top_level_name_matches(cmd);
+            let mut results = self.top_level_name_matches(cmd);
+            // Add matching aliases (priority 100, type Shortcut).
+            let partial_lc = cmd.to_lowercase();
+            for (name, value) in &self.aliases {
+                if name.to_lowercase().starts_with(&partial_lc) {
+                    results.push(Suggestion {
+                        name: name.clone(),
+                        description: Some(value.clone()),
+                        suggestion_type: SuggestionType::Shortcut,
+                        priority: Some(100),
+                        ..Default::default()
+                    });
+                }
+            }
+            results.sort_by(|a, b| {
+                b.priority.unwrap_or(50).cmp(&a.priority.unwrap_or(50))
+            });
+            return dedup_by_name(results);
         }
 
         let Some(root) = self.registry.get(cmd) else {

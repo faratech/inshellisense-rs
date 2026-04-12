@@ -107,16 +107,23 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
         out.flush().ok();
     }
 
+    let cfg = crate::config::load();
+
     // Background engine load — ~500ms of zstd + JSON parse off the
     // critical path so the shell prompt appears instantly.
     let engine: std::sync::Arc<std::sync::RwLock<Option<Engine>>> =
         std::sync::Arc::new(std::sync::RwLock::new(None));
     {
         let engine = engine.clone();
+        let alias_shell = shell;
+        let use_aliases = cfg.use_aliases;
         thread::spawn(move || {
             let registry = Registry::new_with_defaults();
             let hist = history::load();
-            let built = Engine::new(registry, hist);
+            let mut built = Engine::new(registry, hist);
+            if use_aliases {
+                built.set_aliases(crate::alias::load(alias_shell));
+            }
             if let Ok(mut slot) = engine.write() {
                 *slot = Some(built);
             }
@@ -128,7 +135,6 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     let mut tracker = TermTracker::new(rows, cols);
     // Popup / ghost dispatch: CLI --ui flag (ui_override) beats config
     // file, which beats the built-in default (Ghost).
-    let cfg = crate::config::load();
     let effective_ui = ui_override.unwrap_or(cfg.ui);
     let has_popup = matches!(effective_ui, UiMode::Popup | UiMode::Hybrid);
     let has_ghost = matches!(effective_ui, UiMode::Ghost | UiMode::Hybrid);

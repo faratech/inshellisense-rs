@@ -127,7 +127,9 @@ pub fn main() -> Result<()> {
             match sub2 {
                 "list" => {
                     let plain = rest.iter().any(|a| a == "--plain");
-                    commands::specs::list(plain)
+                    let specs_shell = parse_subcmd_flag(&rest, "--shell")
+                        .and_then(|s| parse_shell(&s));
+                    commands::specs::list(plain, specs_shell)
                 }
                 other => {
                     eprintln!("is specs: unknown subcommand `{}`", other);
@@ -137,7 +139,7 @@ pub fn main() -> Result<()> {
         }
         "list-specs" | "listspecs" => {
             eprintln!("inshellisense-rs: `list-specs` is deprecated; use `is specs list` instead");
-            commands::specs::list(true)
+            commands::specs::list(true, None)
         }
         "uninstall" => commands::uninstall::run(),
         other => {
