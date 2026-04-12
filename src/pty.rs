@@ -96,6 +96,10 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     // happened to be on screen). `\x1b[2J` erases the visible screen,
     // `\x1b[3J` erases the scrollback, `\x1b[H` moves the cursor to
     // the home position.
+    // On Unix, clear the screen so leftover output doesn't interfere
+    // with popup rendering. On Windows, ConPTY handles its own screen
+    // so clearing the parent terminal causes a flash.
+    #[cfg(unix)]
     {
         use std::io::Write;
         let mut out = std::io::stdout();
@@ -352,10 +356,17 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
         // parks the thread when there's no activity.
     }
 
-    pty.close();
+    renderer.clear(&mut out).ok();
+    drop(out); // release stdout lock before cleanup
     platform::disable_raw_mode();
-    let _ = std::panic::take_hook(); // restore default panic hook
-    let _ = std::io::stdout().write_all(b"\x1b[2K");
+    let _ = std::panic::take_hook();
+    // On Windows, ClosePseudoConsole can deadlock or flash the
+    // terminal. Restore console mode (above), then exit immediately
+    // and let the OS tear down ConPTY + handles.
+    #[cfg(windows)]
+    std::process::exit(0);
+    #[cfg(unix)]
+    pty.close();
     Ok(())
 }
 

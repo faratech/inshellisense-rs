@@ -412,17 +412,24 @@ impl PtyHandle for WindowsPty {
 
     fn close(&mut self) {
         unsafe {
+            // Close BOTH pipes before ClosePseudoConsole. From MS docs:
+            // "Closing the output pipe handle first allows
+            //  ClosePseudoConsole to return faster since the
+            //  pseudoconsole can skip sending the final frame."
+            // Skipping the final frame avoids the white flash in
+            // Windows Terminal when a ConPTY session ends.
+            CloseHandle(self.pty_input_write);
+            CloseHandle(self.pty_output_read);
             ClosePseudoConsole(self.hpc);
             CloseHandle(self.child_process);
             CloseHandle(self.child_thread);
-            CloseHandle(self.pty_input_write);
-            CloseHandle(self.pty_output_read);
         }
     }
 }
 
-/// Saved original console mode for restore.
-static mut ORIG_CONSOLE_MODE: u32 = 0;
+/// Saved original console modes for restore.
+static mut ORIG_INPUT_MODE: u32 = 0;
+static mut ORIG_OUTPUT_MODE: u32 = 0;
 static mut ORIG_MODE_SAVED: bool = false;
 
 pub fn term_size() -> Option<(u16, u16)> {
@@ -443,20 +450,20 @@ pub fn term_size() -> Option<(u16, u16)> {
 pub fn enable_raw_mode() {
     unsafe {
         let h = GetStdHandle(STD_INPUT_HANDLE);
-        GetConsoleMode(h, std::ptr::addr_of_mut!(ORIG_CONSOLE_MODE));
-        ORIG_MODE_SAVED = true;
-        // Disable line input + echo. Do NOT set
-        // ENABLE_VIRTUAL_TERMINAL_INPUT — we use ReadConsoleInputW
-        // which reads raw KEY_EVENTs and converts to VT ourselves.
-        SetConsoleMode(h, ENABLE_WINDOW_INPUT);
-        // Enable VT output on stdout.
         let hout = GetStdHandle(STD_OUTPUT_HANDLE);
-        let mut out_mode: u32 = 0;
-        GetConsoleMode(hout, &mut out_mode);
-        SetConsoleMode(
-            hout,
-            out_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING | DISABLE_NEWLINE_AUTO_RETURN,
-        );
+        // Only modify modes if the handles are real console handles.
+        // Under MSYS2/mintty, stdin may be a pipe and GetConsoleMode
+        // will fail. Setting mode 0 on exit would freeze the terminal.
+        if GetConsoleMode(h, std::ptr::addr_of_mut!(ORIG_INPUT_MODE)) != 0 {
+            SetConsoleMode(h, ENABLE_WINDOW_INPUT);
+            ORIG_MODE_SAVED = true;
+        }
+        if GetConsoleMode(hout, std::ptr::addr_of_mut!(ORIG_OUTPUT_MODE)) != 0 {
+            SetConsoleMode(
+                hout,
+                ORIG_OUTPUT_MODE | ENABLE_VIRTUAL_TERMINAL_PROCESSING | DISABLE_NEWLINE_AUTO_RETURN,
+            );
+        }
     }
 }
 
@@ -464,7 +471,9 @@ pub fn disable_raw_mode() {
     unsafe {
         if ORIG_MODE_SAVED {
             let h = GetStdHandle(STD_INPUT_HANDLE);
-            SetConsoleMode(h, ORIG_CONSOLE_MODE);
+            SetConsoleMode(h, ORIG_INPUT_MODE);
+            let hout = GetStdHandle(STD_OUTPUT_HANDLE);
+            SetConsoleMode(hout, ORIG_OUTPUT_MODE);
         }
     }
 }
