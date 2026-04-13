@@ -256,6 +256,11 @@ fn active_filter_strategy(r: &ResolveResult<'_>) -> FilterStrategy {
 /// LONGEST name via `getLong` — so `[-p, --paginate]` picks
 /// `--paginate`.
 ///
+/// Flag partials (`-l`, `--long`) are matched case-sensitively so
+/// that `-l` and `-L` resolve to different aliases. Non-flag
+/// partials (subcommand names like `ch` → `Checkout`) keep the
+/// case-insensitive prefix behaviour.
+///
 /// Returns `None` when names is empty or no alias matches the partial.
 fn pick_primary(names: &[String], partial: &str) -> Option<String> {
     if names.is_empty() {
@@ -265,6 +270,10 @@ fn pick_primary(names: &[String], partial: &str) -> Option<String> {
         // Longest name wins.
         let longest = names.iter().max_by_key(|n| n.len())?;
         return Some(longest.clone());
+    }
+    if partial.starts_with('-') {
+        // Case-sensitive: typing `-l` must not match `-L`.
+        return names.iter().find(|n| n.starts_with(partial)).cloned();
     }
     // First name whose case-insensitive prefix matches the partial.
     let p = partial.to_lowercase();
@@ -314,4 +323,36 @@ pub(crate) fn _pass_through_token(_t: &CommandToken) {}
 #[allow(dead_code)]
 fn _first_arg(s: &Subcommand) -> Option<&crate::spec::model::Arg> {
     s.args.first()
+}
+
+#[cfg(test)]
+mod pick_primary_tests {
+    use super::pick_primary;
+
+    #[test]
+    fn flag_partial_is_case_sensitive() {
+        let names = vec!["-L".to_string(), "-l".to_string()];
+        // Typing `-l` selects `-l`, not `-L`, even though `-L` is first.
+        assert_eq!(pick_primary(&names, "-l").as_deref(), Some("-l"));
+        assert_eq!(pick_primary(&names, "-L").as_deref(), Some("-L"));
+    }
+
+    #[test]
+    fn long_flag_partial_is_case_sensitive() {
+        let names = vec!["--Long".to_string(), "--long".to_string()];
+        assert_eq!(pick_primary(&names, "--long").as_deref(), Some("--long"));
+        assert_eq!(pick_primary(&names, "--Long").as_deref(), Some("--Long"));
+    }
+
+    #[test]
+    fn empty_partial_picks_longest() {
+        let names = vec!["-p".to_string(), "--paginate".to_string()];
+        assert_eq!(pick_primary(&names, "").as_deref(), Some("--paginate"));
+    }
+
+    #[test]
+    fn subcommand_partial_stays_case_insensitive() {
+        let names = vec!["Checkout".to_string()];
+        assert_eq!(pick_primary(&names, "ch").as_deref(), Some("Checkout"));
+    }
 }

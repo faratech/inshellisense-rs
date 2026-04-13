@@ -67,6 +67,10 @@ pub fn main() -> Result<()> {
     let subcmd = rest.first().map(|s| s.as_str()).unwrap_or("start");
     match subcmd {
         "start" => {
+            if has_help_flag(&rest) {
+                print_start_help();
+                return Ok(());
+            }
             // Re-entry guard: if already inside an inshellisense
             // session, print confirmation and exit — don't nest.
             // Matches upstream's behavior at commands/root.ts:25-29.
@@ -87,6 +91,10 @@ pub fn main() -> Result<()> {
             pty::run_wrapped(shell, login, ui)
         }
         "init" => {
+            if has_help_flag(&rest) {
+                print_init_help();
+                return Ok(());
+            }
             let install_rc = rest.iter().any(|a| a == "--install-rc");
             let target = rest
                 .iter()
@@ -102,13 +110,33 @@ pub fn main() -> Result<()> {
                 shell_init::print_init(target.as_str())
             }
         }
-        "reinit" => commands::reinit::run(),
+        "reinit" => {
+            if has_help_flag(&rest) {
+                print_reinit_help();
+                return Ok(());
+            }
+            commands::reinit::run()
+        }
         "install" => {
+            if has_help_flag(&rest) {
+                print_install_help();
+                return Ok(());
+            }
             let _ = resources::unpack();
             shell_init::install()
         }
-        "doctor" => commands::doctor::run(),
+        "doctor" => {
+            if has_help_flag(&rest) {
+                print_doctor_help();
+                return Ok(());
+            }
+            commands::doctor::run()
+        }
         "complete" => {
+            if has_help_flag(&rest) {
+                print_complete_help();
+                return Ok(());
+            }
             // Default output is JSON (matching upstream). --text
             // switches to plain ghost-tail mode. --json accepted
             // as a no-op for backwards compat.
@@ -125,7 +153,29 @@ pub fn main() -> Result<()> {
         "specs" => {
             let sub2 = rest.get(1).map(|s| s.as_str()).unwrap_or("list");
             match sub2 {
+                "-h" | "--help" => {
+                    print_specs_help();
+                    Ok(())
+                }
+                "help" => {
+                    // `is specs help` → specs help.
+                    // `is specs help <cmd>` → per-cmd help.
+                    match rest.get(2).map(|s| s.as_str()) {
+                        None => print_specs_help(),
+                        Some("list") => print_specs_list_help(),
+                        Some("help") => print_specs_help(),
+                        Some(other) => {
+                            eprintln!("is specs help: unknown subcommand `{}`", other);
+                            std::process::exit(2);
+                        }
+                    }
+                    Ok(())
+                }
                 "list" => {
+                    if has_help_flag(&rest[1..]) {
+                        print_specs_list_help();
+                        return Ok(());
+                    }
                     let plain = rest.iter().any(|a| a == "--plain");
                     let specs_shell = parse_subcmd_flag(&rest, "--shell")
                         .and_then(|s| parse_shell(&s));
@@ -141,7 +191,13 @@ pub fn main() -> Result<()> {
             eprintln!("inshellisense-rs: `list-specs` is deprecated; use `is specs list` instead");
             commands::specs::list(true, None)
         }
-        "uninstall" => commands::uninstall::run(),
+        "uninstall" => {
+            if has_help_flag(&rest) {
+                print_uninstall_help();
+                return Ok(());
+            }
+            commands::uninstall::run()
+        }
         other => {
             eprintln!("is: unknown command `{}`\nRun `is --help` for usage.", other);
             std::process::exit(2);
@@ -171,6 +227,14 @@ fn parse_ui(s: &str) -> Option<UiMode> {
         "hybrid" => Some(UiMode::Hybrid),
         _ => None,
     }
+}
+
+/// True if any arg after the subcommand name itself is `-h` or `--help`.
+/// Skips the first element so the subcommand token (e.g. `start`) doesn't
+/// trigger when it happens to equal `-h` (it can't, but the skip keeps
+/// callers symmetric with `parse_subcmd_flag`).
+fn has_help_flag(args: &[String]) -> bool {
+    args.iter().skip(1).any(|a| a == "-h" || a == "--help")
 }
 
 /// Extract `--flag value` or `--flag=value` from a subcommand's args.
@@ -208,6 +272,126 @@ Options:
   -s, --shell <SHELL>  Shell to use (bash, zsh, fish, pwsh, powershell, xonsh, nu)
   -c, --check          Check whether running inside an inshellisense-rs session
   -V, --verbose        Enable verbose diagnostic output
+  -h, --help           Print this help"
+    );
+}
+
+fn print_start_help() {
+    println!(
+        "Start an interactive shell wrapped with autocomplete (default subcommand)
+
+Usage: is start [OPTIONS]
+
+Options:
+  --ui <MODE>          UI mode: ghost, popup, or hybrid (default: hybrid)
+  -s, --shell <SHELL>  Shell to wrap (bash, zsh, fish, pwsh, powershell, xonsh, nu)
+  -l, --login          Start the wrapped shell as a login shell
+  -V, --verbose        Print the resolved ui/shell/login configuration on startup
+  -h, --help           Print this help"
+    );
+}
+
+fn print_init_help() {
+    println!(
+        "Print or install the init snippet for the given shell
+
+Usage: is init [OPTIONS] [SHELL]
+
+Arguments:
+  [SHELL]              Target shell: bash, zsh, fish, pwsh, powershell, xonsh, nu
+
+Options:
+  --install-rc         Install the init snippet into the user's shell rc file
+  -s, --shell <SHELL>  Equivalent to passing SHELL positionally
+  -h, --help           Print this help"
+    );
+}
+
+fn print_reinit_help() {
+    println!(
+        "Regenerate all shell init files and re-unpack bundled resources
+
+Usage: is reinit
+
+Options:
+  -h, --help  Print this help"
+    );
+}
+
+fn print_install_help() {
+    println!(
+        "Install the init snippet into the user's shell rc file
+
+Usage: is install
+
+Options:
+  -h, --help  Print this help"
+    );
+}
+
+fn print_doctor_help() {
+    println!(
+        "Run health checks and print resolved configuration
+
+Usage: is doctor
+
+Options:
+  -h, --help  Print this help"
+    );
+}
+
+fn print_complete_help() {
+    println!(
+        "Offline completion query: prints a suggestion for the given line
+
+Usage: is complete [OPTIONS] <LINE>
+
+Arguments:
+  <LINE>          Command line to complete (quote it if it contains spaces)
+
+Options:
+  --text          Print only the ghost-tail text instead of the default JSON
+  --json          Accepted as a no-op for backwards compatibility
+  --cwd <DIR>     Resolve files/dirs relative to DIR (default: current directory)
+  -h, --help      Print this help"
+    );
+}
+
+fn print_uninstall_help() {
+    println!(
+        "Remove cached resources (preserves user config)
+
+Usage: is uninstall
+
+Options:
+  -h, --help  Print this help"
+    );
+}
+
+fn print_specs_help() {
+    println!(
+        "Manage loaded completion specs
+
+Usage: is specs [OPTIONS] [COMMAND]
+
+Commands:
+  list [options]  List the names of all available specs
+  help [command]  Print help for a specs subcommand
+
+Options:
+  -h, --help  Print this help"
+    );
+}
+
+fn print_specs_list_help() {
+    println!(
+        "List the names of all available specs
+
+Usage: is specs list [OPTIONS]
+
+Options:
+  --plain              Print one spec name per line (no decoration)
+  --shell <SHELL>      Filter to specs relevant for the given shell
   -h, --help           Print this help"
     );
 }

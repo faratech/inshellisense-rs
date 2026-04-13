@@ -33,10 +33,10 @@
 {"line":"grep --inv","expect_tail":"ert-match"}
 {"line":"chmod 7","expect_contains_name":["744","777"]}
 {"line":"chmod ","expect_blob_min":1}
-{"line":"curl -X","expect_contains_name":["-X","-x"]}
+{"line":"curl -X","expect_contains_name":["-X"]}
 {"line":"curl --hea","expect_contains_name":["--head","--header"]}
 {"line":"wget --tim","expect_contains_name":["--timestamping"]}
-{"line":"tar -x","expect_top_name":"-X"}
+{"line":"tar -X","expect_top_name":"-X"}
 {"line":"tar --ex","expect_contains_name":["--exclude-from"]}
 {"line":"make -j","expect_top_name":"-j"}
 {"line":"make -","expect_blob_min":40}
