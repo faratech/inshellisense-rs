@@ -40,9 +40,12 @@ impl UnixPty {
         match pid {
             -1 => Err(format!("forkpty failed: {}", std::io::Error::last_os_error()).into()),
             0 => {
-                // Child: set env vars, then exec.
+                // Child: set env vars, then exec. Single-threaded post-fork,
+                // pre-exec context, so mutating the environment is sound.
                 for (k, v) in env {
-                    std::env::set_var(k, v);
+                    unsafe {
+                        std::env::set_var(k, v);
+                    }
                 }
                 let c_bin = std::ffi::CString::new(bin.as_bytes()).expect("CString");
                 let c_argv: Vec<std::ffi::CString> = argv

@@ -239,8 +239,8 @@ fn patch_asciinema(spec: &mut Subcommand) {
 /// uses the filepaths template, so it offers files too and omits `..`.
 fn patch_cd(spec: &mut Subcommand) {
     if let Some(arg) = spec.args.first_mut() {
-        for gen in &mut arg.generators {
-            if let Generator::Template { template } = gen {
+        for g in &mut arg.generators {
+            if let Generator::Template { template } = g {
                 if *template == Template::Filepaths {
                     *template = Template::Folders;
                 }
@@ -259,12 +259,12 @@ fn patch_cd(spec: &mut Subcommand) {
 fn patch_git(spec: &mut Subcommand) {
     fn walk(sc: &mut Subcommand) {
         for arg in &mut sc.args {
-            for gen in &mut arg.generators {
+            for g in &mut arg.generators {
                 if let Generator::Script {
                     input,
                     post_process,
                     ..
-                } = gen
+                } = g
                 {
                     let lists_branches = match input {
                         ScriptInput::Argv { argv } => argv.iter().any(|a| a == "branch"),

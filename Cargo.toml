@@ -1,7 +1,8 @@
 [package]
 name = "inshellisense-rs"
 version = "0.0.3"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 description = "Rust port of inshellisense: IDE-style autocomplete as ghost text for your shell"
 license = "MIT"
 authors = ["Fara Technologies LLC"]
@@ -25,7 +26,7 @@ unicode-width = "0.2"
 ruzstd = "0.8"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = [
+windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Security",
     "Win32_System_Console",

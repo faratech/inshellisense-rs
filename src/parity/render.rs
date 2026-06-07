@@ -131,10 +131,13 @@ fn run_scenario(bin: &Path, scenario: &Scenario) -> Vec<u8> {
     match pid {
         -1 => return Vec::new(),
         0 => {
-            // Child: exec the binary under test.
-            std::env::set_var("TERM", "xterm-256color");
-            std::env::remove_var("COLORTERM");
-            std::env::set_var("PS1", "$ ");
+            // Child: exec the binary under test. Single-threaded post-fork,
+            // pre-exec context, so mutating the environment is sound.
+            unsafe {
+                std::env::set_var("TERM", "xterm-256color");
+                std::env::remove_var("COLORTERM");
+                std::env::set_var("PS1", "$ ");
+            }
             let c_bin = std::ffi::CString::new(bin.to_str().unwrap_or("")).unwrap();
             let args = ["start", "--ui", "popup"];
             let c_args: Vec<std::ffi::CString> = std::iter::once(c_bin.clone())

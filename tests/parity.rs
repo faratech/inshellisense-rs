@@ -31,7 +31,9 @@ fn shared_engine() -> &'static Engine {
         let extras_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("specs-data")
             .join("extras");
-        std::env::set_var("INSH_RS_SPECS_DIR", &extras_dir);
+        unsafe {
+            std::env::set_var("INSH_RS_SPECS_DIR", &extras_dir);
+        }
         let registry = Registry::new_with_defaults();
         Engine::new(registry, Vec::new())
     })

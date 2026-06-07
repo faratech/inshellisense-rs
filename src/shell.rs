@@ -246,13 +246,17 @@ mod tests {
         // Use an internal helper form: set env temporarily per-thread.
         // `cargo test` parallelizes tests; use a unique name to avoid
         // collisions. We cheat here and only test the happy fallback.
-        std::env::remove_var("NU_VERSION");
-        std::env::remove_var("XONSHRC");
-        std::env::remove_var("FISH_VERSION");
-        std::env::remove_var("BASH_VERSION");
-        std::env::set_var("ZSH_VERSION", "5.9");
+        unsafe {
+            std::env::remove_var("NU_VERSION");
+            std::env::remove_var("XONSHRC");
+            std::env::remove_var("FISH_VERSION");
+            std::env::remove_var("BASH_VERSION");
+            std::env::set_var("ZSH_VERSION", "5.9");
+        }
         assert_eq!(detect(), Shell::Zsh);
-        std::env::remove_var("ZSH_VERSION");
+        unsafe {
+            std::env::remove_var("ZSH_VERSION");
+        }
     }
 
     #[test]

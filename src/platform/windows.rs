@@ -533,7 +533,7 @@ pub fn install_signal_handlers() {
     // On Windows, Ctrl-C is handled by SetConsoleCtrlHandler.
     // ConPTY forwards it to the child process automatically.
     // We install a handler that restores console mode on exit.
-    unsafe extern "system" fn handler(_ctrl_type: u32) -> BOOL {
+    unsafe extern "system" fn handler(_ctrl_type: u32) -> windows_sys::core::BOOL {
         disable_raw_mode();
         FALSE // let default handler run (terminates process)
     }
