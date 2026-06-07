@@ -181,6 +181,13 @@ pub enum PostProcessKind {
     GitBranches {},
     KeyValueColon {},
     TableColumn { index: u8, sep: String },
+    /// First whitespace token becomes the suggestion name, the remainder
+    /// becomes its description (e.g. `ps -o pid=,comm=` → `{1234: systemd}`).
+    FirstTokenRest {},
+    /// `git branch` listing: strip the leading `* ` current-branch marker
+    /// (same cleanup as `none`) but rank the current branch at priority 100
+    /// and the rest at 75, matching upstream.
+    GitBranchList {},
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

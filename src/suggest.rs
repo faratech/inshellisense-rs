@@ -22,6 +22,11 @@ pub struct Engine {
     registry: Registry,
     history: Vec<String>,
     aliases: HashMap<String, String>,
+    /// True for offline `complete` queries. Upstream's offline `complete`
+    /// has no live shell-session history, so the `history` template must
+    /// yield nothing here (otherwise `curl ` returns `exit, ls, cd ..`).
+    /// The interactive PTY engine leaves this false.
+    offline: bool,
 }
 
 impl Engine {
@@ -30,11 +35,18 @@ impl Engine {
             registry,
             history,
             aliases: HashMap::new(),
+            offline: false,
         }
     }
 
     pub fn set_aliases(&mut self, aliases: HashMap<String, String>) {
         self.aliases = aliases;
+    }
+
+    /// Mark this engine as serving offline `complete` queries (suppresses
+    /// the shell-history template, matching upstream).
+    pub fn set_offline(&mut self, offline: bool) {
+        self.offline = offline;
     }
 
     /// Ghost-text tail: the portion of the top suggestion after the current
@@ -126,6 +138,7 @@ impl Engine {
                 };
                 candidates.push(Suggestion {
                     name,
+                    all_names: s.names.clone(),
                     description: s.description.clone(),
                     suggestion_type: SuggestionType::Subcommand,
                     priority: Some(s.priority.unwrap_or(50)),
@@ -163,6 +176,7 @@ impl Engine {
                 };
                 candidates.push(Suggestion {
                     name,
+                    all_names: opt.names.clone(),
                     description: opt.description.clone(),
                     suggestion_type: SuggestionType::Option,
                     priority: Some(opt.priority.unwrap_or(45)),
@@ -173,12 +187,32 @@ impl Engine {
 
         // Arg-driven suggestions.
         if let Some(arg) = result.active_arg {
-            candidates.extend(generator::suggestions_for_arg(arg, cwd, &partial));
+            candidates.extend(generator::suggestions_for_arg(
+                arg,
+                cwd,
+                &partial,
+                !self.offline,
+            ));
         }
 
         // Filter by partial, using each candidate's effective filter strategy.
         let strategy = active_filter_strategy(&result);
-        candidates.retain(|c| !c.name.is_empty() && matches(strategy, &c.name, &partial));
+        candidates.retain(|c| {
+            if c.name.is_empty() {
+                return false;
+            }
+            // File/folder suggestions match by case-insensitive SUBSTRING on
+            // the basename — same as the generator and upstream (`ls fil` →
+            // `afile.txt`, `ls -` → `specs-data`). This also correctly drops a
+            // path entry like `..` when the user is typing an option (`--ve`),
+            // and tolerates a dir prefix (`sub/fi` → `sub/file`).
+            if matches!(c.suggestion_type, SuggestionType::Folder | SuggestionType::File) {
+                let base = c.name.rsplit('/').next().unwrap_or(c.name.as_str());
+                let needle = partial.rsplit('/').next().unwrap_or(partial.as_str());
+                return base.to_lowercase().contains(&needle.to_lowercase());
+            }
+            matches(strategy, &c.name, &partial)
+        });
 
         // Stable sort by priority DESC only. Within the same priority
         // tier we preserve insertion order, which mirrors upstream's
@@ -220,6 +254,7 @@ impl Engine {
             };
             out.push(Suggestion {
                 name: name.to_string(),
+                all_names: spec.names.clone(),
                 description: spec.description.clone(),
                 suggestion_type: SuggestionType::Subcommand,
                 priority: Some(spec.priority.unwrap_or(50)),
@@ -256,10 +291,10 @@ fn active_filter_strategy(r: &ResolveResult<'_>) -> FilterStrategy {
 /// LONGEST name via `getLong` — so `[-p, --paginate]` picks
 /// `--paginate`.
 ///
-/// Flag partials (`-l`, `--long`) are matched case-sensitively so
-/// that `-l` and `-L` resolve to different aliases. Non-flag
-/// partials (subcommand names like `ch` → `Checkout`) keep the
-/// case-insensitive prefix behaviour.
+/// Matching is case-insensitive for all partials, flags included —
+/// upstream surfaces both `-C` and `-c` when you type `-c` (verified
+/// against the installed upstream binary). Subcommand names like `ch`
+/// → `Checkout` keep the same case-insensitive prefix behaviour.
 ///
 /// Returns `None` when names is empty or no alias matches the partial.
 fn pick_primary(names: &[String], partial: &str) -> Option<String> {
@@ -270,10 +305,6 @@ fn pick_primary(names: &[String], partial: &str) -> Option<String> {
         // Longest name wins.
         let longest = names.iter().max_by_key(|n| n.len())?;
         return Some(longest.clone());
-    }
-    if partial.starts_with('-') {
-        // Case-sensitive: typing `-l` must not match `-L`.
-        return names.iter().find(|n| n.starts_with(partial)).cloned();
     }
     // First name whose case-insensitive prefix matches the partial.
     let p = partial.to_lowercase();
@@ -330,18 +361,16 @@ mod pick_primary_tests {
     use super::pick_primary;
 
     #[test]
-    fn flag_partial_is_case_sensitive() {
+    fn flag_partial_is_case_insensitive() {
+        // Within one option's alias list, the FIRST case-insensitive match
+        // wins — matching upstream's first-match `filter` semantics. (In
+        // real specs `-C` and `-c` are distinct options, each with a single
+        // name, so both surface independently; see filter.rs.)
         let names = vec!["-L".to_string(), "-l".to_string()];
-        // Typing `-l` selects `-l`, not `-L`, even though `-L` is first.
-        assert_eq!(pick_primary(&names, "-l").as_deref(), Some("-l"));
+        assert_eq!(pick_primary(&names, "-l").as_deref(), Some("-L"));
         assert_eq!(pick_primary(&names, "-L").as_deref(), Some("-L"));
-    }
-
-    #[test]
-    fn long_flag_partial_is_case_sensitive() {
-        let names = vec!["--Long".to_string(), "--long".to_string()];
-        assert_eq!(pick_primary(&names, "--long").as_deref(), Some("--long"));
-        assert_eq!(pick_primary(&names, "--Long").as_deref(), Some("--Long"));
+        let single = vec!["-c".to_string()];
+        assert_eq!(pick_primary(&single, "-C").as_deref(), Some("-c"));
     }
 
     #[test]

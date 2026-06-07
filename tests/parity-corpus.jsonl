@@ -33,10 +33,10 @@
 {"line":"grep --inv","expect_tail":"ert-match"}
 {"line":"chmod 7","expect_contains_name":["744","777"]}
 {"line":"chmod ","expect_blob_min":1}
-{"line":"curl -X","expect_contains_name":["-X"]}
+{"line":"curl -X","expect_contains_name":["-X","-x"]}
 {"line":"curl --hea","expect_contains_name":["--head","--header"]}
 {"line":"wget --tim","expect_contains_name":["--timestamping"]}
-{"line":"tar -X","expect_top_name":"-X"}
+{"line":"tar -x","expect_top_name":"-X"}
 {"line":"tar --ex","expect_contains_name":["--exclude-from"]}
 {"line":"make -j","expect_top_name":"-j"}
 {"line":"make -","expect_blob_min":40}
@@ -109,4 +109,8 @@
 {"line":"rails --he","expect_blob_min":0}
 {"line":"yarn workspace","expect_top_name":"workspace"}
 {"line":"esbuild ","expect_blob_min":0}
+{"line":"git -c","expect_contains_name":["-C","-c"]}
+{"line":"grep -i","expect_contains_name":["-i","-I"]}
+{"line":"terraform ","expect_contains_name":["init","plan","apply","destroy","workspace"]}
+{"line":"terraform pl","expect_top_name":"plan"}
 

@@ -13,8 +13,11 @@ $ git ch█eckout        ← grey suggestion ─ press → to accept
 
 ## Status
 
-**1:1 feature parity with upstream inshellisense.** 1470 specs bundled
-(zstd-compressed), lazy-loaded on demand. Pure Rust — no JS runtime, no
+**Close behavioral parity with upstream inshellisense**, validated against the
+upstream binary across the `complete` suggestion engine, CLI surface, and shell
+init (a handful of known divergences — opaque JS generators, a few spec-data
+deltas, and `requiresSeparator` — are tracked in the CHANGELOG). 1470 specs
+bundled (zstd-compressed), lazy-loaded on demand. Pure Rust — no JS runtime, no
 Node.js. 29 crates, 5.7 MB binary (vs upstream's 132 MB). Supports
 bash, zsh, fish, pwsh, powershell, xonsh, nushell, and cmd.exe (Windows).
 

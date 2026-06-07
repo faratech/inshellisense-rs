@@ -173,7 +173,10 @@ impl Registry {
         };
         if let Some(raw) = raw {
             match serde_json::from_slice::<Subcommand>(&raw) {
-                Ok(spec) => {
+                Ok(mut spec) => {
+                    // Surgically augment bundled specs to close extractor gaps
+                    // (missing options, opaque-JS generators, lost fields).
+                    crate::curated::patch(&mut spec, name);
                     let specs = unsafe { &mut *self.specs.get() };
                     specs.insert(name.to_string(), spec);
                     return unsafe { &*self.specs.get() }.get(name);

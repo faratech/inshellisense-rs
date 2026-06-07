@@ -59,8 +59,9 @@ pub fn main() -> Result<()> {
             println!("inshellisense-rs session live");
             return Ok(());
         }
+        // Upstream exits 0 here (it reports status, not an error).
         println!("inshellisense-rs session not found");
-        std::process::exit(1);
+        return Ok(());
     }
 
     // Dispatch on subcommand (first non-flag arg). Default = start.
@@ -96,13 +97,23 @@ pub fn main() -> Result<()> {
                 return Ok(());
             }
             let install_rc = rest.iter().any(|a| a == "--install-rc");
-            let target = rest
-                .iter()
-                .skip(1)
-                .find(|a| !a.starts_with('-'))
-                .and_then(|s| parse_shell(s))
-                .or(shell)
-                .unwrap_or(Shell::Bash);
+            // A positional shell argument that doesn't parse is an error —
+            // upstream rejects unknown shells rather than defaulting. A
+            // *missing* positional keeps our behavior (`-s` flag or bash).
+            let positional = rest.iter().skip(1).find(|a| !a.starts_with('-'));
+            let target = match positional {
+                Some(s) => match parse_shell(s) {
+                    Some(sh) => sh,
+                    None => {
+                        eprintln!(
+                            "Unsupported shell: '{}', supported shells: bash, zsh, fish, pwsh, powershell, xonsh, nu",
+                            s
+                        );
+                        std::process::exit(1);
+                    }
+                },
+                None => shell.unwrap_or(Shell::Bash),
+            };
             let _ = resources::unpack();
             if install_rc {
                 shell_init::install()

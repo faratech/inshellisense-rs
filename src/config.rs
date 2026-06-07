@@ -118,6 +118,18 @@ impl KeyBinding {
     /// terminals deliver the full CSI burst in one write(2), so we
     /// only treat a chunk as "escape" when it is *exactly* `\x1b`.
     pub fn matches(&self, bytes: &[u8]) -> bool {
+        // A binding with a `shift`/`control` modifier must match the
+        // modifier-encoded byte sequence — terminals encode modifiers in the
+        // sequence itself (shift+Down = `\x1b[1;2B`, Ctrl-N = `\x0e`), so the
+        // plain key bytes must NOT satisfy a modified binding. Default
+        // bindings carry no modifiers and take the plain path below.
+        if self.shift || self.control {
+            return self.matches_modified(bytes);
+        }
+        self.matches_plain(bytes)
+    }
+
+    fn matches_plain(&self, bytes: &[u8]) -> bool {
         match self.key.as_str() {
             "up" => bytes == b"\x1b[A" || bytes == b"\x1bOA",
             "down" => bytes == b"\x1b[B" || bytes == b"\x1bOB",
@@ -137,6 +149,38 @@ impl KeyBinding {
                     (Some(_), None) => bytes == other.as_bytes(),
                     _ => false,
                 }
+            }
+        }
+    }
+
+    /// Match a binding that carries a `shift` and/or `control` modifier.
+    ///
+    /// Arrow/Home/End keys use the xterm CSI form `\x1b[1;<mod><final>`
+    /// where `<mod>` = 1 + shift(1) + control(4). Ctrl + a letter maps to
+    /// the corresponding C0 control byte; Shift+Tab is backtab (`\x1b[Z`).
+    fn matches_modified(&self, bytes: &[u8]) -> bool {
+        let code = 1 + if self.shift { 1 } else { 0 } + if self.control { 4 } else { 0 };
+        let csi = |fin: char| format!("\x1b[1;{code}{fin}").into_bytes();
+        match self.key.as_str() {
+            "up" => bytes == csi('A'),
+            "down" => bytes == csi('B'),
+            "right" => bytes == csi('C'),
+            "left" => bytes == csi('D'),
+            "home" => bytes == csi('H'),
+            "end" => bytes == csi('F'),
+            // Shift+Tab is backtab; Ctrl+Tab has no standard sequence.
+            "tab" => self.shift && !self.control && bytes == b"\x1b[Z",
+            other => {
+                // Ctrl + single ASCII letter → C0 control byte (Ctrl-A=0x01).
+                if self.control && !self.shift {
+                    let mut chars = other.chars();
+                    if let (Some(c), None) = (chars.next(), chars.next()) {
+                        if c.is_ascii_alphabetic() {
+                            return bytes == [(c.to_ascii_uppercase() as u8) & 0x1f];
+                        }
+                    }
+                }
+                false
             }
         }
     }
@@ -313,6 +357,22 @@ path = ["/tmp/extra"]
         assert!(KeyBinding::new("backspace").matches(b"\x7f"));
         assert!(KeyBinding::new("backspace").matches(b"\x08"));
         assert!(!KeyBinding::new("down").matches(b"\x1b[A"));
+    }
+
+    #[test]
+    fn key_binding_honors_modifiers() {
+        let ctrl_down = KeyBinding { key: "down".into(), shift: false, control: true };
+        assert!(ctrl_down.matches(b"\x1b[1;5B")); // Ctrl+Down
+        assert!(!ctrl_down.matches(b"\x1b[B")); // plain Down must NOT satisfy it
+        let shift_up = KeyBinding { key: "up".into(), shift: true, control: false };
+        assert!(shift_up.matches(b"\x1b[1;2A")); // Shift+Up
+        assert!(!shift_up.matches(b"\x1b[A"));
+        let ctrl_n = KeyBinding { key: "n".into(), shift: false, control: true };
+        assert!(ctrl_n.matches(b"\x0e")); // Ctrl-N
+        let shift_tab = KeyBinding { key: "tab".into(), shift: true, control: false };
+        assert!(shift_tab.matches(b"\x1b[Z"));
+        // A plain (unmodified) binding must NOT match a modified sequence.
+        assert!(!KeyBinding::new("down").matches(b"\x1b[1;5B"));
     }
 
     #[test]

@@ -172,8 +172,9 @@ fn shell_plugin_status() -> (Vec<Shell>, Vec<Shell>) {
             continue;
         };
         if !rc.exists() {
-            // No rc file at all → treat as "not installed".
-            without.push(shell);
+            // Upstream only flags shells whose rc file EXISTS but lacks the
+            // plugin; a shell with no rc file at all isn't reported as a
+            // missing plugin (avoids false positives for uninstalled shells).
             continue;
         }
         let Ok(contents) = fs::read_to_string(&rc) else {

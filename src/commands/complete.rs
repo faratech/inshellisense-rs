@@ -9,7 +9,9 @@ use anyhow::Result;
 pub fn run(line: &str, text_mode: bool, cwd: &str) -> Result<()> {
     let hist = history::load();
     let registry = spec::Registry::new_with_defaults();
-    let engine = suggest::Engine::new(registry, hist);
+    let mut engine = suggest::Engine::new(registry, hist);
+    // Offline query: no live shell-session history (matches upstream).
+    engine.set_offline(true);
 
     if text_mode {
         if let Some(s) = engine.suggest(line, cwd) {
@@ -21,7 +23,9 @@ pub fn run(line: &str, text_mode: bool, cwd: &str) -> Result<()> {
     // JSON output matching upstream's schema exactly.
     let blob = engine.suggest_blob(line, cwd);
     let tokens = spec::parse_command(line);
-    let active_token = tokens.last();
+    // Upstream emits a null activeToken once the last token is complete
+    // (i.e. the line ends in whitespace) — only an in-progress token counts.
+    let active_token = tokens.last().filter(|t| !t.complete);
 
     let suggestions: Vec<serde_json::Value> = blob
         .into_iter()
@@ -51,7 +55,7 @@ pub fn run(line: &str, text_mode: bool, cwd: &str) -> Result<()> {
     let active_token_json = active_token.map(|t| {
         serde_json::json!({
             "token": t.token,
-            "tokenLength": t.token.len(),
+            "tokenLength": t.token_length,
             "complete": t.complete,
             "isOption": t.is_option,
         })

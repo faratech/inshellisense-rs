@@ -11,6 +11,12 @@
 use super::model::{Arg, LoadSpec, Opt, Subcommand};
 use super::parser::CommandToken;
 use super::Registry;
+use std::sync::LazyLock;
+
+/// A shared empty spec used to signal "offer no suggestions" — e.g. a
+/// `requiresSeparator` option typed without its `=value`. Resolving to a
+/// spec with no subcommands/options/args yields an empty suggestion list.
+static EMPTY_SUBCOMMAND: LazyLock<Subcommand> = LazyLock::new(Subcommand::default);
 
 #[derive(Debug, Clone)]
 pub struct ResolveResult<'a> {
@@ -170,6 +176,21 @@ fn run_option<'a>(
 ) -> ResolveResult<'a> {
     // If the option takes args, the next token(s) feed them.
     if !opt.args.is_empty() {
+        // `requiresSeparator` option supplied without its attached value
+        // (`-i ` rather than `-i=val`): upstream suppresses all suggestions.
+        // Our tokenizer can't see the `=`, but an option that is the last
+        // token (no following value token) means no value was given.
+        if opt.requires_separator.is_some() && tokens.len() <= 1 {
+            return ResolveResult {
+                subcommand: &EMPTY_SUBCOMMAND,
+                active_arg: None,
+                persistent_options: Vec::new(),
+                args_depleted: true,
+                active_partial: None,
+                from_option: true,
+                accepted_option_tokens: ctx.accepted_options.clone(),
+            };
+        }
         return run_arg(&tokens[1..], &opt.args, sub, ctx, true, false);
     }
     // No args — consume the option token and continue at subcommand level.
@@ -245,6 +266,24 @@ fn run_arg<'a>(
     }
 
     let active_arg = &args[0];
+
+    // `isCommand` arg: this token names another command (e.g. `sudo ls`,
+    // `time ls`, `env ls`, `strace ls`). Load that command's spec from the
+    // registry and resolve the remaining tokens against it, in a fresh
+    // context. Mirrors the `load_spec` substitution path above.
+    if active_arg.is_command && !active.is_raw {
+        if let Some(reg) = ctx.registry {
+            if let Some(loaded) = reg.get(&active.token) {
+                let nested = Ctx {
+                    persistent: Vec::new(),
+                    accepted_options: Vec::new(),
+                    registry: ctx.registry,
+                };
+                return run_subcommand(&tokens[1..], loaded, nested, false, false);
+            }
+        }
+    }
+
     if active_arg.is_variadic {
         return run_arg(&tokens[1..], args, sub, ctx, from_option, true);
     }

@@ -6,15 +6,11 @@ pub fn matches(strategy: FilterStrategy, candidate: &str, query: &str) -> bool {
     if query.is_empty() {
         return true;
     }
-    // POSIX/GNU short and long flags are case-sensitive: `-v` and `-V` are
-    // distinct options. Subcommand and arg-value matching stays
-    // case-insensitive (e.g. typing "ch" should still match "Checkout").
-    if is_flag(query) {
-        return match strategy {
-            FilterStrategy::Default | FilterStrategy::Prefix => candidate.starts_with(query),
-            FilterStrategy::Fuzzy => candidate.contains(query),
-        };
-    }
+    // Upstream matches ALL suggestion names case-insensitively, flags
+    // included: typing `-c` surfaces both `-C` and `-c` as distinct
+    // options (verified against the installed upstream binary). A prior
+    // change here special-cased flags as case-sensitive; that diverged
+    // from upstream and has been reverted.
     match strategy {
         FilterStrategy::Default | FilterStrategy::Prefix => {
             ci_starts_with(candidate, query)
@@ -25,10 +21,6 @@ pub fn matches(strategy: FilterStrategy, candidate: &str, query: &str) -> bool {
             candidate.to_lowercase().contains(&query.to_lowercase())
         }
     }
-}
-
-fn is_flag(s: &str) -> bool {
-    s.starts_with('-')
 }
 
 fn ci_starts_with(s: &str, prefix: &str) -> bool {
@@ -54,16 +46,17 @@ mod tests {
     }
 
     #[test]
-    fn flags_case_sensitive() {
-        // Short flags differ by case in POSIX/GNU.
+    fn flags_case_insensitive() {
+        // Upstream matches flags case-insensitively: typing `-c` surfaces
+        // both `-C` and `-c` as candidates, so both directions match.
         assert!(matches(FilterStrategy::Prefix, "-l", "-l"));
-        assert!(!matches(FilterStrategy::Prefix, "-L", "-l"));
-        assert!(!matches(FilterStrategy::Prefix, "-l", "-L"));
-        // Long flags are also case-sensitive.
+        assert!(matches(FilterStrategy::Prefix, "-L", "-l"));
+        assert!(matches(FilterStrategy::Prefix, "-l", "-L"));
+        // Long flags too.
         assert!(matches(FilterStrategy::Prefix, "--long", "--long"));
-        assert!(!matches(FilterStrategy::Prefix, "--Long", "--long"));
-        // Fuzzy flag matches stay case-sensitive too.
+        assert!(matches(FilterStrategy::Prefix, "--Long", "--long"));
+        // Fuzzy flag matches are case-insensitive as well.
         assert!(matches(FilterStrategy::Fuzzy, "--verbose", "-v"));
-        assert!(!matches(FilterStrategy::Fuzzy, "--Verbose", "-v"));
+        assert!(matches(FilterStrategy::Fuzzy, "--Verbose", "-v"));
     }
 }

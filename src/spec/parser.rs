@@ -21,6 +21,11 @@ pub struct CommandToken {
     /// positional-only by the resolver (a small improvement beyond the
     /// upstream TS parser).
     pub is_raw: bool,
+    /// Number of characters this token occupies on the command line,
+    /// INCLUDING surrounding quote characters (`"checkout` → 9, `"a b"` → 5).
+    /// Differs from `token.len()` for quoted/escaped tokens. Mirrors
+    /// upstream's `tokenLength` used for replacement math.
+    pub token_length: usize,
 }
 
 /// Parse a command line into tokens for the *last* pipeline segment.
@@ -122,6 +127,8 @@ fn lex(command: &str) -> Vec<CommandToken> {
                     complete,
                     is_option: false,
                     is_quoted: true,
+                    // +1 open quote, +1 close quote already in [reading_idx, idx]
+                    token_length: idx - reading_idx + 1,
                     ..Default::default()
                 });
             }
@@ -133,6 +140,7 @@ fn lex(command: &str) -> Vec<CommandToken> {
                 is_option: false,
                 is_quoted: true,
                 is_quote_continued: true,
+                token_length: idx - reading_idx,
                 ..Default::default()
             });
         } else if (reading_flag && ch.is_whitespace()) || ch == '=' {
@@ -144,6 +152,7 @@ fn lex(command: &str) -> Vec<CommandToken> {
                 token: slice(reading_idx, idx),
                 complete: true,
                 is_option: true,
+                token_length: idx - reading_idx,
                 ..Default::default()
             });
         } else if reading_cmd && ch.is_whitespace() && prev_char != Some(esc) {
@@ -152,6 +161,7 @@ fn lex(command: &str) -> Vec<CommandToken> {
                 token: slice(reading_idx, idx),
                 complete: true,
                 is_option: false,
+                token_length: idx - reading_idx,
                 ..Default::default()
             });
         }
@@ -166,6 +176,8 @@ fn lex(command: &str) -> Vec<CommandToken> {
                 complete: false,
                 is_option: false,
                 is_quoted: true,
+                // unclosed: only the opening quote counts toward the span
+                token_length: chars.len() - reading_idx,
                 ..Default::default()
             });
         } else if reading_quote_continued {
@@ -175,6 +187,7 @@ fn lex(command: &str) -> Vec<CommandToken> {
                 is_option: false,
                 is_quoted: true,
                 is_quote_continued: true,
+                token_length: chars.len() - reading_idx,
                 ..Default::default()
             });
         } else {
@@ -182,6 +195,7 @@ fn lex(command: &str) -> Vec<CommandToken> {
                 token: slice(reading_idx, chars.len()),
                 complete: false,
                 is_option: reading_flag,
+                token_length: chars.len() - reading_idx,
                 ..Default::default()
             });
         }

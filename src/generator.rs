@@ -27,11 +27,18 @@ struct CacheEntry {
 static CACHE: LazyLock<Mutex<HashMap<String, CacheEntry>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-pub fn suggestions_for_arg(arg: &Arg, cwd: &str, prefix: &str) -> Vec<Suggestion> {
+pub fn suggestions_for_arg(
+    arg: &Arg,
+    cwd: &str,
+    prefix: &str,
+    include_history: bool,
+) -> Vec<Suggestion> {
     let mut out: Vec<Suggestion> = arg.suggestions.clone();
 
+    // Templates listed in the `templates` field do NOT add a `..` entry
+    // (upstream `ls `/`vim ` omit it); the generator form does (see below).
     for tpl in &arg.templates {
-        out.extend(template_suggestions(*tpl, cwd, prefix));
+        out.extend(template_suggestions(*tpl, cwd, prefix, include_history, false));
     }
 
     // Multi-generator fan-out: scoped threads run shell generators in
@@ -39,14 +46,14 @@ pub fn suggestions_for_arg(arg: &Arg, cwd: &str, prefix: &str) -> Vec<Suggestion
     match arg.generators.len() {
         0 => {}
         1 => {
-            out.extend(run_generator(&arg.generators[0], cwd, prefix));
+            out.extend(run_generator(&arg.generators[0], cwd, prefix, include_history));
         }
         _ => {
             let results: Vec<Vec<Suggestion>> = std::thread::scope(|scope| {
                 let handles: Vec<_> = arg
                     .generators
                     .iter()
-                    .map(|g| scope.spawn(move || run_generator(g, cwd, prefix)))
+                    .map(|g| scope.spawn(move || run_generator(g, cwd, prefix, include_history)))
                     .collect();
                 handles.into_iter().filter_map(|h| h.join().ok()).collect()
             });
@@ -59,7 +66,7 @@ pub fn suggestions_for_arg(arg: &Arg, cwd: &str, prefix: &str) -> Vec<Suggestion
     out
 }
 
-fn run_generator(g: &Generator, cwd: &str, prefix: &str) -> Vec<Suggestion> {
+fn run_generator(g: &Generator, cwd: &str, prefix: &str, include_history: bool) -> Vec<Suggestion> {
     match g {
         Generator::Script {
             input,
@@ -76,7 +83,11 @@ fn run_generator(g: &Generator, cwd: &str, prefix: &str) -> Vec<Suggestion> {
             cwd,
             prefix,
         ),
-        Generator::Template { template } => template_suggestions(*template, cwd, prefix),
+        Generator::Template { template } => {
+            // The generator form of a filepaths/folders template appends `..`
+            // (upstream `python `/`node `/`cd ` show it).
+            template_suggestions(*template, cwd, prefix, include_history, true)
+        }
         Generator::Glob { pattern } => glob_paths(pattern, cwd),
         Generator::Custom { .. } => Vec::new(), // always empty without JS
         Generator::ProjectFile { reader } => project_file_suggestions(*reader, cwd),
@@ -262,10 +273,22 @@ fn cargo_workspace_members(cwd: &str) -> Vec<Suggestion> {
         .collect()
 }
 
-fn template_suggestions(tpl: Template, cwd: &str, prefix: &str) -> Vec<Suggestion> {
+fn template_suggestions(
+    tpl: Template,
+    cwd: &str,
+    prefix: &str,
+    include_history: bool,
+    from_generator: bool,
+) -> Vec<Suggestion> {
     match tpl {
-        Template::Filepaths => list_paths(cwd, prefix, false),
-        Template::Folders => list_paths(cwd, prefix, true),
+        // Only the FOLDERS generator appends `..` (matches upstream `cd `);
+        // filepaths generators (e.g. `git checkout <file>`) do not, so
+        // filepaths never sets add_parent.
+        Template::Filepaths => list_paths(cwd, prefix, false, false),
+        Template::Folders => list_paths(cwd, prefix, true, from_generator),
+        // Offline `complete` has no live session history (upstream returns
+        // none here); only surface history in the interactive engine.
+        Template::History if !include_history => Vec::new(),
         Template::History => crate::history::load()
             .into_iter()
             .map(|h| Suggestion {
@@ -279,7 +302,7 @@ fn template_suggestions(tpl: Template, cwd: &str, prefix: &str) -> Vec<Suggestio
     }
 }
 
-fn list_paths(cwd: &str, prefix: &str, dirs_only: bool) -> Vec<Suggestion> {
+fn list_paths(cwd: &str, prefix: &str, dirs_only: bool, add_parent: bool) -> Vec<Suggestion> {
     let base = Path::new(cwd);
     let (dir, file_prefix) = match prefix.rfind('/') {
         Some(idx) => (&prefix[..idx], &prefix[idx + 1..]),
@@ -293,10 +316,14 @@ fn list_paths(cwd: &str, prefix: &str, dirs_only: bool) -> Vec<Suggestion> {
     let Ok(entries) = std::fs::read_dir(&target) else {
         return Vec::new();
     };
+    // Upstream matches path basenames by case-insensitive SUBSTRING, not
+    // prefix — `ls fil` surfaces `afile.txt`, `ls xt` surfaces `*.txt`
+    // (verified against the installed binary).
+    let needle = file_prefix.to_lowercase();
     let mut pairs: Vec<(String, bool)> = Vec::new();
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
-        if !name.starts_with(file_prefix) {
+        if !name.to_lowercase().contains(&needle) {
             continue;
         }
         let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
@@ -305,10 +332,22 @@ fn list_paths(cwd: &str, prefix: &str, dirs_only: bool) -> Vec<Suggestion> {
         }
         pairs.push((name, is_dir));
     }
-    // Upstream lists filepaths alphabetically by raw name (so hidden
-    // dotfiles come first since `.` < any letter in ASCII). Files and
-    // directories are interleaved — upstream does NOT group dirs first.
-    pairs.sort_by(|a, b| a.0.cmp(&b.0));
+    if dirs_only {
+        // Folders template (`cd `): upstream lists non-hidden dirs first,
+        // then hidden, each alphabetical. (Safe for `ls`, which lists via the
+        // filepaths template first; the folders-template dirs dedup away.)
+        pairs.sort_by(|a, b| {
+            a.0.starts_with('.')
+                .cmp(&b.0.starts_with('.'))
+                .then_with(|| a.0.cmp(&b.0))
+        });
+    } else {
+        // Filepaths template: plain alphabetical (hidden dotfiles come first
+        // since `.` < any letter in ASCII). Files and directories interleave —
+        // upstream does NOT group dirs first, and does NOT add `..` here (that
+        // is `cd`-spec-specific).
+        pairs.sort_by(|a, b| a.0.cmp(&b.0));
+    }
 
     let mut out = Vec::with_capacity(pairs.len());
     for (name, is_dir) in pairs {
@@ -317,8 +356,11 @@ fn list_paths(cwd: &str, prefix: &str, dirs_only: bool) -> Vec<Suggestion> {
         } else {
             format!("{dir}/{name}")
         };
+        // Upstream emits directory names WITHOUT a trailing slash (`adir`,
+        // not `adir/`); the Folder type still suppresses the post-accept
+        // space in the popup, so deeper paths work the same.
         let (final_name, stype) = if is_dir {
-            (format!("{joined}/"), SuggestionType::Folder)
+            (joined, SuggestionType::Folder)
         } else {
             (joined, SuggestionType::File)
         };
@@ -326,6 +368,17 @@ fn list_paths(cwd: &str, prefix: &str, dirs_only: bool) -> Vec<Suggestion> {
             name: final_name,
             suggestion_type: stype,
             priority: Some(55),
+            ..Default::default()
+        });
+    }
+    // The generator form of filepaths/folders appends the parent dir `..`
+    // (priority 50, so it sorts after the listed entries — matching upstream
+    // `python `/`node `/`cd `). Honor the same substring filter, root only.
+    if add_parent && dir.is_empty() && "..".contains(&needle) {
+        out.push(Suggestion {
+            name: "..".to_string(),
+            suggestion_type: SuggestionType::Folder,
+            priority: Some(50),
             ..Default::default()
         });
     }
@@ -513,6 +566,39 @@ fn apply_pattern(raw: Vec<String>, kind: &PostProcessKind) -> Vec<Suggestion> {
                 Some(Suggestion {
                     name: key,
                     description: val,
+                    suggestion_type: SuggestionType::Arg,
+                    priority: Some(60),
+                    ..Default::default()
+                })
+            })
+            .collect(),
+        PostProcessKind::GitBranchList {} => raw
+            .into_iter()
+            .map(|line| {
+                let is_current = line.trim_start().starts_with('*');
+                (is_current, clean_raw_line(line))
+            })
+            .filter(|(_, name)| !name.is_empty())
+            .map(|(is_current, name)| Suggestion {
+                name,
+                suggestion_type: SuggestionType::Arg,
+                priority: Some(if is_current { 100 } else { 75 }),
+                ..Default::default()
+            })
+            .collect(),
+        PostProcessKind::FirstTokenRest {} => raw
+            .into_iter()
+            .filter_map(|line| {
+                let line = line.trim();
+                let mut it = line.splitn(2, char::is_whitespace);
+                let name = it.next()?.trim().to_string();
+                if name.is_empty() {
+                    return None;
+                }
+                let desc = it.next().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+                Some(Suggestion {
+                    name,
+                    description: desc,
                     suggestion_type: SuggestionType::Arg,
                     priority: Some(60),
                     ..Default::default()

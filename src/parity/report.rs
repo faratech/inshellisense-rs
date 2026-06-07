@@ -38,7 +38,7 @@ pub fn write_markdown(report: &Report, out_path: &Path) -> std::io::Result<()> {
             }
         }
     }
-    all_fails.sort_by(|a, b| b.1.impact.cmp(&a.1.impact));
+    all_fails.sort_by_key(|b| std::cmp::Reverse(b.1.impact));
 
     s.push_str("## Top divergences (ranked by impact)\n\n");
     if all_fails.is_empty() {

@@ -5,6 +5,79 @@ All notable changes to inshellisense-rs are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.2] — 2026-06-06
+
+Parity hardening release. Every divergence from the upstream
+`@microsoft/inshellisense` binary that was reproducible offline was audited
+against the installed binary as ground truth and fixed. Across a 90-input
+behavioral sweep the Rust port now matches upstream on every non-dynamic
+suggestion (identical, or a strict superset with extra useful suggestions).
+
+### Fixed — suggestion engine / resolver / parser
+- **Case-insensitive flag matching.** `git -c` now surfaces both `-C` and `-c`
+  (and `grep -i` → `-i`,`-I`), matching upstream. Reverts the `0.0.1`
+  case-sensitive-flag behavior, whose premise ("typing `-l` selected `-L`") was a
+  misread of upstream — upstream shows both as distinct options.
+- **No shell history in offline `complete`.** `curl `/`ssh ` returned shell
+  history (`exit`, `ls`, `cd ..`) instead of options; the `history` template is
+  now suppressed in the offline `complete` path (upstream has no live session
+  history there).
+- **`isCommand` wrapper commands.** `sudo ls `, `time ls `, `env …` now load and
+  complete the wrapped command's spec (was 0–3 suggestions; now full).
+- **`requiresSeparator` options.** An option that needs `=` (e.g. `asciinema
+  rec -i `) now suppresses suggestions when given without its `=value`.
+- **`allNames`** populated with every alias (`npm in` → `install` carries
+  `["install","i","add"]`).
+- **`activeToken`** is `null` once the line ends in whitespace; **`tokenLength`**
+  now counts quote characters (`git "checkout` → 9).
+- **File/path matching by case-insensitive substring** (matching upstream):
+  `ls fil` → `afile.txt`, `ls -` → `specs-data`. Directory names no longer carry
+  a trailing slash, so `ls `/`cd ` are byte-identical to upstream. The parent
+  `..` entry is emitted for folders generators and `python`/`node` (not for
+  `ls`/`git checkout`, matching upstream).
+
+### Fixed — CLI / interactive
+- `is -c` exits `0` (not `1`) when no session is found.
+- `is init <bad-shell>` errors and exits `1` instead of silently defaulting to
+  bash.
+- `is doctor` no longer reports a missing plugin for shells that have no rc file.
+- Keybinding `shift`/`control` modifiers are now honored — `KeyBinding::matches`
+  understands the modifier-encoded byte sequences (e.g. `Ctrl-Down`, `Shift-Tab`,
+  `Ctrl-N`); previously those config fields were silently ignored.
+
+### Added — spec augmentation (`curated::patch`)
+- A surgical, in-place augmentation pass applied to bundled specs after load
+  (`Registry::get`), closing extractor gaps without re-generating the bundle and
+  surviving a future re-extraction. New/repaired specs:
+  - **terraform** — 21 static subcommands the extractor dropped (spread of const
+    arrays that tripped the `flipImpure` fallback) re-stated via `curated::all`.
+  - **kill** — process-id generator (`ps`) with the process name as description.
+  - **make** — target generator (parses the Makefile; falls back to the
+    `GNUmakefile`/`makefile` names like upstream's `listTargets`).
+  - **systemctl** — unit-name generator (`list-unit-files`) on `status`/`start`/
+    `restart`/… (was returning nothing).
+  - **tar** — restored the dropped core mode flags (`-c`/`-x`/`-t`/`-r`/…).
+  - **yarn** (+6 root options), **gh** (`co` alias), **npm** (`run
+    --workspace(s)`), **asciinema** (`rec -i` `requiresSeparator`), **cd**
+    (folders-only + `..`), **python`/`node** (`..`).
+- New post-process kinds: `GitBranchList` (current branch priority 100, others
+  75 — `git checkout `/`switch `/… now match upstream exactly) and
+  `FirstTokenRest` (`ps`-style `name + description`).
+
+### Changed
+- README "1:1 feature parity" softened to "close behavioral parity," with the
+  known offline-only divergences (npm-registry package search, live process/unit
+  enumeration) called out.
+- Parity corpus expanded with regression cases (`git -c`, `grep -i`, `terraform`,
+  …); the two entries `0.0.1` changed to enshrine case-sensitive flags reverted.
+
+### Known limitations (offline / no-JS boundary)
+- `yarn add <pkg>` / `npm install <pkg>` complete package names via an
+  npm-registry **search** generator (network + opaque JS) that offline `complete`
+  does not run.
+- `kill `/`systemctl <unit>` enumerate live process/unit state; the generators are
+  correct in shape but the exact set is environment- and command-specific.
+
 ## [0.0.1] — 2026-04-12
 
 First public release. 1:1 feature parity with Microsoft's inshellisense.
