@@ -164,19 +164,17 @@ pub fn main() -> Result<()> {
         "specs" => {
             let sub2 = rest.get(1).map(|s| s.as_str()).unwrap_or("list");
             match sub2 {
-                "-h" | "--help" => {
-                    print_specs_help();
-                    Ok(())
-                }
-                "help" => {
-                    // `is specs help` → specs help.
-                    // `is specs help <cmd>` → per-cmd help.
+                "-h" | "--help" | "help" => {
+                    // `is specs help|--help` → specs help.
+                    // `is specs help|--help <cmd>` → per-subcommand help, or a
+                    // clear error for an unknown subcommand (GH issue #1). The
+                    // `help` and `--help` forms behave identically.
                     match rest.get(2).map(|s| s.as_str()) {
                         None => print_specs_help(),
                         Some("list") => print_specs_list_help(),
                         Some("help") => print_specs_help(),
                         Some(other) => {
-                            eprintln!("is specs help: unknown subcommand `{}`", other);
+                            eprintln!("is specs: unknown subcommand `{}`", other);
                             std::process::exit(2);
                         }
                     }

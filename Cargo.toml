@@ -1,6 +1,6 @@
 [package]
 name = "inshellisense-rs"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2021"
 description = "Rust port of inshellisense: IDE-style autocomplete as ghost text for your shell"
 license = "MIT"

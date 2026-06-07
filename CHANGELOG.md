@@ -5,6 +5,26 @@ All notable changes to inshellisense-rs are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.3] — 2026-06-06
+
+Resolves GitHub issues #1 and the flag-casing half of #2.
+
+### Fixed
+- **`is specs --help <cmd>`** now shows the named subcommand's help (or a clear
+  "unknown subcommand" error), instead of ignoring the argument and printing the
+  top-level `specs` help. The `help <cmd>` and `--help <cmd>` forms now behave
+  identically. (#1)
+- **Exact-case flag selection.** Typing a lowercase short flag no longer
+  pre-selects its uppercase sibling: `ls -l` selects `-l` (not `-L`), `git -c`
+  selects `-c`, `tar -x` selects `-x`. Both cases still appear in the popup
+  (case-insensitive filter, matching upstream completeness); the exact case the
+  user typed is now ranked first as the active/ghost suggestion. (#2, flag-casing)
+
+### Known / still open
+- **#2 (Windows shell skew)** — on PowerShell/cmd, Unix specs (e.g. GNU `ls`
+  flags) still surface; shell-aware spec resolution is deferred pending a Windows
+  repro. Tracked on #2.
+
 ## [0.0.2] — 2026-06-06
 
 Parity hardening release. Every divergence from the upstream

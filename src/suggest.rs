@@ -214,16 +214,20 @@ impl Engine {
             matches(strategy, &c.name, &partial)
         });
 
-        // Stable sort by priority DESC only. Within the same priority
-        // tier we preserve insertion order, which mirrors upstream's
-        // behavior: spec-file authored order for subcommands/options,
-        // alphabetical string order for filepaths. Upstream does NOT
-        // group folders before files or subcommands before options —
-        // ties are broken by whatever order the upstream runtime
-        // collected them, which is what our insertion order already
-        // replicates.
+        // Stable sort by priority DESC, then EXACT-case prefix matches first.
+        // Both `-L` and `-l` still appear (case-insensitive filter, like
+        // upstream), but typing `-l` ranks `-l` above `-L` so the exact case
+        // the user typed is the active/ghost selection (GH issue #2). Within a
+        // tier we otherwise preserve insertion order (spec-authored order for
+        // subcommands/options, alphabetical for filepaths).
         candidates.sort_by(|a, b| {
-            b.priority.unwrap_or(50).cmp(&a.priority.unwrap_or(50))
+            let pa = a.priority.unwrap_or(50);
+            let pb = b.priority.unwrap_or(50);
+            pb.cmp(&pa).then_with(|| {
+                let ea = a.name.starts_with(&partial);
+                let eb = b.name.starts_with(&partial);
+                eb.cmp(&ea)
+            })
         });
 
         dedup_by_name(candidates)
