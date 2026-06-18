@@ -46,52 +46,99 @@ pub enum IsEvent {
 /// Win32 input mode enable sequence — Windows Terminal sends this
 /// through PTY output and it must be stripped (upstream: ui-root.ts:95).
 const WIN32_INPUT_MODE: &[u8] = b"\x1b[?9001h";
+const MAX_PENDING: usize = 8192;
 
 pub fn scan(input: &[u8]) -> (Vec<u8>, Vec<IsEvent>) {
-    let mut out = Vec::with_capacity(input.len());
-    let mut events = Vec::new();
-    let mut i = 0;
-    let needle = b"\x1b]6973;";
-    while i < input.len() {
-        // Strip Win32 input mode sequence (CSI ?9001h).
-        if i + WIN32_INPUT_MODE.len() <= input.len()
-            && &input[i..i + WIN32_INPUT_MODE.len()] == WIN32_INPUT_MODE
-        {
-            i += WIN32_INPUT_MODE.len();
-            continue;
-        }
-        if i + needle.len() <= input.len() && &input[i..i + needle.len()] == needle {
-            // Find terminator: BEL (0x07) or ST (ESC \\)
-            let start = i + needle.len();
-            let mut end = start;
-            let mut term_len = 0;
-            while end < input.len() {
-                if input[end] == BEL {
-                    term_len = 1;
-                    break;
-                }
-                if end + 1 < input.len() && input[end] == ESC && input[end + 1] == b'\\' {
-                    term_len = 2;
-                    break;
-                }
-                end += 1;
+    let mut scanner = Scanner::new();
+    scanner.scan(input)
+}
+
+#[derive(Default)]
+pub struct Scanner {
+    pending: Vec<u8>,
+}
+
+impl Scanner {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn scan(&mut self, input: &[u8]) -> (Vec<u8>, Vec<IsEvent>) {
+        let data = if self.pending.is_empty() {
+            input.to_vec()
+        } else {
+            let mut data = Vec::with_capacity(self.pending.len() + input.len());
+            data.extend_from_slice(&self.pending);
+            data.extend_from_slice(input);
+            self.pending.clear();
+            data
+        };
+        self.scan_combined(&data)
+    }
+
+    fn scan_combined(&mut self, input: &[u8]) -> (Vec<u8>, Vec<IsEvent>) {
+        let mut out = Vec::with_capacity(input.len());
+        let mut events = Vec::new();
+        let mut i = 0;
+        let needle = b"\x1b]6973;";
+        while i < input.len() {
+            // Strip Win32 input mode sequence (CSI ?9001h).
+            if i + WIN32_INPUT_MODE.len() <= input.len()
+                && &input[i..i + WIN32_INPUT_MODE.len()] == WIN32_INPUT_MODE
+            {
+                i += WIN32_INPUT_MODE.len();
+                continue;
             }
-            if end >= input.len() {
-                // Incomplete sequence at tail — just keep the partial bytes
-                // in the output so the caller can buffer. Simplest: drop.
+            if i + needle.len() <= input.len() && &input[i..i + needle.len()] == needle {
+                // Find terminator: BEL (0x07) or ST (ESC \\)
+                let start = i + needle.len();
+                let mut end = start;
+                let mut term_len = 0;
+                while end < input.len() {
+                    if input[end] == BEL {
+                        term_len = 1;
+                        break;
+                    }
+                    if end + 1 < input.len() && input[end] == ESC && input[end + 1] == b'\\' {
+                        term_len = 2;
+                        break;
+                    }
+                    end += 1;
+                }
+                if end >= input.len() {
+                    self.keep_pending(&input[i..]);
+                    break;
+                }
+                let payload = &input[start..end];
+                if let Ok(s) = std::str::from_utf8(payload) {
+                    parse_payload(s, &mut events);
+                }
+                i = end + term_len;
+                continue;
+            }
+            if is_partial_prefix(&input[i..], needle)
+                || is_partial_prefix(&input[i..], WIN32_INPUT_MODE)
+            {
+                self.keep_pending(&input[i..]);
                 break;
             }
-            let payload = &input[start..end];
-            if let Ok(s) = std::str::from_utf8(payload) {
-                parse_payload(s, &mut events);
-            }
-            i = end + term_len;
-            continue;
+            out.push(input[i]);
+            i += 1;
         }
-        out.push(input[i]);
-        i += 1;
+        (out, events)
     }
-    (out, events)
+
+    fn keep_pending(&mut self, bytes: &[u8]) {
+        if bytes.len() <= MAX_PENDING {
+            self.pending.extend_from_slice(bytes);
+        } else {
+            self.pending.clear();
+        }
+    }
+}
+
+fn is_partial_prefix(tail: &[u8], full: &[u8]) -> bool {
+    tail.len() < full.len() && full.starts_with(tail)
 }
 
 fn parse_payload(s: &str, events: &mut Vec<IsEvent>) {
@@ -169,5 +216,20 @@ mod tests {
         let (out, events) = scan(input);
         assert_eq!(out, input);
         assert!(events.is_empty());
+    }
+
+    #[test]
+    fn scanner_buffers_split_osc() {
+        let mut scanner = Scanner::new();
+        let (out1, events1) = scanner.scan(b"abc\x1b]6973;CWD;/tm");
+        assert_eq!(out1, b"abc");
+        assert!(events1.is_empty());
+        let (out2, events2) = scanner.scan(b"p\x07def");
+        assert_eq!(out2, b"def");
+        assert_eq!(events2.len(), 1);
+        match &events2[0] {
+            IsEvent::Cwd(s) => assert_eq!(s, "/tmp"),
+            _ => panic!("expected Cwd"),
+        }
     }
 }

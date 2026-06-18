@@ -15,8 +15,8 @@ pub use model::{
     PostProcess, PostProcessKind, Repeatable, ScriptInput, Spec, Subcommand, Suggestion,
     SuggestionType, Template,
 };
-pub use parser::{parse_command, CommandToken};
-pub use resolver::{resolve, ResolveResult};
+pub use parser::{CommandToken, parse_command};
+pub use resolver::{ResolveResult, resolve};
 
 use std::cell::UnsafeCell;
 use std::collections::BTreeMap;
@@ -63,11 +63,15 @@ impl Registry {
         // Curated hand-ported specs override the bundle.
         for spec in crate::curated::all() {
             let name = spec.name().to_string();
-            r.lazy.lock().unwrap_or_else(|e| e.into_inner()).remove(&name);
+            r.lazy
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&name);
             if !r.specs.get_mut().contains_key(&name) {
                 r.insert(spec);
             }
         }
+        r.load_configured_json_dirs();
         r.load_toml_dir();
         r
     }
@@ -78,8 +82,7 @@ impl Registry {
         // WITHOUT parsing any Subcommand values. This is the lazy
         // equivalent of upstream's `loadSpecsSet()` which maps
         // command names to file paths without loading the files.
-        const BUNDLE_ZST: &[u8] =
-            include_bytes!("../../specs-data/bundle.json.zst");
+        const BUNDLE_ZST: &[u8] = include_bytes!("../../specs-data/bundle.json.zst");
         use std::io::Read;
         let mut decoder = match ruzstd::decoding::StreamingDecoder::new(BUNDLE_ZST) {
             Ok(d) => d,
@@ -116,9 +119,18 @@ impl Registry {
                 lazy.insert(key, raw.get().as_bytes().to_vec());
             }
         } // drop the lock before calling load_disk_specs
+    }
 
+    fn load_configured_json_dirs(&mut self) {
+        let mut dirs = std::collections::BTreeSet::<String>::new();
         if let Ok(extras) = std::env::var("INSH_RS_SPECS_DIR") {
-            self.load_disk_specs(std::path::Path::new(&extras));
+            dirs.insert(extras);
+        }
+        for dir in crate::config::load().specs.path {
+            dirs.insert(dir);
+        }
+        for dir in dirs {
+            self.load_disk_specs(std::path::Path::new(&dir));
         }
     }
 
@@ -127,13 +139,17 @@ impl Registry {
     }
 
     fn walk_disk(root: &std::path::Path, dir: &std::path::Path, reg: &mut Registry) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
                 Self::walk_disk(root, &path, reg);
             } else if path.extension().and_then(|e| e.to_str()) == Some("json") {
-                let Ok(bytes) = std::fs::read_to_string(&path) else { continue };
+                let Ok(bytes) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
                 let Ok(spec) = serde_json::from_str::<Subcommand>(&bytes) else {
                     eprintln!("is: failed to parse {}", path.display());
                     continue;
@@ -213,10 +229,9 @@ impl Registry {
     }
 
     fn load_toml_dir(&mut self) {
-        let Some(base) = crate::paths::config_dir() else {
+        let Some(dir) = crate::paths::user_specs_dir() else {
             return;
         };
-        let dir = base.join("inshellisense-rs").join("specs");
         let Ok(read_dir) = std::fs::read_dir(&dir) else {
             return;
         };

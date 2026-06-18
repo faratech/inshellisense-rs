@@ -37,13 +37,20 @@ pub fn patch(spec: &mut Subcommand, name: &str) {
     match name {
         "yarn" => patch_yarn(spec),
         "gh" => patch_gh(spec),
-        "make" => patch_make(spec),
+        "make" => {
+            patch_make(spec);
+            patch_make_options(spec);
+        }
         "asciinema" => patch_asciinema(spec),
         "cd" => patch_cd(spec),
         "git" => patch_git(spec),
         "systemctl" => patch_systemctl(spec),
         "tar" => patch_tar(spec),
         "npm" => patch_npm(spec),
+        "tmux" => patch_tmux(spec),
+        "pnpm" => patch_pnpm(spec),
+        "composer" => patch_composer(spec),
+        "php" => patch_php(spec),
         // python/node complete a script path (filepaths generator) and upstream
         // includes `..`; add it as a static entry (filepaths generators don't
         // synthesize `..` generally — that would wrongly add it to e.g.
@@ -51,6 +58,105 @@ pub fn patch(spec: &mut Subcommand, name: &str) {
         "python" | "python3" | "node" => add_parent_suggestion(spec),
         _ => {}
     }
+}
+
+fn patch_composer(spec: &mut Subcommand) {
+    add_option(spec, "--help", "Display help for a command");
+    add_option(spec, "--version", "Display this application version");
+}
+
+fn patch_php(spec: &mut Subcommand) {
+    add_option(spec, "--version", "Show PHP version");
+    add_option(spec, "--help", "Show command line help");
+}
+
+fn patch_pnpm(spec: &mut Subcommand) {
+    for s in &mut spec.subcommands {
+        if s.names.iter().any(|n| n == "init") {
+            s.priority = Some(60);
+        }
+    }
+}
+
+fn patch_tmux(spec: &mut Subcommand) {
+    add_subcommand_alias(
+        spec,
+        "new-session",
+        "Create a new session",
+        &["new", "new-session"],
+    );
+    add_subcommand_alias(
+        spec,
+        "new-window",
+        "Create a new window",
+        &["neww", "new-window"],
+    );
+}
+
+fn patch_make_options(spec: &mut Subcommand) {
+    const ADD: &[(&str, &str)] = &[
+        ("--always-make", "Unconditionally make all targets"),
+        ("--assume-new", "Consider file to be infinitely new"),
+        ("--assume-old", "Consider file to be very old and do not remake it"),
+        ("--check-symlink-times", "Use the latest mtime between symlinks and target"),
+        ("--directory", "Change to DIRECTORY before doing anything"),
+        ("--dry-run", "Print commands without executing them"),
+        ("--environment-overrides", "Environment variables override makefiles"),
+        ("--eval", "Evaluate string as makefile syntax"),
+        ("--ignore-errors", "Ignore errors from commands"),
+        ("--include-dir", "Search directory for included makefiles"),
+        ("--jobs", "Allow N jobs at once"),
+        ("--jobserver-style", "Select the jobserver style"),
+        ("--just-print", "Print commands without executing them"),
+        ("--keep-going", "Keep going when some targets cannot be made"),
+        ("--load-average", "Avoid starting jobs above a load average"),
+        ("--makefile", "Read FILE as a makefile"),
+        ("--max-load", "Avoid starting jobs above a load average"),
+        ("--new-file", "Consider file to be infinitely new"),
+        ("--no-keep-going", "Turn off keep-going mode"),
+        ("--old-file", "Consider file to be very old and do not remake it"),
+        ("--output-sync", "Synchronize output of parallel jobs"),
+        ("--quiet", "Run no commands; exit status says if up to date"),
+        ("--recon", "Print commands without executing them"),
+        ("--shuffle", "Randomize goal and prerequisite ordering"),
+        ("--silent", "Do not echo recipes"),
+        ("--trace", "Print tracing information"),
+        ("--variables", "Print make's internal database"),
+        ("--what-if", "Consider file to be infinitely new"),
+    ];
+    for (name, description) in ADD {
+        add_option(spec, name, description);
+    }
+}
+
+fn add_subcommand_alias(
+    spec: &mut Subcommand,
+    name: &str,
+    description: &str,
+    existing_aliases: &[&str],
+) {
+    if spec
+        .subcommands
+        .iter()
+        .any(|s| s.names.first().map(|n| n == name).unwrap_or(false))
+    {
+        return;
+    }
+    if !spec.subcommands.iter().any(|s| {
+        existing_aliases
+            .iter()
+            .all(|alias| s.names.iter().any(|n| n == alias))
+    }) {
+        return;
+    }
+    spec.subcommands.push(sub(name, description));
+}
+
+fn add_option(spec: &mut Subcommand, name: &str, description: &str) {
+    if spec.options.iter().any(|o| o.names.iter().any(|n| n == name)) {
+        return;
+    }
+    spec.options.push(opt(name, description));
 }
 
 /// npm: the `run`/`run-script` subcommand is missing the `--workspace(s)`

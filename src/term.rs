@@ -235,10 +235,7 @@ impl TermTracker {
             }
             cmd.push_str(&row_text(screen, row, 0, cursor_col as usize));
         }
-        // Trim trailing whitespace but keep leading so we know if user is
-        // still in the middle of a word.
-        let trimmed = cmd.trim_end().to_string();
-        self.state.command = trimmed;
+        self.state.command = cmd;
     }
 }
 
@@ -258,4 +255,18 @@ fn row_text(screen: &vt100::Screen, row: usize, start_col: usize, end_col: usize
         }
     }
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ansi::IsEvent;
+
+    #[test]
+    fn preserves_trailing_space_at_cursor() {
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.feed(b"$ ", &[IsEvent::PromptStart, IsEvent::PromptEnd]);
+        tracker.feed(b"git ", &[]);
+        assert_eq!(tracker.state().command, "git ");
+    }
 }

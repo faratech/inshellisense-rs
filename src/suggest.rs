@@ -8,13 +8,13 @@
 
 use crate::generator;
 use crate::history;
+use crate::shell::Shell;
 use crate::spec::{
-    self,
+    self, Registry,
     filter::matches,
-    model::{FilterStrategy, Subcommand, Suggestion, SuggestionType},
+    model::{Arg, FilterStrategy, Opt, Subcommand, Suggestion, SuggestionType},
     parser::CommandToken,
     resolver::{self, ResolveResult},
-    Registry,
 };
 use std::collections::HashMap;
 
@@ -27,6 +27,9 @@ pub struct Engine {
     /// yield nothing here (otherwise `curl ` returns `exit, ls, cd ..`).
     /// The interactive PTY engine leaves this false.
     offline: bool,
+    /// Active shell context. Used for shell-specific aliases/builtins such as
+    /// PowerShell's `ls` alias for `Get-ChildItem`.
+    shell: Option<Shell>,
 }
 
 impl Engine {
@@ -36,6 +39,7 @@ impl Engine {
             history,
             aliases: HashMap::new(),
             offline: false,
+            shell: None,
         }
     }
 
@@ -47,6 +51,10 @@ impl Engine {
     /// the shell-history template, matching upstream).
     pub fn set_offline(&mut self, offline: bool) {
         self.offline = offline;
+    }
+
+    pub fn set_shell(&mut self, shell: Shell) {
+        self.shell = Some(shell);
     }
 
     /// Ghost-text tail: the portion of the top suggestion after the current
@@ -63,7 +71,9 @@ impl Engine {
             }
         }
         // Fallback to history.
-        if let Some(full) = history::best_match(&self.history, line) {
+        if !self.offline
+            && let Some(full) = history::best_match(&self.history, line)
+        {
             return Some(full[line.len()..].to_string());
         }
         None
@@ -71,22 +81,18 @@ impl Engine {
 
     /// Full suggestion blob — sorted and filtered.
     pub fn suggest_blob(&self, line: &str, cwd: &str) -> Vec<Suggestion> {
-        // Expand aliases before resolving — if the first word is an alias,
-        // suggestions should reflect the expanded command (upstream:
-        // runtime.ts:110).
-        let expanded = crate::alias::expand(line, &self.aliases);
-        let tokens = spec::parse_command(&expanded);
-        if tokens.is_empty() {
+        let original_tokens = spec::parse_command(line);
+        if original_tokens.is_empty() {
             return Vec::new();
         }
-        let cmd = &tokens[0].token;
 
         // First-word completion — when the user has typed exactly one
         // token with no trailing space, they are *still typing the
         // command name*. Include both spec names and alias names,
         // with aliases at priority 100 (upstream: runtime.ts:412-426).
-        let trailing_space = expanded.ends_with(char::is_whitespace);
-        if tokens.len() == 1 && !trailing_space {
+        let original_trailing_space = line.ends_with(char::is_whitespace);
+        if original_tokens.len() == 1 && !original_trailing_space {
+            let cmd = &original_tokens[0].token;
             let mut results = self.top_level_name_matches(cmd);
             // Add matching aliases (priority 100, type Shortcut).
             let partial_lc = cmd.to_lowercase();
@@ -102,12 +108,27 @@ impl Engine {
                 }
             }
             results.sort_by(|a, b| {
-                b.priority.unwrap_or(50).cmp(&a.priority.unwrap_or(50))
+                b.priority
+                    .unwrap_or(50)
+                    .cmp(&a.priority.unwrap_or(50))
+                    .then_with(|| (b.name == *cmd).cmp(&(a.name == *cmd)))
+                    .then_with(|| a.name.len().cmp(&b.name.len()))
             });
             return dedup_by_name(results);
         }
 
-        let Some(root) = self.registry.get(cmd) else {
+        // Expand aliases before resolving — if the first word in the active
+        // command segment is an alias, suggestions should reflect the expanded
+        // command (upstream: runtime.ts:110).
+        let expanded = crate::alias::expand_active_segment(line, &self.aliases);
+        let tokens = spec::parse_command(&expanded);
+        if tokens.is_empty() {
+            return Vec::new();
+        }
+        let cmd = &tokens[0].token;
+
+        let shell_root = shell_command_override(self.shell, cmd);
+        let Some(root) = shell_root.as_ref().or_else(|| self.registry.get(cmd)) else {
             return Vec::new();
         };
         let result = resolver::resolve_with_registry(&self.registry, root, &tokens);
@@ -122,8 +143,9 @@ impl Engine {
         // Trailing space or partial that doesn't start with '-'? Offer
         // subcommand names.
         let trailing_space = line.ends_with(char::is_whitespace);
-        let completing_name = !trailing_space && !partial.starts_with('-');
-        let completing_option = !trailing_space && partial.starts_with('-');
+        let completing_option = !trailing_space
+            && (partial.starts_with('-') || partial_matches_option(&result, &partial));
+        let completing_name = !trailing_space && !completing_option;
 
         if trailing_space || completing_name {
             for s in &result.subcommand.subcommands {
@@ -171,6 +193,22 @@ impl Engine {
                 if excluded {
                     continue;
                 }
+                let dependency_missing = !opt.depends_on.is_empty()
+                    && !opt
+                        .depends_on
+                        .iter()
+                        .any(|d| result.accepted_option_tokens.iter().any(|a| a == d));
+                if dependency_missing {
+                    continue;
+                }
+                if result.positional_args_consumed
+                    && result
+                        .subcommand
+                        .parser_directives
+                        .options_must_precede_arguments
+                {
+                    continue;
+                }
                 let Some(name) = pick_primary(&opt.names, &partial) else {
                     continue;
                 };
@@ -206,7 +244,10 @@ impl Engine {
             // `afile.txt`, `ls -` → `specs-data`). This also correctly drops a
             // path entry like `..` when the user is typing an option (`--ve`),
             // and tolerates a dir prefix (`sub/fi` → `sub/file`).
-            if matches!(c.suggestion_type, SuggestionType::Folder | SuggestionType::File) {
+            if matches!(
+                c.suggestion_type,
+                SuggestionType::Folder | SuggestionType::File
+            ) {
                 let base = c.name.rsplit('/').next().unwrap_or(c.name.as_str());
                 let needle = partial.rsplit('/').next().unwrap_or(partial.as_str());
                 return base.to_lowercase().contains(&needle.to_lowercase());
@@ -214,20 +255,19 @@ impl Engine {
             matches(strategy, &c.name, &partial)
         });
 
-        // Stable sort by priority DESC, then EXACT-case prefix matches first.
+        // Stable sort by EXACT-case prefix matches first, then priority DESC.
         // Both `-L` and `-l` still appear (case-insensitive filter, like
-        // upstream), but typing `-l` ranks `-l` above `-L` so the exact case
-        // the user typed is the active/ghost selection (GH issue #2). Within a
-        // tier we otherwise preserve insertion order (spec-authored order for
-        // subcommands/options, alphabetical for filepaths).
+        // upstream), but typing `-l` ranks `-l` above even a higher-priority
+        // `-L` so the exact case the user typed is the active/ghost selection
+        // (GH issue #2). Within a tier we otherwise preserve insertion order
+        // (spec-authored order for subcommands/options, alphabetical for
+        // filepaths).
         candidates.sort_by(|a, b| {
             let pa = a.priority.unwrap_or(50);
             let pb = b.priority.unwrap_or(50);
-            pb.cmp(&pa).then_with(|| {
-                let ea = a.name.starts_with(&partial);
-                let eb = b.name.starts_with(&partial);
-                eb.cmp(&ea)
-            })
+            let ea = a.name.starts_with(&partial);
+            let eb = b.name.starts_with(&partial);
+            eb.cmp(&ea).then_with(|| pb.cmp(&pa))
         });
 
         dedup_by_name(candidates)
@@ -283,6 +323,137 @@ fn active_filter_strategy(r: &ResolveResult<'_>) -> FilterStrategy {
         }
     }
     r.subcommand.filter_strategy
+}
+
+fn partial_matches_option(result: &ResolveResult<'_>, partial: &str) -> bool {
+    if partial.is_empty() {
+        return false;
+    }
+    let needle = partial.to_lowercase();
+    result.persistent_options.iter().any(|opt| {
+        opt.names
+            .iter()
+            .any(|name| name.to_lowercase().starts_with(&needle))
+    })
+}
+
+fn shell_command_override(shell: Option<Shell>, cmd: &str) -> Option<Subcommand> {
+    match shell {
+        Some(Shell::Pwsh | Shell::Powershell) if is_powershell_get_child_item(cmd) => {
+            Some(powershell_get_child_item_spec())
+        }
+        #[cfg(windows)]
+        Some(Shell::Cmd) if is_cmd_dir(cmd) => Some(cmd_dir_spec()),
+        _ => None,
+    }
+}
+
+fn is_powershell_get_child_item(cmd: &str) -> bool {
+    matches!(
+        cmd.to_ascii_lowercase().as_str(),
+        "get-childitem" | "ls" | "dir" | "gci"
+    )
+}
+
+fn powershell_get_child_item_spec() -> Subcommand {
+    let mut spec = Subcommand::new("Get-ChildItem");
+    spec.names = vec![
+        "Get-ChildItem".into(),
+        "ls".into(),
+        "dir".into(),
+        "gci".into(),
+    ];
+    spec.description = Some("Gets the items and child items in one or more locations".into());
+    spec.options = vec![
+        ps_opt(&["-Path"], "Specifies one or more paths"),
+        ps_opt(&["-LiteralPath"], "Uses the path exactly as typed"),
+        ps_opt(&["-Filter"], "Specifies a provider filter"),
+        ps_opt(&["-Include"], "Includes only matching items"),
+        ps_opt(&["-Exclude"], "Omits matching items"),
+        ps_opt(&["-Recurse"], "Gets items in child locations"),
+        ps_opt(&["-Depth"], "Limits recursive depth"),
+        ps_opt(&["-Force"], "Gets hidden or system items"),
+        ps_opt(&["-Name"], "Returns only item names"),
+        ps_opt(
+            &["-Attributes"],
+            "Gets files and folders with specified attributes",
+        ),
+        ps_opt(&["-Directory"], "Gets only directories"),
+        ps_opt(&["-File"], "Gets only files"),
+        ps_opt(&["-Hidden"], "Gets only hidden items"),
+        ps_opt(&["-ReadOnly"], "Gets only read-only items"),
+        ps_opt(&["-System"], "Gets only system items"),
+        ps_opt(&["-ErrorAction"], "Specifies the action for errors"),
+        ps_opt(&["-Verbose"], "Displays detailed operation information"),
+        ps_opt(&["-Debug"], "Displays debug information"),
+        ps_opt(&["-WhatIf"], "Shows what would happen without running"),
+        ps_opt(&["-Confirm"], "Prompts before running"),
+    ];
+    spec.args = vec![Arg {
+        name: Some("path".into()),
+        is_optional: true,
+        is_variadic: true,
+        ..Default::default()
+    }];
+    spec
+}
+
+fn ps_opt(names: &[&str], description: &str) -> Opt {
+    Opt {
+        names: names.iter().map(|s| s.to_string()).collect(),
+        description: Some(description.to_string()),
+        priority: Some(60),
+        ..Default::default()
+    }
+}
+
+#[cfg(windows)]
+fn is_cmd_dir(cmd: &str) -> bool {
+    cmd.eq_ignore_ascii_case("dir")
+}
+
+#[cfg(windows)]
+fn cmd_dir_spec() -> Subcommand {
+    let mut spec = Subcommand::new("dir");
+    spec.description = Some("Displays a list of files and subdirectories in a directory".into());
+    spec.options = vec![
+        cmd_opt(&["/A"], "Displays files with specified attributes"),
+        cmd_opt(&["/B"], "Uses bare format"),
+        cmd_opt(&["/C"], "Displays thousands separator in file sizes"),
+        cmd_opt(&["/D"], "Uses wide list format sorted by column"),
+        cmd_opt(&["/L"], "Uses lowercase"),
+        cmd_opt(&["/N"], "Uses long list format"),
+        cmd_opt(&["/O"], "Lists files in sorted order"),
+        cmd_opt(&["/P"], "Pauses after each screen"),
+        cmd_opt(&["/Q"], "Displays file ownership"),
+        cmd_opt(&["/R"], "Displays alternate data streams"),
+        cmd_opt(
+            &["/S"],
+            "Lists matching files in current and subdirectories",
+        ),
+        cmd_opt(&["/T"], "Controls which time field is displayed"),
+        cmd_opt(&["/W"], "Uses wide list format"),
+        cmd_opt(&["/X"], "Displays short names"),
+        cmd_opt(&["/4"], "Displays four-digit years"),
+        cmd_opt(&["/?"], "Displays help"),
+    ];
+    spec.args = vec![Arg {
+        name: Some("path".into()),
+        is_optional: true,
+        is_variadic: true,
+        ..Default::default()
+    }];
+    spec
+}
+
+#[cfg(windows)]
+fn cmd_opt(names: &[&str], description: &str) -> Opt {
+    Opt {
+        names: names.iter().map(|s| s.to_string()).collect(),
+        description: Some(description.to_string()),
+        priority: Some(60),
+        ..Default::default()
+    }
 }
 
 /// Port of upstream's name-picking logic from

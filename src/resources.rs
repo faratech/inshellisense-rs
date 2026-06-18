@@ -151,8 +151,10 @@ fn init_file_contents(shell: Shell) -> String {
 }
 
 /// Populate `~/.inshellisense/zsh-dotdir/` with the four zsh startup files that
-/// zsh reads when ZDOTDIR is set. Each is a thin wrapper that sources the
-/// user's original rc (via `USER_ZDOTDIR`) + our shell integration.
+/// zsh reads when ZDOTDIR is set. The rc wrapper sources the user's original
+/// interactive rc before installing prompt hooks; env/login/profile delegate
+/// user startup sourcing to their matching integration scripts so each user
+/// file is sourced exactly once.
 ///
 /// Port of the flow at `/tmp/inshellisense/src/utils/shell.ts:54-163`.
 fn populate_zsh_dotdir() -> Result<()> {
@@ -162,11 +164,15 @@ fn populate_zsh_dotdir() -> Result<()> {
         .map(|p| p.display().to_string())
         .unwrap_or_else(|| "$HOME/.inshellisense/shell".to_string());
 
+    for (name, contents) in zsh_dotdir_contents(&shell_dir) {
+        fs::write(dir.join(name), contents)?;
+    }
+    Ok(())
+}
+
+fn zsh_dotdir_contents(shell_dir: &str) -> Vec<(&'static str, String)> {
     let env_contents = format!(
-        "# inshellisense-rs zsh .zshenv — sources user's original then our env hook\n\
-         if [[ -n \"${{USER_ZDOTDIR:-}}\" && -f \"${{USER_ZDOTDIR}}/.zshenv\" ]]; then\n\
-             source \"${{USER_ZDOTDIR}}/.zshenv\"\n\
-         fi\n\
+        "# inshellisense-rs zsh .zshenv\n\
          if [[ -f '{sd}/shellIntegration-env.zsh' ]]; then\n\
              source '{sd}/shellIntegration-env.zsh'\n\
          fi\n",
@@ -184,9 +190,6 @@ fn populate_zsh_dotdir() -> Result<()> {
     );
     let login_contents = format!(
         "# inshellisense-rs zsh .zlogin\n\
-         if [[ -n \"${{USER_ZDOTDIR:-}}\" && -f \"${{USER_ZDOTDIR}}/.zlogin\" ]]; then\n\
-             source \"${{USER_ZDOTDIR}}/.zlogin\"\n\
-         fi\n\
          if [[ -f '{sd}/shellIntegration-login.zsh' ]]; then\n\
              source '{sd}/shellIntegration-login.zsh'\n\
          fi\n",
@@ -194,20 +197,18 @@ fn populate_zsh_dotdir() -> Result<()> {
     );
     let profile_contents = format!(
         "# inshellisense-rs zsh .zprofile\n\
-         if [[ -n \"${{USER_ZDOTDIR:-}}\" && -f \"${{USER_ZDOTDIR}}/.zprofile\" ]]; then\n\
-             source \"${{USER_ZDOTDIR}}/.zprofile\"\n\
-         fi\n\
          if [[ -f '{sd}/shellIntegration-profile.zsh' ]]; then\n\
              source '{sd}/shellIntegration-profile.zsh'\n\
-         fi\n",
+        fi\n",
         sd = shell_dir
     );
 
-    fs::write(dir.join(".zshenv"), env_contents)?;
-    fs::write(dir.join(".zshrc"), rc_contents)?;
-    fs::write(dir.join(".zlogin"), login_contents)?;
-    fs::write(dir.join(".zprofile"), profile_contents)?;
-    Ok(())
+    vec![
+        (".zshenv", env_contents),
+        (".zshrc", rc_contents),
+        (".zlogin", login_contents),
+        (".zprofile", profile_contents),
+    ]
 }
 
 /// Remove the entire `~/.inshellisense/` tree. Called by `insh uninstall`.
@@ -221,4 +222,48 @@ pub fn remove_all() -> Result<()> {
             .with_context(|| format!("removing {}", root.display()))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn generated_zsh_file(name: &str) -> String {
+        zsh_dotdir_contents("/tmp/is-shell")
+            .into_iter()
+            .find(|(file, _)| *file == name)
+            .map(|(_, contents)| contents)
+            .unwrap()
+    }
+
+    fn vendored_script(name: &str) -> &'static str {
+        SHELL_SCRIPTS
+            .iter()
+            .find(|(file, _)| *file == name)
+            .map(|(_, contents)| *contents)
+            .unwrap()
+    }
+
+    #[test]
+    fn generated_zsh_env_login_profile_do_not_double_source_user_files() {
+        for file in [".zshenv", ".zlogin", ".zprofile"] {
+            let contents = generated_zsh_file(file);
+            assert!(
+                !contents.contains("USER_ZDOTDIR"),
+                "{file} should delegate user startup sourcing to the integration script"
+            );
+        }
+        let rc = generated_zsh_file(".zshrc");
+        assert!(rc.contains("USER_ZDOTDIR"));
+        assert!(rc.contains(".zshrc"));
+    }
+
+    #[test]
+    fn vendored_zsh_and_fish_scripts_have_expected_safe_content() {
+        assert!(!vendored_script("shellIntegration-rc.zsh").contains(".zshrc"));
+        assert!(vendored_script("shellIntegration-env.zsh").contains(".zshenv"));
+        assert!(vendored_script("shellIntegration-login.zsh").contains(".zlogin"));
+        assert!(vendored_script("shellIntegration-profile.zsh").contains(".zprofile"));
+        assert!(vendored_script("shellIntegration.fish").contains("printf '%s'"));
+    }
 }

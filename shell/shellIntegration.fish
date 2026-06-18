@@ -23,5 +23,5 @@ function fish_prompt;
     set --local __user_prompt_lines (is_user_prompt)
     set --local __user_prompt (string join '\n' $__user_prompt_lines)
 	set --local __prompt (string join '' (__is_prompt_start) $__user_prompt (__is_prompt_end))
-    printf $__prompt
+    printf '%s' "$__prompt"
 end

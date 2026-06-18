@@ -3,15 +3,16 @@
 //! Default output is JSON matching upstream's exact schema:
 //! `{"suggestions":[...],"activeToken":{...}}`
 
-use crate::{history, render::popup::icon_for, spec, suggest};
+use crate::{history, render::popup::icon_for, shell::Shell, spec, suggest};
 use anyhow::Result;
 
-pub fn run(line: &str, text_mode: bool, cwd: &str) -> Result<()> {
+pub fn run(line: &str, text_mode: bool, cwd: &str, shell: Option<Shell>) -> Result<()> {
     let hist = history::load();
     let registry = spec::Registry::new_with_defaults();
     let mut engine = suggest::Engine::new(registry, hist);
     // Offline query: no live shell-session history (matches upstream).
     engine.set_offline(true);
+    engine.set_shell(shell.unwrap_or_else(crate::shell::detect));
 
     if text_mode {
         if let Some(s) = engine.suggest(line, cwd) {

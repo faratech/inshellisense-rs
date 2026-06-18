@@ -11,10 +11,10 @@ use crate::spec::model::{
     Arg, CacheSpec, Generator, PostProcess, PostProcessKind, ProjectFileReader, ScriptInput,
     Subcommand, Suggestion, SuggestionType, Template,
 };
-use std::sync::LazyLock;
 use std::collections::HashMap;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -38,7 +38,13 @@ pub fn suggestions_for_arg(
     // Templates listed in the `templates` field do NOT add a `..` entry
     // (upstream `ls `/`vim ` omit it); the generator form does (see below).
     for tpl in &arg.templates {
-        out.extend(template_suggestions(*tpl, cwd, prefix, include_history, false));
+        out.extend(template_suggestions(
+            *tpl,
+            cwd,
+            prefix,
+            include_history,
+            false,
+        ));
     }
 
     // Multi-generator fan-out: scoped threads run shell generators in
@@ -46,7 +52,12 @@ pub fn suggestions_for_arg(
     match arg.generators.len() {
         0 => {}
         1 => {
-            out.extend(run_generator(&arg.generators[0], cwd, prefix, include_history));
+            out.extend(run_generator(
+                &arg.generators[0],
+                cwd,
+                prefix,
+                include_history,
+            ));
         }
         _ => {
             let results: Vec<Vec<Suggestion>> = std::thread::scope(|scope| {
@@ -134,17 +145,76 @@ fn file_exists_then(
 /// subcommands. Filtered against package.json deps or node_modules/.bin
 /// entries to surface useful loadable specs.
 const NODE_CLIS: &[&str] = &[
-    "vite", "vitest", "jest", "mocha", "ava", "tap", "eslint", "prettier",
-    "tsc", "tslint", "webpack", "rollup", "parcel", "esbuild", "swc",
-    "next", "nuxt", "remix", "astro", "gatsby", "vue-cli-service", "nx",
-    "playwright", "cypress", "storybook", "babel", "babel-node", "ts-node",
-    "tsx", "tap-spec", "nyc", "lerna", "rush", "pnpm", "yarn", "bun",
-    "node", "nodemon", "concurrently", "husky", "lint-staged", "rimraf",
-    "cross-env", "del-cli", "serve", "http-server", "browser-sync",
-    "stylelint", "postcss", "sass", "less", "tailwindcss", "fastify",
-    "nest", "hardhat", "truffle", "ganache", "fauna-shell", "wrangler",
-    "vercel", "netlify", "supabase", "amplify", "firebase", "convex",
-    "drizzle-kit", "prisma", "knex", "sequelize", "mongoose",
+    "vite",
+    "vitest",
+    "jest",
+    "mocha",
+    "ava",
+    "tap",
+    "eslint",
+    "prettier",
+    "tsc",
+    "tslint",
+    "webpack",
+    "rollup",
+    "parcel",
+    "esbuild",
+    "swc",
+    "next",
+    "nuxt",
+    "remix",
+    "astro",
+    "gatsby",
+    "vue-cli-service",
+    "nx",
+    "playwright",
+    "cypress",
+    "storybook",
+    "babel",
+    "babel-node",
+    "ts-node",
+    "tsx",
+    "tap-spec",
+    "nyc",
+    "lerna",
+    "rush",
+    "pnpm",
+    "yarn",
+    "bun",
+    "node",
+    "nodemon",
+    "concurrently",
+    "husky",
+    "lint-staged",
+    "rimraf",
+    "cross-env",
+    "del-cli",
+    "serve",
+    "http-server",
+    "browser-sync",
+    "stylelint",
+    "postcss",
+    "sass",
+    "less",
+    "tailwindcss",
+    "fastify",
+    "nest",
+    "hardhat",
+    "truffle",
+    "ganache",
+    "fauna-shell",
+    "wrangler",
+    "vercel",
+    "netlify",
+    "supabase",
+    "amplify",
+    "firebase",
+    "convex",
+    "drizzle-kit",
+    "prisma",
+    "knex",
+    "sequelize",
+    "mongoose",
 ];
 
 fn is_known_node_cli(name: &str) -> bool {
@@ -161,8 +231,8 @@ fn project_file_suggestions(reader: ProjectFileReader, cwd: &str) -> Vec<Suggest
 }
 
 fn package_json_scripts(cwd: &str) -> Vec<Suggestion> {
-    let pkg_path = std::path::Path::new(if cwd.is_empty() { "." } else { cwd })
-        .join("package.json");
+    let pkg_path =
+        std::path::Path::new(if cwd.is_empty() { "." } else { cwd }).join("package.json");
     let Ok(text) = std::fs::read_to_string(&pkg_path) else {
         return Vec::new();
     };
@@ -185,8 +255,8 @@ fn package_json_scripts(cwd: &str) -> Vec<Suggestion> {
 }
 
 fn package_json_node_clis(cwd: &str) -> Vec<Suggestion> {
-    let pkg_path = std::path::Path::new(if cwd.is_empty() { "." } else { cwd })
-        .join("package.json");
+    let pkg_path =
+        std::path::Path::new(if cwd.is_empty() { "." } else { cwd }).join("package.json");
     let Ok(text) = std::fs::read_to_string(&pkg_path) else {
         return Vec::new();
     };
@@ -246,8 +316,7 @@ fn node_modules_binaries(cwd: &str) -> Vec<Suggestion> {
 }
 
 fn cargo_workspace_members(cwd: &str) -> Vec<Suggestion> {
-    let path = std::path::Path::new(if cwd.is_empty() { "." } else { cwd })
-        .join("Cargo.toml");
+    let path = std::path::Path::new(if cwd.is_empty() { "." } else { cwd }).join("Cargo.toml");
     let Ok(text) = std::fs::read_to_string(&path) else {
         return Vec::new();
     };
@@ -438,7 +507,7 @@ fn run_shell_line(
     script: &str,
     sep: &str,
     cache_key: Option<&str>,
-    _timeout_ms: u32,
+    timeout_ms: u32,
     cache: Option<&CacheSpec>,
     cwd: &str,
 ) -> Vec<String> {
@@ -456,18 +525,14 @@ fn run_shell_line(
         }
     }
 
-    let out = Command::new("sh")
-        .arg("-c")
-        .arg(script)
-        .current_dir(if cwd.is_empty() { "." } else { cwd })
-        .output();
+    let out = run_command_with_timeout(script, cwd, timeout_ms);
     let values: Vec<String> = match out {
-        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
+        Some(bytes) => String::from_utf8_lossy(&bytes)
             .split(sep)
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect(),
-        _ => Vec::new(),
+        None => Vec::new(),
     };
 
     let mut c = CACHE.lock().unwrap();
@@ -486,6 +551,68 @@ fn run_shell_line(
         },
     );
     values
+}
+
+fn run_command_with_timeout(script: &str, cwd: &str, timeout_ms: u32) -> Option<Vec<u8>> {
+    let mut command = Command::new("sh");
+    command
+        .arg("-c")
+        .arg(script)
+        .current_dir(if cwd.is_empty() { "." } else { cwd })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    #[cfg(unix)]
+    unsafe {
+        use std::os::unix::process::CommandExt;
+        command.pre_exec(|| {
+            if libc::setpgid(0, 0) == 0 {
+                Ok(())
+            } else {
+                Err(std::io::Error::last_os_error())
+            }
+        });
+    }
+    let mut child = command.spawn().ok()?;
+    let mut stdout = child.stdout.take()?;
+    let reader = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = std::io::Read::read_to_end(&mut stdout, &mut buf);
+        buf
+    });
+
+    let timeout = Duration::from_millis(timeout_ms.max(1) as u64);
+    let start = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let bytes = reader.join().unwrap_or_default();
+                return status.success().then_some(bytes);
+            }
+            Ok(None) => {
+                if start.elapsed() >= timeout {
+                    kill_generator_child(&mut child);
+                    let _ = child.wait();
+                    let _ = reader.join();
+                    return None;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(_) => {
+                kill_generator_child(&mut child);
+                let _ = child.wait();
+                let _ = reader.join();
+                return None;
+            }
+        }
+    }
+}
+
+fn kill_generator_child(child: &mut std::process::Child) {
+    #[cfg(unix)]
+    unsafe {
+        let _ = libc::kill(-(child.id() as libc::pid_t), libc::SIGKILL);
+    }
+    let _ = child.kill();
 }
 
 fn apply_post_process(raw: Vec<String>, post: &PostProcess) -> Vec<Suggestion> {
@@ -595,7 +722,10 @@ fn apply_pattern(raw: Vec<String>, kind: &PostProcessKind) -> Vec<Suggestion> {
                 if name.is_empty() {
                     return None;
                 }
-                let desc = it.next().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+                let desc = it
+                    .next()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty());
                 Some(Suggestion {
                     name,
                     description: desc,
@@ -688,6 +818,44 @@ fn json_value_to_suggestions(v: &serde_json::Value) -> Vec<Suggestion> {
                 _ => None,
             })
             .collect(),
+        serde_json::Value::Object(obj) => {
+            if let Some(name) = obj.get("name").and_then(|v| v.as_str()) {
+                return vec![Suggestion {
+                    name: name.to_string(),
+                    description: obj
+                        .get("description")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    suggestion_type: SuggestionType::Arg,
+                    priority: Some(60),
+                    ..Default::default()
+                }];
+            }
+            if let Some(packages) = obj.get("packages") {
+                return json_value_to_suggestions(packages);
+            }
+            Vec::new()
+        }
         _ => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shell_line_timeout_returns_empty_quickly() {
+        let start = Instant::now();
+        let got = run_shell_line("sleep 2; echo late", "\n", None, 50, None, ".");
+        assert!(got.is_empty());
+        assert!(start.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn json_object_packages_become_suggestions() {
+        let got = json_to_suggestions(r#"{"packages":[{"name":"pkg-a"},{"name":"pkg-b"}]}"#, None);
+        let names: Vec<String> = got.into_iter().map(|s| s.name).collect();
+        assert_eq!(names, vec!["pkg-a", "pkg-b"]);
     }
 }

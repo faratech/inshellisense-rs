@@ -69,15 +69,11 @@ fn check_legacy_configs() -> i32 {
 fn check_shell_configs() -> i32 {
     let shells_without = shells_without_init_file();
     if !shells_without.is_empty() {
-        eprintln!(
-            "{RED_BULLET} the following shells do not have init files generated:"
-        );
+        eprintln!("{RED_BULLET} the following shells do not have init files generated:");
         for s in &shells_without {
             eprintln!("  {RED_DASH} {}", s.as_str());
         }
-        eprintln!(
-            "{YELLOW}  run \x1b[4m\x1b[36mis reinit{RESET}{YELLOW} to regenerate{RESET}"
-        );
+        eprintln!("{YELLOW}  run \x1b[4m\x1b[36mis reinit{RESET}{YELLOW} to regenerate{RESET}");
         return 1;
     }
     println!("{GREEN_CHECK} all shells have init files");
@@ -129,7 +125,11 @@ fn print_environment_summary() {
     println!("  version       {}", env!("CARGO_PKG_VERSION"));
     println!("  HOME          {:?}", paths::home());
     if let Some(root) = paths::resource_root() {
-        println!("  resource root {} ({})", root.display(), if root.exists() { "present" } else { "absent" });
+        println!(
+            "  resource root {} ({})",
+            root.display(),
+            if root.exists() { "present" } else { "absent" }
+        );
     }
     println!(
         "  session       {}",
@@ -148,8 +148,16 @@ fn shells_with_legacy_config() -> Vec<Shell> {
     ALL_SHELLS
         .iter()
         .copied()
-        .filter(|&s| rc_file_contains(s, "~/.inshellisense") || rc_file_contains(s, "inshellisense/init"))
-        .filter(|&s| !rc_file_contains(s, "inshellisense-rs")) // upstream users aren't legacy from our POV
+        .filter(|&s| {
+            rc_file_contains(s, "~/.inshellisense") || rc_file_contains(s, "inshellisense/init")
+        })
+        .filter(|&s| {
+            let Some(path) = paths::shell_rc_file(s) else {
+                return true;
+            };
+            let contents = fs::read_to_string(&path).unwrap_or_default();
+            !has_insh_rs_plugin(s, &contents)
+        })
         .collect()
 }
 
@@ -180,12 +188,11 @@ fn shell_plugin_status() -> (Vec<Shell>, Vec<Shell>) {
         let Ok(contents) = fs::read_to_string(&rc) else {
             continue;
         };
-        let marker = insh_rs_marker();
-        if !contents.contains(marker) {
+        if !has_insh_rs_plugin(shell, &contents) {
             without.push(shell);
             continue;
         }
-        if !is_last_non_whitespace(&contents, marker) {
+        if !plugin_is_last(shell, &contents) {
             bad.push(shell);
         }
     }
@@ -204,7 +211,21 @@ fn rc_file_contains(shell: Shell, needle: &str) -> bool {
 fn insh_rs_marker() -> &'static str {
     // Whatever string is unique to our install snippet. Matches the
     // MARKER constant in src/shell_init.rs.
-    "# >>> inshellisense-rs init >>>"
+    crate::shell_init::wrapper_marker()
+}
+
+fn has_insh_rs_plugin(shell: Shell, contents: &str) -> bool {
+    contents.contains(insh_rs_marker())
+        || contents.contains(&crate::shell_init::source_marker(shell))
+}
+
+fn plugin_is_last(shell: Shell, contents: &str) -> bool {
+    let source_marker = crate::shell_init::source_marker(shell);
+    let wrapper_ok =
+        contents.contains(insh_rs_marker()) && is_last_non_whitespace(contents, insh_rs_marker());
+    let source_ok =
+        contents.contains(&source_marker) && is_last_non_whitespace_line(contents, &source_marker);
+    wrapper_ok || source_ok
 }
 
 fn is_last_non_whitespace(contents: &str, marker: &str) -> bool {
@@ -219,6 +240,14 @@ fn is_last_non_whitespace(contents: &str, marker: &str) -> bool {
         return false;
     };
     let tail = &after[end_rel + end_marker.len()..];
+    tail.chars().all(|c| c.is_whitespace())
+}
+
+fn is_last_non_whitespace_line(contents: &str, marker: &str) -> bool {
+    let Some(idx) = contents.rfind(marker) else {
+        return false;
+    };
+    let tail = &contents[idx + marker.len()..];
     tail.chars().all(|c| c.is_whitespace())
 }
 
@@ -238,19 +267,26 @@ mod tests {
 
     #[test]
     fn last_line_check_positive() {
-        let s = "foo\nbar\n# >>> inshellisense-rs init >>>\nline\n# <<< inshellisense-rs init <<<\n";
+        let s =
+            "foo\nbar\n# >>> inshellisense-rs init >>>\nline\n# <<< inshellisense-rs init <<<\n";
         assert!(is_last_non_whitespace(s, "# >>> inshellisense-rs init >>>"));
     }
 
     #[test]
     fn last_line_check_negative() {
         let s = "foo\n# >>> inshellisense-rs init >>>\nline\n# <<< inshellisense-rs init <<<\nalias ll=ls\n";
-        assert!(!is_last_non_whitespace(s, "# >>> inshellisense-rs init >>>"));
+        assert!(!is_last_non_whitespace(
+            s,
+            "# >>> inshellisense-rs init >>>"
+        ));
     }
 
     #[test]
     fn last_line_check_missing_end() {
         let s = "# >>> inshellisense-rs init >>>\n(no close)\n";
-        assert!(!is_last_non_whitespace(s, "# >>> inshellisense-rs init >>>"));
+        assert!(!is_last_non_whitespace(
+            s,
+            "# >>> inshellisense-rs init >>>"
+        ));
     }
 }

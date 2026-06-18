@@ -47,8 +47,9 @@ fn last_segment(line: &str) -> &str {
     while i < bytes.len() {
         let c = bytes[i];
         // `||` `&&`
-        if i + 1 < bytes.len() && (bytes[i] == b'|' && bytes[i + 1] == b'|'
-            || bytes[i] == b'&' && bytes[i + 1] == b'&')
+        if i + 1 < bytes.len()
+            && (bytes[i] == b'|' && bytes[i + 1] == b'|'
+                || bytes[i] == b'&' && bytes[i + 1] == b'&')
         {
             best_idx = i + 2;
             i += 2;
@@ -155,6 +156,15 @@ fn lex(command: &str) -> Vec<CommandToken> {
                 token_length: idx - reading_idx,
                 ..Default::default()
             });
+            if ch == '=' && idx + 1 == chars.len() {
+                tokens.push(CommandToken {
+                    token: String::new(),
+                    complete: false,
+                    is_option: false,
+                    token_length: 0,
+                    ..Default::default()
+                });
+            }
         } else if reading_cmd && ch.is_whitespace() && prev_char != Some(esc) {
             reading_cmd = false;
             tokens.push(CommandToken {
@@ -323,7 +333,10 @@ mod tests {
 
     #[test]
     fn flag_equals_double_quoted() {
-        assert_eq!(toks("cmd --flag=\"value\" "), vec!["cmd", "--flag", "value"]);
+        assert_eq!(
+            toks("cmd --flag=\"value\" "),
+            vec!["cmd", "--flag", "value"]
+        );
     }
 
     #[test]
@@ -496,8 +509,12 @@ mod tests {
 
     #[test]
     fn flag_equals_no_value() {
-        // Our parser treats --flag= as just --flag (no empty token emitted)
-        assert_eq!(toks("cmd --flag="), vec!["cmd", "--flag"]);
+        let ts = parse_command("cmd --flag=");
+        assert_eq!(ts.len(), 3);
+        assert_eq!(ts[1].token, "--flag");
+        assert!(ts[1].is_option);
+        assert_eq!(ts[2].token, "");
+        assert!(!ts[2].complete);
     }
 
     #[test]
@@ -512,15 +529,19 @@ mod tests {
 
     #[test]
     fn short_flag_equals_empty() {
-        // Our parser treats -f= as just -f (no empty token emitted)
-        let ts = toks("cmd -f=");
-        assert_eq!(ts[0], "cmd");
-        assert_eq!(ts[1], "-f");
+        let ts = parse_command("cmd -f=");
+        assert_eq!(ts[0].token, "cmd");
+        assert_eq!(ts[1].token, "-f");
+        assert_eq!(ts[2].token, "");
+        assert!(!ts[2].complete);
     }
 
     #[test]
     fn two_quoted_args() {
-        assert_eq!(toks("cmd 'hello' \"world\" "), vec!["cmd", "hello", "world"]);
+        assert_eq!(
+            toks("cmd 'hello' \"world\" "),
+            vec!["cmd", "hello", "world"]
+        );
     }
 
     #[test]

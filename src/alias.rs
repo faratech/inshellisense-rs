@@ -80,6 +80,64 @@ pub fn expand(line: &str, aliases: &HashMap<String, String>) -> String {
     }
 }
 
+/// Expand an alias only in the active command segment. Shells apply aliases
+/// after separators such as `&&` and `|`; this mirrors the parser's simple
+/// "last segment" model.
+pub fn expand_active_segment(line: &str, aliases: &HashMap<String, String>) -> String {
+    let segment_start = last_segment_start(line);
+    let leading_ws = line[segment_start..]
+        .char_indices()
+        .find(|(_, c)| !c.is_whitespace())
+        .map(|(idx, _)| idx)
+        .unwrap_or_else(|| line[segment_start..].len());
+    let word_start = segment_start + leading_ws;
+    let Some((word_len, word)) = first_word(&line[word_start..]) else {
+        return line.to_string();
+    };
+    let Some(expansion) = aliases.get(word) else {
+        return line.to_string();
+    };
+    let mut out = String::with_capacity(line.len() - word.len() + expansion.len());
+    out.push_str(&line[..word_start]);
+    out.push_str(expansion);
+    out.push_str(&line[word_start + word_len..]);
+    out
+}
+
+fn first_word(s: &str) -> Option<(usize, &str)> {
+    let end = s
+        .char_indices()
+        .find(|(_, c)| c.is_whitespace())
+        .map(|(idx, _)| idx)
+        .unwrap_or_else(|| s.len());
+    if end == 0 {
+        None
+    } else {
+        Some((end, &s[..end]))
+    }
+}
+
+fn last_segment_start(line: &str) -> usize {
+    let bytes = line.as_bytes();
+    let mut best_idx = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        if i + 1 < bytes.len()
+            && ((bytes[i] == b'|' && bytes[i + 1] == b'|')
+                || (bytes[i] == b'&' && bytes[i + 1] == b'&'))
+        {
+            best_idx = i + 2;
+            i += 2;
+            continue;
+        }
+        if bytes[i] == b';' || bytes[i] == b'|' {
+            best_idx = i + 1;
+        }
+        i += 1;
+    }
+    best_idx
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -128,5 +186,15 @@ mod tests {
         let mut aliases = HashMap::new();
         aliases.insert("glo".into(), "git log --oneline".into());
         assert_eq!(expand("glo --all", &aliases), "git log --oneline --all");
+    }
+
+    #[test]
+    fn expand_active_segment_after_separator() {
+        let mut aliases = HashMap::new();
+        aliases.insert("gs".into(), "git status".into());
+        assert_eq!(
+            expand_active_segment("echo ok && gs -s", &aliases),
+            "echo ok && git status -s"
+        );
     }
 }

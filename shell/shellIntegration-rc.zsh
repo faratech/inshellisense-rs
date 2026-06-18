@@ -1,10 +1,5 @@
 autoload -U add-zsh-hook
 
-if [[ -f $USER_ZDOTDIR/.zshrc ]]; then
-	ZDOTDIR=$USER_ZDOTDIR
-	. $USER_ZDOTDIR/.zshrc
-fi
-
 __is_prompt_start() {
 	builtin printf '\e]6973;PS\a'
 }

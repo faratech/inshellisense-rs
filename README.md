@@ -47,15 +47,15 @@ The positioning: **inshellisense's feature set with ripgrep's footprint**.
 
 ```sh
 cargo install --path .
-is install              # appends the init snippet to ~/.bashrc
+is init bash --install-rc   # appends the bash init snippet to ~/.bashrc
 ```
 
-Or explicitly:
+Or use the legacy bash auto-start wrapper:
 
 ```sh
 cargo build --release
 install -m 755 target/release/is ~/.local/bin/is
-is install
+is install              # appends an exec wrapper to ~/.bashrc
 ```
 
 ### Try without installing
@@ -72,7 +72,8 @@ is doctor               # show resolved config + loaded specs
 is list-specs           # enumerate loaded commands
 is complete 'git ch'    # offline query → prints the suggestion tail
 is init bash            # print the init snippet for ~/.bashrc
-is install              # write the snippet into ~/.bashrc
+is init bash --install-rc   # write the bash init snippet into ~/.bashrc
+is install              # legacy: auto-start wrapper in ~/.bashrc
 ```
 
 In the wrapped shell:
@@ -84,11 +85,11 @@ In the wrapped shell:
 
 ## User-defined specs
 
-Drop TOML files in `~/.config/inshellisense/specs/` to add or override commands.
+Drop TOML files in `~/.config/inshellisense-rs/specs/` to add or override commands.
 The schema mirrors the Rust model in [`src/spec/model.rs`](src/spec/model.rs).
 
 ```toml
-# ~/.config/inshellisense/specs/hello.toml
+# ~/.config/inshellisense-rs/specs/hello.toml
 names = ["hello"]
 description = "Say hello"
 

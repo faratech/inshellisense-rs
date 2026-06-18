@@ -96,4 +96,20 @@ impl Renderer {
             }
         }
     }
+
+    pub fn ghost_visible(&self) -> bool {
+        match self {
+            Renderer::Ghost(g) => g.is_visible(),
+            Renderer::Popup(_) => false,
+            Renderer::Hybrid { ghost, .. } => ghost.is_visible(),
+        }
+    }
+
+    pub fn clear_ghost(&mut self, out: &mut impl io::Write) -> io::Result<()> {
+        match self {
+            Renderer::Ghost(g) => g.clear(out),
+            Renderer::Popup(_) => Ok(()),
+            Renderer::Hybrid { ghost, .. } => ghost.clear(out),
+        }
+    }
 }

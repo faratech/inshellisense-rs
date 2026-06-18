@@ -16,7 +16,11 @@
 //! runtime, runs every case, prints a summary, and fails if the pass
 //! rate drops below the configured threshold (currently 90%).
 
-use inshellisense_rs::{spec::Registry, suggest::Engine};
+use inshellisense_rs::{
+    shell::Shell,
+    spec::{Opt, Registry, Subcommand},
+    suggest::Engine,
+};
 use serde::Deserialize;
 use std::sync::OnceLock;
 
@@ -177,6 +181,143 @@ fn completion_with_trailing_space_offers_subcommands() {
     );
 }
 
+#[test]
+fn posix_short_flag_prefers_exact_case_match() {
+    let blob = {
+        let registry = Registry::new_with_defaults();
+        let engine = Engine::new(registry, Vec::new());
+        engine.suggest_blob("ls -l", ".")
+    };
+    assert_eq!(blob.first().map(|s| s.name.as_str()), Some("-l"));
+}
+
+#[test]
+fn exact_case_option_prefix_beats_wrong_case_priority() {
+    let mut registry = Registry::default();
+    let mut spec = Subcommand::new("caseprobe");
+    spec.options = vec![
+        Opt {
+            names: vec!["-L".into()],
+            priority: Some(100),
+            ..Default::default()
+        },
+        Opt {
+            names: vec!["-l".into()],
+            priority: Some(1),
+            ..Default::default()
+        },
+    ];
+    registry.insert(spec);
+    let engine = Engine::new(registry, Vec::new());
+    let blob = engine.suggest_blob("caseprobe -l", ".");
+    assert_eq!(blob.first().map(|s| s.name.as_str()), Some("-l"));
+}
+
+#[test]
+fn powershell_ls_uses_get_childitem_options() {
+    let registry = Registry::new_with_defaults();
+    let mut engine = Engine::new(registry, Vec::new());
+    engine.set_shell(Shell::Pwsh);
+
+    let blob = engine.suggest_blob("ls -", ".");
+    let names: std::collections::HashSet<&str> = blob.iter().map(|s| s.name.as_str()).collect();
+    assert!(
+        names.contains("-Recurse"),
+        "expected PowerShell -Recurse in {names:?}"
+    );
+    assert!(
+        names.contains("-Force"),
+        "expected PowerShell -Force in {names:?}"
+    );
+    assert!(
+        !names.contains("-l"),
+        "PowerShell ls should not use GNU ls flags: {names:?}"
+    );
+}
+
+#[test]
+fn requires_separator_empty_value_suggests_values() {
+    let blob = {
+        let registry = Registry::new_with_defaults();
+        let engine = Engine::new(registry, Vec::new());
+        engine.suggest_blob("eza --color-scale=", ".")
+    };
+    let names: std::collections::HashSet<&str> = blob.iter().map(|s| s.name.as_str()).collect();
+    assert!(names.contains("all"), "expected all in {names:?}");
+    assert!(names.contains("age"), "expected age in {names:?}");
+}
+
+#[test]
+fn depends_on_filters_options_until_dependency_is_present() {
+    let registry = Registry::new_with_defaults();
+    let engine = Engine::new(registry, Vec::new());
+    let without = engine.suggest_blob("cp -", ".");
+    assert!(
+        !without
+            .iter()
+            .any(|s| ["-H", "-L", "-P"].contains(&s.name.as_str())),
+        "dependency-gated options leaked: {:?}",
+        without.iter().map(|s| &s.name).collect::<Vec<_>>()
+    );
+    let with = engine.suggest_blob("cp -R -", ".");
+    assert!(
+        with.iter().any(|s| s.name == "-H"),
+        "expected -H after -R, got {:?}",
+        with.iter().map(|s| &s.name).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn options_must_precede_arguments_suppresses_options_after_arg() {
+    let blob = {
+        let registry = Registry::new_with_defaults();
+        let engine = Engine::new(registry, Vec::new());
+        engine.suggest_blob("nc example.com -", ".")
+    };
+    assert!(
+        !blob.iter().any(|s| s.name.starts_with('-')),
+        "expected no options after positional arg, got {:?}",
+        blob.iter().map(|s| &s.name).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn alias_completion_uses_original_token_and_active_segment() {
+    let registry = Registry::new_with_defaults();
+    let mut engine = Engine::new(registry, Vec::new());
+    let mut aliases = std::collections::HashMap::new();
+    aliases.insert("g".to_string(), "git".to_string());
+    aliases.insert("gs".to_string(), "git status".to_string());
+    engine.set_aliases(aliases);
+
+    let exact = engine.suggest_blob("g", ".");
+    assert_eq!(exact.first().map(|s| s.name.as_str()), Some("g"));
+
+    let expanded = engine.suggest_blob("echo ok && gs ", ".");
+    assert!(
+        expanded.iter().any(|s| s.name == "--short"),
+        "expected git status options after alias expansion, got {:?}",
+        expanded
+            .iter()
+            .take(10)
+            .map(|s| &s.name)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn cargo_package_json_object_generator_suggests_packages() {
+    let registry = Registry::new_with_defaults();
+    let engine = Engine::new(registry, Vec::new());
+    let cwd = env!("CARGO_MANIFEST_DIR");
+    let blob = engine.suggest_blob("cargo test --package i", cwd);
+    assert!(
+        blob.iter().any(|s| s.name == "inshellisense-rs"),
+        "expected package name in {:?}",
+        blob.iter().map(|s| &s.name).collect::<Vec<_>>()
+    );
+}
+
 // ---- phase 3: extractor-produced specs ----
 
 #[test]
@@ -256,13 +397,13 @@ fn run_case(case: &CorpusCase) -> Result<(), String> {
                     return Err(format!(
                         "expect_top_name={top:?} got top={:?} for line={:?}",
                         s.name, case.line
-                    ))
+                    ));
                 }
                 None => {
                     return Err(format!(
                         "expect_top_name={top:?} got empty blob for line={:?}",
                         case.line
-                    ))
+                    ));
                 }
             }
         }

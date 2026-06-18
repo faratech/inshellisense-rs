@@ -106,12 +106,17 @@ pub fn spec_dir() -> Option<PathBuf> {
 
 /// User-config root. XDG-standard: `~/.config/inshellisense-rs/`.
 pub fn user_config_dir() -> Option<PathBuf> {
-    config_dir().map(|c| c.join("inshellisense"))
+    config_dir().map(|c| c.join("inshellisense-rs"))
 }
 
 /// `~/.config/inshellisense-rs/rc.toml` — the primary config file path.
 pub fn user_config_file() -> Option<PathBuf> {
     user_config_dir().map(|d| d.join("rc.toml"))
+}
+
+/// `~/.config/inshellisense-rs/specs/` — user-authored TOML specs.
+pub fn user_specs_dir() -> Option<PathBuf> {
+    user_config_dir().map(|d| d.join("specs"))
 }
 
 /// Upstream-compat config file paths. Read-only (we don't write to these).

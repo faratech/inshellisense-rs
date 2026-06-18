@@ -10,8 +10,8 @@ use crate::paths;
 use crate::platform::{self, PtyHandle};
 use crate::render::{Direction, Renderer};
 use crate::shell::Shell;
-use crate::spec::model::{Suggestion, SuggestionType};
 use crate::spec::Registry;
+use crate::spec::model::{Suggestion, SuggestionType};
 use crate::suggest::Engine;
 use crate::term::TermTracker;
 use anyhow::{Context, Result};
@@ -39,7 +39,7 @@ enum PopupMode {
 /// config. This is how `insh start --ui popup` reaches the renderer.
 pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Result<()> {
     // Make sure the vendored shell integration scripts are on disk.
-    let _ = crate::resources::unpack();
+    crate::resources::unpack()?;
 
     let shell_path = find_shell_binary(shell)?;
     let shell_dir = paths::shell_dir().context("no HOME directory")?;
@@ -121,6 +121,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
             let registry = Registry::new_with_defaults();
             let hist = history::load();
             let mut built = Engine::new(registry, hist);
+            built.set_shell(alias_shell);
             if use_aliases {
                 built.set_aliases(crate::alias::load(alias_shell));
             }
@@ -133,6 +134,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
     let mut tracker = TermTracker::new(rows, cols);
+    let mut ansi_scanner = ansi::Scanner::new();
     // Popup / ghost dispatch: CLI --ui flag (ui_override) beats config
     // file, which beats the built-in default (Ghost).
     let effective_ui = ui_override.unwrap_or(cfg.ui);
@@ -171,7 +173,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                     break;
                 }
                 let bytes = &pty_buf[..n as usize];
-                let (clean, _) = ansi::scan(bytes);
+                let (clean, _) = ansi_scanner.scan(bytes);
                 out.write_all(&clean).ok();
             }
             out.flush().ok();
@@ -197,6 +199,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
         }
 
         let mut made_progress = false;
+        let mut defer_suggestion_redraw = false;
 
         // Read PTY output if ready.
         if pty_ready {
@@ -206,7 +209,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                     break;
                 }
                 let bytes = &pty_buf[..n as usize];
-                let (clean, osc_events) = ansi::scan(bytes);
+                let (clean, osc_events) = ansi_scanner.scan(bytes);
                 out.write_all(&clean).ok();
                 out.flush().ok();
                 tracker.feed(&clean, &osc_events);
@@ -234,10 +237,11 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                 let bytes = stdin_buf[..n as usize].to_vec();
                 // Track Up/Down for history-hide behavior (upstream:
                 // suggestionManager.ts:172-174).
-                last_stdin_was_history =
-                    bytes == b"\x1b[A" || bytes == b"\x1b[B"
-                    || bytes == b"\x1bOA" || bytes == b"\x1bOB";
-                handle_stdin(
+                last_stdin_was_history = bytes == b"\x1b[A"
+                    || bytes == b"\x1b[B"
+                    || bytes == b"\x1bOA"
+                    || bytes == b"\x1bOB";
+                let forwarded_cursor_navigation = handle_stdin(
                     &bytes,
                     has_ghost,
                     has_popup,
@@ -251,6 +255,10 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                     &pty,
                     &mut submitting,
                 );
+                if forwarded_cursor_navigation {
+                    pending_tail = None;
+                    defer_suggestion_redraw = true;
+                }
                 made_progress = true;
             }
         }
@@ -258,6 +266,11 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
         if made_progress {
             let state = tracker.state().clone();
             let cwd = tracker.cwd().to_string();
+            if defer_suggestion_redraw {
+                last_cmd_signature = state.command.clone();
+                out.flush().ok();
+                continue;
+            }
 
             // If the command was just submitted (Enter/Ctrl-C), the
             // tracker's `state.command` is still whatever it was before
@@ -301,9 +314,12 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                 // suggestions. Typed keystrokes still reach bash
                 // normally — the user just doesn't see the popup for
                 // the ~500ms it takes the registry to load.
-                let engine_guard = engine.read().map_err(|e| {
-                    eprintln!("is: engine lock poisoned: {e}");
-                }).ok();
+                let engine_guard = engine
+                    .read()
+                    .map_err(|e| {
+                        eprintln!("is: engine lock poisoned: {e}");
+                    })
+                    .ok();
                 let Some(engine_ref) = engine_guard.as_ref().and_then(|g| g.as_ref()) else {
                     last_cmd_signature = state.command.clone();
                     continue;
@@ -348,12 +364,11 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
                 pending_tail = tail.clone();
 
                 if has_popup && popup_mode != PopupMode::Dismissed && !ranked.is_empty() {
-                    let popup_direction =
-                        if (tracker.remaining_lines() as usize) > max_popup_rows {
-                            Direction::Below
-                        } else {
-                            Direction::Above
-                        };
+                    let popup_direction = if (tracker.remaining_lines() as usize) > max_popup_rows {
+                        Direction::Below
+                    } else {
+                        Direction::Above
+                    };
                     let cursor_col = tracker.state().cursor_col;
                     let term_cols = tracker.cols();
                     renderer
@@ -421,7 +436,7 @@ fn handle_stdin(
     out: &mut impl Write,
     pty: &dyn PtyHandle,
     submitting: &mut bool,
-) {
+) -> bool {
     // Ghost-accept (right / End / Ctrl-E).
     if has_ghost {
         let ghost_accept: &[&[u8]] = &[b"\x1b[C", b"\x1b[F", b"\x05"];
@@ -430,7 +445,7 @@ fn handle_stdin(
                 renderer.clear(out).ok();
                 pty.pty_write(tail.as_bytes());
                 *popup_mode = PopupMode::Hidden;
-                return;
+                return false;
             }
         }
     }
@@ -442,13 +457,13 @@ fn handle_stdin(
                     *popup_mode = PopupMode::Visible {
                         cursor: (cursor + 1).min(ranked.len() - 1),
                     };
-                    return;
+                    return false;
                 }
                 if bindings.previous_suggestion.matches(bytes) {
                     *popup_mode = PopupMode::Visible {
                         cursor: cursor.saturating_sub(1),
                     };
-                    return;
+                    return false;
                 }
                 if bindings.accept_suggestion.matches(bytes) {
                     let selected = &ranked[cursor.min(ranked.len() - 1)];
@@ -463,7 +478,7 @@ fn handle_stdin(
                     }
                     *popup_mode = PopupMode::Hidden;
                     *pending_tail = None;
-                    return;
+                    return false;
                 }
                 if bindings.dismiss_suggestions.matches(bytes) {
                     renderer.clear(out).ok();
@@ -487,14 +502,20 @@ fn handle_stdin(
         }
     }
     // Default forward path.
-    if !is_cursor_navigation(bytes) {
+    if is_cursor_navigation(bytes) {
+        if renderer.ghost_visible() {
+            renderer.clear_ghost(out).ok();
+        }
+    } else {
         renderer.clear(out).ok();
     }
+    let forwarded_cursor_navigation = is_cursor_navigation(bytes);
     if bytes.iter().any(|&b| b == b'\r' || b == b'\n' || b == 0x03) {
         *submitting = true;
         *popup_mode = PopupMode::Hidden;
     }
     pty.pty_write(bytes);
+    forwarded_cursor_navigation
 }
 
 /// Is this stdin chunk a pure cursor-navigation key that doesn't
@@ -505,16 +526,16 @@ fn is_cursor_navigation(bytes: &[u8]) -> bool {
     matches!(
         bytes,
         // Arrow keys (CSI form and SS3 form)
-        b"\x1b[A" | b"\x1b[B" | b"\x1b[D"
-        | b"\x1bOA" | b"\x1bOB" | b"\x1bOD"
+        b"\x1b[A" | b"\x1b[B" | b"\x1b[C" | b"\x1b[D"
+        | b"\x1bOA" | b"\x1bOB" | b"\x1bOC" | b"\x1bOD"
         // Home / End (CSI, VT, SS3 variants)
-        | b"\x1b[H" | b"\x1b[1~" | b"\x1bOH"
+        | b"\x1b[H" | b"\x1b[1~" | b"\x1bOH" | b"\x1b[F" | b"\x1b[4~" | b"\x1bOF"
         // Page up / down
         | b"\x1b[5~" | b"\x1b[6~"
-        // Ctrl-A (home), Ctrl-B (back-char), Ctrl-F (forward-char).
-        // Ctrl-E is intentionally EXCLUDED — it's a ghost-accept
-        // key handled in the accept path before this.
-        | b"\x01" | b"\x02" | b"\x06"
+        // Ctrl-A (home), Ctrl-B (back-char), Ctrl-E (end),
+        // Ctrl-F (forward-char). Ctrl-E is a ghost-accept key when a
+        // ghost exists; the accept path handles that before this fallback.
+        | b"\x01" | b"\x02" | b"\x05" | b"\x06"
         // Meta-B / Meta-F (word navigation in bash)
         | b"\x1bb" | b"\x1bf"
     )
@@ -584,6 +605,53 @@ fn find_shell_binary(shell: Shell) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::RefCell;
+
+    #[derive(Default)]
+    struct FakePty {
+        writes: RefCell<Vec<u8>>,
+    }
+
+    impl PtyHandle for FakePty {
+        fn output_fd(&self) -> crate::platform::RawDescriptor {
+            #[cfg(unix)]
+            {
+                0
+            }
+            #[cfg(windows)]
+            {
+                std::ptr::null_mut()
+            }
+        }
+
+        fn stdin_fd(&self) -> crate::platform::RawDescriptor {
+            self.output_fd()
+        }
+
+        fn pty_write(&self, data: &[u8]) {
+            self.writes.borrow_mut().extend_from_slice(data);
+        }
+
+        fn resize(&self, _rows: u16, _cols: u16) {}
+
+        fn try_wait(&mut self) -> Option<i32> {
+            None
+        }
+
+        fn poll(&self, _timeout_ms: i32) -> (bool, bool) {
+            (false, false)
+        }
+
+        fn read_pty(&self, _buf: &mut [u8]) -> isize {
+            -1
+        }
+
+        fn read_stdin(&self, _buf: &mut [u8]) -> isize {
+            -1
+        }
+
+        fn close(&mut self) {}
+    }
 
     #[test]
     fn partial_trailing_word() {
@@ -627,13 +695,19 @@ mod tests {
 
     #[test]
     fn replacement_no_token_inserts_full() {
-        let s = Suggestion { name: "status".into(), ..Default::default() };
+        let s = Suggestion {
+            name: "status".into(),
+            ..Default::default()
+        };
         assert_eq!(replacement_tail(&s, ""), "status");
     }
 
     #[test]
     fn replacement_divergent_backspaces_all() {
-        let s = Suggestion { name: "status".into(), ..Default::default() };
+        let s = Suggestion {
+            name: "status".into(),
+            ..Default::default()
+        };
         let out = replacement_tail(&s, "xyz");
         assert_eq!(out, "\x08\x08\x08status");
     }
@@ -653,19 +727,92 @@ mod tests {
 
     #[test]
     fn replacement_option_prefix() {
-        let s = Suggestion { name: "--version".into(), ..Default::default() };
+        let s = Suggestion {
+            name: "--version".into(),
+            ..Default::default()
+        };
         assert_eq!(replacement_tail(&s, "--ver"), "sion");
     }
 
     #[test]
     fn replacement_empty_name_returns_empty() {
-        let s = Suggestion { name: "".into(), ..Default::default() };
+        let s = Suggestion {
+            name: "".into(),
+            ..Default::default()
+        };
         assert_eq!(replacement_tail(&s, ""), "");
     }
 
     #[test]
     fn replacement_full_match_returns_empty() {
-        let s = Suggestion { name: "status".into(), ..Default::default() };
+        let s = Suggestion {
+            name: "status".into(),
+            ..Default::default()
+        };
         assert_eq!(replacement_tail(&s, "status"), "");
+    }
+
+    #[test]
+    fn cursor_navigation_clears_visible_ghost_before_forwarding() {
+        let pty = FakePty::default();
+        let bindings = crate::config::Bindings::default();
+        let tracker = TermTracker::new(24, 80);
+        let mut renderer = Renderer::new(UiMode::Ghost, 5);
+        let mut out = Vec::new();
+        renderer.draw(&mut out, Some("eckout"), &[]).unwrap();
+        out.clear();
+
+        let mut pending_tail = Some("eckout".to_string());
+        let mut popup_mode = PopupMode::Hidden;
+        let mut submitting = false;
+        let forwarded_cursor_navigation = handle_stdin(
+            b"\x1b[D",
+            true,
+            false,
+            &mut pending_tail,
+            &mut popup_mode,
+            &[],
+            &bindings,
+            &tracker,
+            &mut renderer,
+            &mut out,
+            &pty,
+            &mut submitting,
+        );
+
+        assert!(forwarded_cursor_navigation);
+        assert_eq!(pty.writes.borrow().as_slice(), b"\x1b[D");
+        assert!(!renderer.ghost_visible());
+        assert!(String::from_utf8_lossy(&out).contains(crate::ansi::ERASE_LINE_RIGHT));
+    }
+
+    #[test]
+    fn right_arrow_without_pending_ghost_is_navigation() {
+        let pty = FakePty::default();
+        let bindings = crate::config::Bindings::default();
+        let tracker = TermTracker::new(24, 80);
+        let mut renderer = Renderer::new(UiMode::Ghost, 5);
+        let mut out = Vec::new();
+        let mut pending_tail = None;
+        let mut popup_mode = PopupMode::Hidden;
+        let mut submitting = false;
+
+        let forwarded_cursor_navigation = handle_stdin(
+            b"\x1b[C",
+            true,
+            false,
+            &mut pending_tail,
+            &mut popup_mode,
+            &[],
+            &bindings,
+            &tracker,
+            &mut renderer,
+            &mut out,
+            &pty,
+            &mut submitting,
+        );
+
+        assert!(forwarded_cursor_navigation);
+        assert_eq!(pty.writes.borrow().as_slice(), b"\x1b[C");
     }
 }

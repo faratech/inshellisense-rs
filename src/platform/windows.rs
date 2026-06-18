@@ -500,7 +500,7 @@ pub fn enable_raw_mode() {
             INPUT_MODE_SAVED = true;
             SetConsoleMode(
                 h_in,
-                ENABLE_PROCESSED_INPUT | ENABLE_WINDOW_INPUT,
+                ENABLE_WINDOW_INPUT,
             );
         }
         let h_out = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -531,11 +531,18 @@ pub fn disable_raw_mode() {
 
 pub fn install_signal_handlers() {
     // On Windows, Ctrl-C is handled by SetConsoleCtrlHandler.
-    // ConPTY forwards it to the child process automatically.
-    // We install a handler that restores console mode on exit.
-    unsafe extern "system" fn handler(_ctrl_type: u32) -> windows_sys::core::BOOL {
-        disable_raw_mode();
-        FALSE // let default handler run (terminates process)
+    // With ENABLE_PROCESSED_INPUT disabled it normally arrives as a key event
+    // and is forwarded through ConPTY. If Windows still delivers a console
+    // control event, consume Ctrl-C/Ctrl-Break so the wrapper does not die
+    // before the child shell can handle the interrupt.
+    unsafe extern "system" fn handler(ctrl_type: u32) -> windows_sys::core::BOOL {
+        match ctrl_type {
+            CTRL_C_EVENT | CTRL_BREAK_EVENT => TRUE,
+            _ => {
+                disable_raw_mode();
+                FALSE
+            }
+        }
     }
     unsafe {
         SetConsoleCtrlHandler(Some(handler), TRUE);

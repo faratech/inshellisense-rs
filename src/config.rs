@@ -4,7 +4,7 @@
 //! Load order (last one wins per field):
 //!   1. `~/.inshellisenserc` (upstream, for compat)
 //!   2. `~/.config/inshellisense/rc.toml` (upstream XDG, for compat)
-//!   3. `~/.config/inshellisense/rc.toml` (our own)
+//!   3. `~/.config/inshellisense-rs/rc.toml` (our own)
 //!
 //! Every file is optional; missing files fall back to defaults. Invalid
 //! TOML produces a readable error via anyhow instead of aborting.
@@ -87,6 +87,47 @@ impl Default for Bindings {
 #[serde(default)]
 pub struct SpecsConfig {
     pub path: Vec<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct PartialConfig {
+    bindings: PartialBindings,
+    specs: PartialSpecsConfig,
+    #[serde(alias = "useAliases")]
+    use_aliases: Option<bool>,
+    #[serde(alias = "useNerdFont")]
+    use_nerd_font: Option<bool>,
+    #[serde(alias = "maxSuggestions")]
+    max_suggestions: Option<u8>,
+    ui: Option<UiMode>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct PartialBindings {
+    #[serde(alias = "nextSuggestion")]
+    next_suggestion: Option<PartialKeyBinding>,
+    #[serde(alias = "previousSuggestion")]
+    previous_suggestion: Option<PartialKeyBinding>,
+    #[serde(alias = "acceptSuggestion")]
+    accept_suggestion: Option<PartialKeyBinding>,
+    #[serde(alias = "dismissSuggestions")]
+    dismiss_suggestions: Option<PartialKeyBinding>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct PartialSpecsConfig {
+    path: Option<Vec<String>>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct PartialKeyBinding {
+    key: Option<String>,
+    shift: Option<bool>,
+    control: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -223,7 +264,7 @@ pub fn load() -> Config {
     let mut cfg = Config::default();
     for path in candidate_paths() {
         if let Some(loaded) = try_load(&path) {
-            cfg = merge(cfg, loaded);
+            cfg = merge_partial(cfg, loaded);
         }
     }
     cfg
@@ -237,19 +278,15 @@ fn candidate_paths() -> Vec<PathBuf> {
     out
 }
 
-fn try_load(path: &PathBuf) -> Option<Config> {
+fn try_load(path: &PathBuf) -> Option<PartialConfig> {
     if !path.exists() {
         return None;
     }
     match fs::read_to_string(path) {
-        Ok(text) => match toml::from_str::<Config>(&text) {
+        Ok(text) => match toml::from_str::<PartialConfig>(&text) {
             Ok(c) => Some(c),
             Err(e) => {
-                eprintln!(
-                    "is: {} is invalid TOML: {}",
-                    path.display(),
-                    e
-                );
+                eprintln!("is: {} is invalid TOML: {}", path.display(), e);
                 None
             }
         },
@@ -260,50 +297,55 @@ fn try_load(path: &PathBuf) -> Option<Config> {
     }
 }
 
-/// Merge two configs — fields from `override_` win over `base`. The
-/// merge is shallow (we don't diff `bindings` field-by-field); whoever
-/// sets a whole-table entry last wins for that table.
-fn merge(base: Config, override_: Config) -> Config {
-    // Strategy: toml::Value-based merge would be cleaner, but for our
-    // limited schema a field-by-field pick is fine.
-    Config {
-        bindings: Bindings {
-            next_suggestion: pick_key(
-                base.bindings.next_suggestion,
-                override_.bindings.next_suggestion,
-            ),
-            previous_suggestion: pick_key(
-                base.bindings.previous_suggestion,
-                override_.bindings.previous_suggestion,
-            ),
-            accept_suggestion: pick_key(
-                base.bindings.accept_suggestion,
-                override_.bindings.accept_suggestion,
-            ),
-            dismiss_suggestions: pick_key(
-                base.bindings.dismiss_suggestions,
-                override_.bindings.dismiss_suggestions,
-            ),
-        },
-        specs: SpecsConfig {
-            path: if override_.specs.path.is_empty() {
-                base.specs.path
-            } else {
-                override_.specs.path
-            },
-        },
-        use_aliases: override_.use_aliases || base.use_aliases,
-        use_nerd_font: override_.use_nerd_font || base.use_nerd_font,
-        max_suggestions: override_.max_suggestions,
-        ui: override_.ui,
+/// Merge a partially specified config into the accumulated effective config.
+/// Only fields present in the file override earlier values.
+fn merge_partial(mut base: Config, override_: PartialConfig) -> Config {
+    merge_key(
+        &mut base.bindings.next_suggestion,
+        override_.bindings.next_suggestion,
+    );
+    merge_key(
+        &mut base.bindings.previous_suggestion,
+        override_.bindings.previous_suggestion,
+    );
+    merge_key(
+        &mut base.bindings.accept_suggestion,
+        override_.bindings.accept_suggestion,
+    );
+    merge_key(
+        &mut base.bindings.dismiss_suggestions,
+        override_.bindings.dismiss_suggestions,
+    );
+    if let Some(path) = override_.specs.path {
+        base.specs.path = path;
     }
+    if let Some(v) = override_.use_aliases {
+        base.use_aliases = v;
+    }
+    if let Some(v) = override_.use_nerd_font {
+        base.use_nerd_font = v;
+    }
+    if let Some(v) = override_.max_suggestions {
+        base.max_suggestions = v;
+    }
+    if let Some(v) = override_.ui {
+        base.ui = v;
+    }
+    base
 }
 
-fn pick_key(base: KeyBinding, override_: KeyBinding) -> KeyBinding {
-    if override_.key.is_empty() {
-        base
-    } else {
-        override_
+fn merge_key(base: &mut KeyBinding, override_: Option<PartialKeyBinding>) {
+    let Some(override_) = override_ else {
+        return;
+    };
+    if let Some(key) = override_.key {
+        base.key = key;
+    }
+    if let Some(shift) = override_.shift {
+        base.shift = shift;
+    }
+    if let Some(control) = override_.control {
+        base.control = control;
     }
 }
 
@@ -361,15 +403,31 @@ path = ["/tmp/extra"]
 
     #[test]
     fn key_binding_honors_modifiers() {
-        let ctrl_down = KeyBinding { key: "down".into(), shift: false, control: true };
+        let ctrl_down = KeyBinding {
+            key: "down".into(),
+            shift: false,
+            control: true,
+        };
         assert!(ctrl_down.matches(b"\x1b[1;5B")); // Ctrl+Down
         assert!(!ctrl_down.matches(b"\x1b[B")); // plain Down must NOT satisfy it
-        let shift_up = KeyBinding { key: "up".into(), shift: true, control: false };
+        let shift_up = KeyBinding {
+            key: "up".into(),
+            shift: true,
+            control: false,
+        };
         assert!(shift_up.matches(b"\x1b[1;2A")); // Shift+Up
         assert!(!shift_up.matches(b"\x1b[A"));
-        let ctrl_n = KeyBinding { key: "n".into(), shift: false, control: true };
+        let ctrl_n = KeyBinding {
+            key: "n".into(),
+            shift: false,
+            control: true,
+        };
         assert!(ctrl_n.matches(b"\x0e")); // Ctrl-N
-        let shift_tab = KeyBinding { key: "tab".into(), shift: true, control: false };
+        let shift_tab = KeyBinding {
+            key: "tab".into(),
+            shift: true,
+            control: false,
+        };
         assert!(shift_tab.matches(b"\x1b[Z"));
         // A plain (unmodified) binding must NOT match a modified sequence.
         assert!(!KeyBinding::new("down").matches(b"\x1b[1;5B"));
@@ -378,13 +436,31 @@ path = ["/tmp/extra"]
     #[test]
     fn merge_override_wins_for_ui() {
         let base = Config::default();
-        let over = Config {
-            ui: UiMode::Popup,
-            max_suggestions: 8,
-            ..Config::default()
+        let over = PartialConfig {
+            ui: Some(UiMode::Popup),
+            max_suggestions: Some(8),
+            ..PartialConfig::default()
         };
-        let merged = merge(base, over);
+        let merged = merge_partial(base, over);
         assert_eq!(merged.ui, UiMode::Popup);
         assert_eq!(merged.max_suggestions, 8);
+    }
+
+    #[test]
+    fn partial_merge_preserves_missing_fields_and_allows_false() {
+        let base = Config {
+            use_aliases: true,
+            max_suggestions: 8,
+            ui: UiMode::Popup,
+            ..Config::default()
+        };
+        let over = PartialConfig {
+            use_aliases: Some(false),
+            ..PartialConfig::default()
+        };
+        let merged = merge_partial(base, over);
+        assert!(!merged.use_aliases);
+        assert_eq!(merged.max_suggestions, 8);
+        assert_eq!(merged.ui, UiMode::Popup);
     }
 }

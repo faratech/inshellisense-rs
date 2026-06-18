@@ -2,10 +2,10 @@
 //!
 //! Port of `/tmp/inshellisense/src/commands/uninstall.ts`. Deletes the
 //! `~/.inshellisense/` resource tree (log/, shell/, init/, zsh-dotdir/, spec/,
-//! version.txt) but leaves `~/.config/inshellisense/` (user config, key
+//! version.txt) but leaves `~/.config/inshellisense-rs/` (user config, key
 //! bindings, user specs) intact. Idempotent — re-running is safe.
 
-use crate::{paths, resources};
+use crate::{paths, resources, shell_init};
 use anyhow::Result;
 
 pub fn run() -> Result<()> {
@@ -13,14 +13,21 @@ pub fn run() -> Result<()> {
         println!("is: no HOME — nothing to remove");
         return Ok(());
     };
+    let touched = shell_init::remove_installed_entries()?;
     if !root.exists() {
         println!("• {} not present — nothing to do", root.display());
-        println!("  user config at ~/.config/inshellisense/ preserved");
+        println!("  user config at ~/.config/inshellisense-rs/ preserved");
+        for rc in touched {
+            println!("  removed init entry from {}", rc.display());
+        }
         return Ok(());
     }
     resources::remove_all()?;
     println!("✓ removed {}", root.display());
-    println!("  user config at ~/.config/inshellisense/ preserved");
+    for rc in touched {
+        println!("  removed init entry from {}", rc.display());
+    }
+    println!("  user config at ~/.config/inshellisense-rs/ preserved");
     println!("  run `cargo uninstall inshellisense-rs` to remove the binary");
     Ok(())
 }

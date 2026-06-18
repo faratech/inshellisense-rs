@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use inshellisense_rs::{
     commands, config::UiMode, env as is_env, pty, resources, shell::Shell, shell_init,
 };
@@ -6,7 +6,9 @@ use inshellisense_rs::{
 pub fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
-    // Parse root flags (can appear before or after the subcommand).
+    // Parse root flags that appear before the subcommand. Subcommands parse
+    // their own documented flags after dispatch so completion lines can still
+    // contain arbitrary shell-looking text when quoted.
     let mut version = false;
     let mut login = false;
     let mut shell: Option<Shell> = None;
@@ -29,15 +31,17 @@ pub fn main() -> Result<()> {
             "-s" | "--shell" => {
                 i += 1;
                 if i < args.len() {
-                    shell = parse_shell(&args[i]);
+                    shell = Some(parse_shell_value(&args[i])?);
+                } else {
+                    anyhow::bail!("missing value for {}", args[i - 1]);
                 }
             }
             other => {
                 // Might be -s<value> (no space).
                 if let Some(val) = other.strip_prefix("-s") {
-                    shell = parse_shell(val);
+                    shell = Some(parse_shell_value(val)?);
                 } else if let Some(val) = other.strip_prefix("--shell=") {
-                    shell = parse_shell(val);
+                    shell = Some(parse_shell_value(val)?);
                 } else {
                     rest.push(args[i].clone());
                     // Collect all remaining args as subcommand args.
@@ -79,44 +83,30 @@ pub fn main() -> Result<()> {
                 println!("inshellisense-rs session live");
                 return Ok(());
             }
-            let ui = parse_subcmd_flag(&rest, "--ui").and_then(|v| parse_ui(&v));
-            let _ = resources::unpack();
-            let shell = shell.unwrap_or_else(inshellisense_rs::shell::detect);
-            if verbose {
+            let start_opts = parse_start_args(&rest, shell, login, verbose)?;
+            resources::unpack()?;
+            let shell = start_opts
+                .shell
+                .unwrap_or_else(inshellisense_rs::shell::detect);
+            if start_opts.verbose {
                 let cfg = inshellisense_rs::config::load();
-                let effective_ui = ui.unwrap_or(cfg.ui);
+                let effective_ui = start_opts.ui.unwrap_or(cfg.ui);
                 eprintln!("inshellisense-rs: ui = {}", effective_ui.as_str());
                 eprintln!("inshellisense-rs: shell = {}", shell.as_str());
-                eprintln!("inshellisense-rs: login = {}", login);
+                eprintln!("inshellisense-rs: login = {}", start_opts.login);
             }
-            pty::run_wrapped(shell, login, ui)
+            pty::run_wrapped(shell, start_opts.login, start_opts.ui)
         }
         "init" => {
             if has_help_flag(&rest) {
                 print_init_help();
                 return Ok(());
             }
-            let install_rc = rest.iter().any(|a| a == "--install-rc");
-            // A positional shell argument that doesn't parse is an error —
-            // upstream rejects unknown shells rather than defaulting. A
-            // *missing* positional keeps our behavior (`-s` flag or bash).
-            let positional = rest.iter().skip(1).find(|a| !a.starts_with('-'));
-            let target = match positional {
-                Some(s) => match parse_shell(s) {
-                    Some(sh) => sh,
-                    None => {
-                        eprintln!(
-                            "Unsupported shell: '{}', supported shells: bash, zsh, fish, pwsh, powershell, xonsh, nu",
-                            s
-                        );
-                        std::process::exit(1);
-                    }
-                },
-                None => shell.unwrap_or(Shell::Bash),
-            };
-            let _ = resources::unpack();
-            if install_rc {
-                shell_init::install()
+            let init_opts = parse_init_args(&rest, shell)?;
+            let target = init_opts.shell.unwrap_or(Shell::Bash);
+            resources::unpack()?;
+            if init_opts.install_rc {
+                shell_init::install_rc(target)
             } else {
                 shell_init::print_init(target.as_str())
             }
@@ -133,7 +123,7 @@ pub fn main() -> Result<()> {
                 print_install_help();
                 return Ok(());
             }
-            let _ = resources::unpack();
+            resources::unpack()?;
             shell_init::install()
         }
         "doctor" => {
@@ -151,15 +141,8 @@ pub fn main() -> Result<()> {
             // Default output is JSON (matching upstream). --text
             // switches to plain ghost-tail mode. --json accepted
             // as a no-op for backwards compat.
-            let text_mode = rest.iter().any(|a| a == "--text");
-            let cwd = parse_subcmd_flag(&rest, "--cwd").unwrap_or_else(|| ".".to_string());
-            let line = rest
-                .iter()
-                .skip(1)
-                .find(|a| !a.starts_with('-'))
-                .cloned()
-                .unwrap_or_default();
-            commands::complete::run(&line, text_mode, &cwd)
+            let opts = parse_complete_args(&rest)?;
+            commands::complete::run(&opts.line, opts.text_mode, &opts.cwd, shell)
         }
         "specs" => {
             let sub2 = rest.get(1).map(|s| s.as_str()).unwrap_or("list");
@@ -186,8 +169,7 @@ pub fn main() -> Result<()> {
                         return Ok(());
                     }
                     let plain = rest.iter().any(|a| a == "--plain");
-                    let specs_shell = parse_subcmd_flag(&rest, "--shell")
-                        .and_then(|s| parse_shell(&s));
+                    let specs_shell = parse_optional_shell_flag(&rest, "--shell")?;
                     commands::specs::list(plain, specs_shell)
                 }
                 other => {
@@ -208,7 +190,10 @@ pub fn main() -> Result<()> {
             commands::uninstall::run()
         }
         other => {
-            eprintln!("is: unknown command `{}`\nRun `is --help` for usage.", other);
+            eprintln!(
+                "is: unknown command `{}`\nRun `is --help` for usage.",
+                other
+            );
             std::process::exit(2);
         }
     }
@@ -229,6 +214,15 @@ fn parse_shell(s: &str) -> Option<Shell> {
     }
 }
 
+fn parse_shell_value(s: &str) -> Result<Shell> {
+    parse_shell(s).with_context(|| {
+        format!(
+            "Unsupported shell: '{}', supported shells: bash, zsh, fish, pwsh, powershell, xonsh, nu",
+            s
+        )
+    })
+}
+
 fn parse_ui(s: &str) -> Option<UiMode> {
     match s.to_lowercase().as_str() {
         "ghost" => Some(UiMode::Ghost),
@@ -238,26 +232,176 @@ fn parse_ui(s: &str) -> Option<UiMode> {
     }
 }
 
-/// True if any arg after the subcommand name itself is `-h` or `--help`.
-/// Skips the first element so the subcommand token (e.g. `start`) doesn't
-/// trigger when it happens to equal `-h` (it can't, but the skip keeps
-/// callers symmetric with `parse_subcmd_flag`).
-fn has_help_flag(args: &[String]) -> bool {
-    args.iter().skip(1).any(|a| a == "-h" || a == "--help")
+#[derive(Debug, Clone)]
+struct StartArgs {
+    shell: Option<Shell>,
+    login: bool,
+    verbose: bool,
+    ui: Option<UiMode>,
 }
 
-/// Extract `--flag value` or `--flag=value` from a subcommand's args.
-fn parse_subcmd_flag(args: &[String], flag: &str) -> Option<String> {
+fn parse_start_args(
+    args: &[String],
+    root_shell: Option<Shell>,
+    root_login: bool,
+    root_verbose: bool,
+) -> Result<StartArgs> {
+    let mut out = StartArgs {
+        shell: root_shell,
+        login: root_login,
+        verbose: root_verbose,
+        ui: None,
+    };
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "-l" | "--login" => out.login = true,
+            "-V" | "--verbose" => out.verbose = true,
+            "-s" | "--shell" => {
+                i += 1;
+                let value = args
+                    .get(i)
+                    .with_context(|| format!("missing value for {}", args[i - 1]))?;
+                out.shell = Some(parse_shell_value(value)?);
+            }
+            "--ui" => {
+                i += 1;
+                let value = args
+                    .get(i)
+                    .with_context(|| format!("missing value for {}", args[i - 1]))?;
+                out.ui = Some(parse_ui_value(value)?);
+            }
+            other => {
+                if let Some(value) = other.strip_prefix("--shell=") {
+                    out.shell = Some(parse_shell_value(value)?);
+                } else if let Some(value) = other.strip_prefix("-s") {
+                    out.shell = Some(parse_shell_value(value)?);
+                } else if let Some(value) = other.strip_prefix("--ui=") {
+                    out.ui = Some(parse_ui_value(value)?);
+                } else {
+                    anyhow::bail!("is start: unknown option `{}`", other);
+                }
+            }
+        }
+        i += 1;
+    }
+    Ok(out)
+}
+
+fn parse_ui_value(s: &str) -> Result<UiMode> {
+    parse_ui(s).with_context(|| {
+        format!(
+            "Unsupported ui mode: '{}', supported modes: ghost, popup, hybrid",
+            s
+        )
+    })
+}
+
+#[derive(Debug, Clone)]
+struct InitArgs {
+    shell: Option<Shell>,
+    install_rc: bool,
+}
+
+fn parse_init_args(args: &[String], root_shell: Option<Shell>) -> Result<InitArgs> {
+    let mut shell = root_shell;
+    let mut install_rc = false;
+    let mut positional_shell: Option<Shell> = None;
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--install-rc" => install_rc = true,
+            "-s" | "--shell" => {
+                i += 1;
+                let value = args
+                    .get(i)
+                    .with_context(|| format!("missing value for {}", args[i - 1]))?;
+                shell = Some(parse_shell_value(value)?);
+            }
+            other => {
+                if let Some(value) = other.strip_prefix("--shell=") {
+                    shell = Some(parse_shell_value(value)?);
+                } else if let Some(value) = other.strip_prefix("-s") {
+                    shell = Some(parse_shell_value(value)?);
+                } else if other.starts_with('-') {
+                    anyhow::bail!("is init: unknown option `{}`", other);
+                } else if positional_shell.is_none() {
+                    positional_shell = Some(parse_shell_value(other)?);
+                } else {
+                    anyhow::bail!("is init: unexpected argument `{}`", other);
+                }
+            }
+        }
+        i += 1;
+    }
+    if positional_shell.is_some() {
+        shell = positional_shell;
+    }
+    Ok(InitArgs { shell, install_rc })
+}
+
+#[derive(Debug, Clone)]
+struct CompleteArgs {
+    text_mode: bool,
+    cwd: String,
+    line: String,
+}
+
+fn parse_complete_args(args: &[String]) -> Result<CompleteArgs> {
+    let mut text_mode = false;
+    let mut cwd = ".".to_string();
+    let mut line_parts: Vec<String> = Vec::new();
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--text" => text_mode = true,
+            "--json" => {}
+            "--cwd" => {
+                i += 1;
+                cwd = args
+                    .get(i)
+                    .with_context(|| format!("missing value for {}", args[i - 1]))?
+                    .clone();
+            }
+            other => {
+                if let Some(value) = other.strip_prefix("--cwd=") {
+                    cwd = value.to_string();
+                } else {
+                    line_parts.push(other.to_string());
+                }
+            }
+        }
+        i += 1;
+    }
+    Ok(CompleteArgs {
+        text_mode,
+        cwd,
+        line: line_parts.join(" "),
+    })
+}
+
+fn parse_optional_shell_flag(args: &[String], flag: &str) -> Result<Option<Shell>> {
     let mut it = args.iter();
     while let Some(a) = it.next() {
         if a == flag {
-            return it.next().cloned();
+            let value = it
+                .next()
+                .with_context(|| format!("missing value for {}", flag))?;
+            return Ok(Some(parse_shell_value(value)?));
         }
         if let Some(val) = a.strip_prefix(&format!("{}=", flag)) {
-            return Some(val.to_string());
+            return Ok(Some(parse_shell_value(val)?));
         }
     }
-    None
+    Ok(None)
+}
+
+/// True if any arg after the subcommand name itself is `-h` or `--help`.
+/// Skips the first element so the subcommand token (e.g. `start`) doesn't
+/// trigger when it happens to equal `-h` (it can't, but the skip keeps
+/// callers symmetric).
+fn has_help_flag(args: &[String]) -> bool {
+    args.iter().skip(1).any(|a| a == "-h" || a == "--help")
 }
 
 fn print_help() {

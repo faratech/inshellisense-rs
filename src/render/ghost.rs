@@ -44,4 +44,8 @@ impl GhostRenderer {
         out.flush()?;
         Ok(())
     }
+
+    pub fn is_visible(&self) -> bool {
+        self.last.is_some()
+    }
 }

@@ -8,9 +8,9 @@
 //! The result is a `ResolveResult` the suggest engine turns into a
 //! `Vec<Suggestion>`.
 
+use super::Registry;
 use super::model::{Arg, LoadSpec, Opt, Subcommand};
 use super::parser::CommandToken;
-use super::Registry;
 use std::sync::LazyLock;
 
 /// A shared empty spec used to signal "offer no suggestions" — e.g. a
@@ -35,6 +35,8 @@ pub struct ResolveResult<'a> {
     /// Option tokens the user has already typed. The suggest engine uses
     /// this to filter `exclusive_on` / `depends_on` candidates.
     pub accepted_option_tokens: Vec<String>,
+    /// True once this subcommand has consumed a positional argument.
+    pub positional_args_consumed: bool,
 }
 
 /// Resolve the token stream against the spec. `tokens` should be the output
@@ -43,10 +45,15 @@ pub struct ResolveResult<'a> {
 /// No registry variant: `load_spec: SpecPath { name }` substitutions are
 /// disabled. Call `resolve_with_registry` to enable them.
 pub fn resolve<'a>(root: &'a Subcommand, tokens: &'a [CommandToken]) -> ResolveResult<'a> {
-    let rest = if tokens.is_empty() { &[][..] } else { &tokens[1..] };
+    let rest = if tokens.is_empty() {
+        &[][..]
+    } else {
+        &tokens[1..]
+    };
     let ctx = Ctx {
         persistent: Vec::new(),
         accepted_options: Vec::new(),
+        positional_args_consumed: false,
         registry: None,
     };
     run_subcommand(rest, root, ctx, false, false)
@@ -60,10 +67,15 @@ pub fn resolve_with_registry<'a>(
     root: &'a Subcommand,
     tokens: &'a [CommandToken],
 ) -> ResolveResult<'a> {
-    let rest = if tokens.is_empty() { &[][..] } else { &tokens[1..] };
+    let rest = if tokens.is_empty() {
+        &[][..]
+    } else {
+        &tokens[1..]
+    };
     let ctx = Ctx {
         persistent: Vec::new(),
         accepted_options: Vec::new(),
+        positional_args_consumed: false,
         registry: Some(registry),
     };
     run_subcommand(rest, root, ctx, false, false)
@@ -73,6 +85,7 @@ pub fn resolve_with_registry<'a>(
 struct Ctx<'a> {
     persistent: Vec<&'a Opt>,
     accepted_options: Vec<String>,
+    positional_args_consumed: bool,
     registry: Option<&'a Registry>,
 }
 
@@ -104,6 +117,7 @@ fn run_subcommand<'a>(
             active_partial: None,
             from_option: false,
             accepted_option_tokens: ctx.accepted_options.clone(),
+            positional_args_consumed: ctx.positional_args_consumed,
         };
     }
 
@@ -117,11 +131,17 @@ fn run_subcommand<'a>(
             active_partial: Some(&tokens[0]),
             from_option: false,
             accepted_option_tokens: ctx.accepted_options.clone(),
+            positional_args_consumed: ctx.positional_args_consumed,
         };
     }
 
     let active = &tokens[0];
-    let all_opts: Vec<&Opt> = ctx.persistent.iter().copied().chain(sub.options.iter()).collect();
+    let all_opts: Vec<&Opt> = ctx
+        .persistent
+        .iter()
+        .copied()
+        .chain(sub.options.iter())
+        .collect();
 
     // Option?
     if active.is_option && !active.is_raw {
@@ -139,6 +159,7 @@ fn run_subcommand<'a>(
             active_partial: None,
             from_option: false,
             accepted_option_tokens: ctx.accepted_options.clone(),
+            positional_args_consumed: ctx.positional_args_consumed,
         };
     }
 
@@ -189,6 +210,7 @@ fn run_option<'a>(
                 active_partial: None,
                 from_option: true,
                 accepted_option_tokens: ctx.accepted_options.clone(),
+                positional_args_consumed: ctx.positional_args_consumed,
             };
         }
         return run_arg(&tokens[1..], &opt.args, sub, ctx, true, false);
@@ -219,6 +241,7 @@ fn run_arg<'a>(
             active_partial: None,
             from_option,
             accepted_option_tokens: ctx.accepted_options.clone(),
+            positional_args_consumed: ctx.positional_args_consumed,
         };
     }
 
@@ -232,6 +255,7 @@ fn run_arg<'a>(
             active_partial: Some(&tokens[0]),
             from_option,
             accepted_option_tokens: ctx.accepted_options.clone(),
+            positional_args_consumed: ctx.positional_args_consumed,
         };
     }
 
@@ -239,8 +263,12 @@ fn run_arg<'a>(
     // If all remaining args are optional, the user may be skipping to an
     // option or subcommand instead.
     if args.iter().all(|a| a.is_optional) {
-        let all_opts: Vec<&Opt> =
-            ctx.persistent.iter().copied().chain(sub.options.iter()).collect();
+        let all_opts: Vec<&Opt> = ctx
+            .persistent
+            .iter()
+            .copied()
+            .chain(sub.options.iter())
+            .collect();
         if active.is_option && !active.is_raw {
             if let Some(opt) = find_option(&all_opts, &active.token) {
                 let mut new_ctx = ctx.clone();
@@ -255,6 +283,7 @@ fn run_arg<'a>(
                 active_partial: None,
                 from_option,
                 accepted_option_tokens: ctx.accepted_options.clone(),
+                positional_args_consumed: ctx.positional_args_consumed,
             };
         }
         if !active.is_raw {
@@ -277,6 +306,7 @@ fn run_arg<'a>(
                 let nested = Ctx {
                     persistent: Vec::new(),
                     accepted_options: Vec::new(),
+                    positional_args_consumed: false,
                     registry: ctx.registry,
                 };
                 return run_subcommand(&tokens[1..], loaded, nested, false, false);
@@ -285,11 +315,19 @@ fn run_arg<'a>(
     }
 
     if active_arg.is_variadic {
-        return run_arg(&tokens[1..], args, sub, ctx, from_option, true);
+        let mut new_ctx = ctx;
+        if !from_option {
+            new_ctx.positional_args_consumed = true;
+        }
+        return run_arg(&tokens[1..], args, sub, new_ctx, from_option, true);
     }
 
     // Move to the next positional arg definition.
-    run_arg(&tokens[1..], &args[1..], sub, ctx, from_option, false)
+    let mut new_ctx = ctx;
+    if !from_option {
+        new_ctx.positional_args_consumed = true;
+    }
+    run_arg(&tokens[1..], &args[1..], sub, new_ctx, from_option, false)
 }
 
 fn find_option<'a>(opts: &[&'a Opt], token: &str) -> Option<&'a Opt> {
@@ -300,10 +338,7 @@ fn opts_eq(a: &Opt, b: &Opt) -> bool {
     a.names == b.names
 }
 
-fn merged_options<'a>(
-    persistent: &[&'a Opt],
-    local: &'a [Opt],
-) -> Vec<&'a Opt> {
+fn merged_options<'a>(persistent: &[&'a Opt], local: &'a [Opt]) -> Vec<&'a Opt> {
     let mut out: Vec<&Opt> = persistent.to_vec();
     for o in local {
         if !out.iter().any(|p| opts_eq(p, o)) {
@@ -328,7 +363,10 @@ mod tests {
     }
 
     fn make_opt(name: &str) -> Opt {
-        Opt { names: vec![name.to_string()], ..Default::default() }
+        Opt {
+            names: vec![name.to_string()],
+            ..Default::default()
+        }
     }
 
     fn make_arg() -> Arg {
@@ -341,10 +379,14 @@ mod tests {
 
     #[test]
     fn resolve_simple_subcommand() {
-        let root = make_spec("git", vec![
-            make_spec("status", vec![], vec![]),
-            make_spec("commit", vec![], vec![]),
-        ], vec![]);
+        let root = make_spec(
+            "git",
+            vec![
+                make_spec("status", vec![], vec![]),
+                make_spec("commit", vec![], vec![]),
+            ],
+            vec![],
+        );
         let tokens = tok("git status ");
         let result = resolve(&root, &tokens);
         assert_eq!(result.subcommand.names[0], "status");
@@ -352,9 +394,7 @@ mod tests {
 
     #[test]
     fn resolve_partial_subcommand() {
-        let root = make_spec("git", vec![
-            make_spec("status", vec![], vec![]),
-        ], vec![]);
+        let root = make_spec("git", vec![make_spec("status", vec![], vec![])], vec![]);
         let tokens = tok("git sta");
         let result = resolve(&root, &tokens);
         assert_eq!(result.subcommand.names[0], "git");
@@ -363,19 +403,23 @@ mod tests {
 
     #[test]
     fn resolve_option_tracking() {
-        let root = make_spec("git", vec![
-            make_spec("status", vec![], vec![make_opt("--short")]),
-        ], vec![]);
+        let root = make_spec(
+            "git",
+            vec![make_spec("status", vec![], vec![make_opt("--short")])],
+            vec![],
+        );
         let tokens = tok("git status --short ");
         let result = resolve(&root, &tokens);
-        assert!(result.accepted_option_tokens.contains(&"--short".to_string()));
+        assert!(
+            result
+                .accepted_option_tokens
+                .contains(&"--short".to_string())
+        );
     }
 
     #[test]
     fn resolve_double_dash_raw() {
-        let root = make_spec("git", vec![
-            make_spec("log", vec![], vec![]),
-        ], vec![]);
+        let root = make_spec("git", vec![make_spec("log", vec![], vec![])], vec![]);
         let tokens = tok("git log -- file1");
         let result = resolve(&root, &tokens);
         assert_eq!(result.subcommand.names[0], "log");
@@ -383,9 +427,7 @@ mod tests {
 
     #[test]
     fn resolve_unknown_subcommand_stays_at_root() {
-        let root = make_spec("git", vec![
-            make_spec("status", vec![], vec![]),
-        ], vec![]);
+        let root = make_spec("git", vec![make_spec("status", vec![], vec![])], vec![]);
         let tokens = tok("git nonexistent ");
         let result = resolve(&root, &tokens);
         assert_eq!(result.subcommand.names[0], "git");
@@ -393,9 +435,7 @@ mod tests {
 
     #[test]
     fn resolve_nested_subcommand() {
-        let inner = make_spec("remote", vec![
-            make_spec("add", vec![], vec![]),
-        ], vec![]);
+        let inner = make_spec("remote", vec![make_spec("add", vec![], vec![])], vec![]);
         let root = make_spec("git", vec![inner], vec![]);
         let tokens = tok("git remote add ");
         let result = resolve(&root, &tokens);
@@ -414,12 +454,19 @@ mod tests {
 
     #[test]
     fn resolve_persistent_option() {
-        let mut root = make_spec("git", vec![
-            make_spec("status", vec![], vec![]),
-        ], vec![make_opt("-C")]);
+        let mut root = make_spec(
+            "git",
+            vec![make_spec("status", vec![], vec![])],
+            vec![make_opt("-C")],
+        );
         root.options[0].is_persistent = true;
         let tokens = tok("git status ");
         let result = resolve(&root, &tokens);
-        assert!(result.persistent_options.iter().any(|o| o.names.contains(&"-C".to_string())));
+        assert!(
+            result
+                .persistent_options
+                .iter()
+                .any(|o| o.names.contains(&"-C".to_string()))
+        );
     }
 }
