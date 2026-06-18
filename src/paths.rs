@@ -2,7 +2,7 @@
 //! in one place.
 //!
 //! The layout mirrors upstream inshellisense's `~/.inshellisense/` tree,
-//! just renamed to `~/.inshellisense/`. User config stays under the XDG-standard
+//! keeping that path for runtime resources. User config stays under the XDG-standard
 //! `~/.config/inshellisense-rs/` per our own convention.
 //!
 //! ```text

@@ -1,4 +1,4 @@
-//! `insh doctor` — full parity with upstream's `is doctor`.
+//! `is doctor` — full parity with upstream's `is doctor`.
 //!
 //! Three check suites, each returning 0 on success and 1 on failure:
 //!   1. Legacy config scan — detects old `~/.inshellisense/init/...`
@@ -6,7 +6,7 @@
 //!   2. Shell config existence — every supported shell should have a
 //!      generated init file under `~/.inshellisense/init/<shell>/`.
 //!   3. Shell plugin check — the user's rc file should source our init
-//!      file as its LAST non-whitespace line.
+//!      file or contain the installed wrapper block.
 //!
 //! Exit code is the sum of failing check suites (0/1/2/3), matching
 //! upstream's `process.exit(errors)` semantics in ui-doctor.ts.

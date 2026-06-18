@@ -1,4 +1,4 @@
-//! `insh doctor` — thin pass-through to the three-check doctor suite
+//! `is doctor` — thin pass-through to the three-check doctor suite
 //! in `src/doctor.rs`.
 
 use anyhow::Result;

@@ -50,7 +50,7 @@ pub fn unpack() -> Result<std::path::PathBuf> {
     let shell_dir = paths::shell_dir().context("no HOME directory")?;
 
     // Skip re-unpacking if the version file already matches — avoids
-    // disk churn on every `insh start`.
+    // disk churn on every `is start`.
     if let Some(version_file) = paths::version_file() {
         if let Ok(existing) = fs::read_to_string(&version_file) {
             if existing.trim() == env!("CARGO_PKG_VERSION") {
@@ -211,7 +211,7 @@ fn zsh_dotdir_contents(shell_dir: &str) -> Vec<(&'static str, String)> {
     ]
 }
 
-/// Remove the entire `~/.inshellisense/` tree. Called by `insh uninstall`.
+/// Remove the entire `~/.inshellisense/` tree. Called by `is uninstall`.
 /// Returns Ok(()) if already absent.
 pub fn remove_all() -> Result<()> {
     let Some(root) = paths::resource_root() else {

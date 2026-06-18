@@ -5,9 +5,51 @@ All notable changes to inshellisense-rs are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-06-18
+
+Resolves the remediation plan tracked in GitHub issues #2 through #8.
+
+### Fixed
+- **Shell-aware completions on Windows.** PowerShell aliases such as `ls`, `dir`,
+  and `gci` now resolve to PowerShell-shaped options, while `cmd.exe dir`
+  surfaces slash-style options instead of Unix `ls` flags. (#2)
+- **CLI parsing and setup flows.** `start`, `init`, `complete`, and
+  `specs list --shell` now parse only their own supported flags, `init` and
+  `install` propagate resource-unpack failures, `doctor` recognizes both
+  wrapper and per-shell init snippets, and `uninstall` removes generated
+  rc-file blocks while preserving user config. (#3)
+- **Config and spec loading.** The canonical user config/spec root is now
+  `~/.config/inshellisense-rs/`; upstream config files remain read-only
+  compatibility inputs. Partial config files now merge without resetting
+  omitted fields, and JSON spec directories from `INSH_RS_SPECS_DIR` or
+  `[specs].path` load alongside user TOML specs. (#4)
+- **Completion parity gaps.** Offline `complete` suppresses live history,
+  trailing `--opt=` / `-f=` values parse correctly, `dependsOn` and
+  `optionsMustPrecedeArguments` are honored, active-segment aliases expand after
+  separators, exact-case flag ranking is preserved without dropping
+  case-insensitive matches, and the parity corpus is now 117/117. (#5)
+- **Generators.** Shell-command generators now enforce timeout by killing and
+  waiting on overdue children, and JSON-object generator output containing
+  `name` or `packages` is converted into suggestions. (#6)
+- **Terminal rendering and command tracking.** Split OSC 6973 markers are scanned
+  across chunk boundaries, trailing spaces are preserved in the tracked command,
+  and cursor navigation clears stale ghost text before forwarding movement keys.
+  (#7)
+- **Shell integration and platform edge cases.** zsh wrappers no longer
+  double-source user startup files, fish prompt capture preserves exact text, and
+  Windows raw input now lets Ctrl-C/Ctrl-Break reach the shell instead of being
+  swallowed by processed input. (#8)
+
+### Verified
+- `cargo test --all-targets`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo test --test parity corpus_drives_parity_above_threshold -- --nocapture`
+  reports `117/117 cases pass (100.0%)`.
+
 ## [0.0.3] — 2026-06-06
 
-Resolves GitHub issues #1 and the flag-casing half of #2.
+Resolves GitHub issues #1 and the flag-casing half of #2. The remaining
+Windows-shell half of #2 is resolved in the 2026-06-18 unreleased changes above.
 
 ### Fixed
 - **`is specs --help <cmd>`** now shows the named subcommand's help (or a clear
@@ -19,11 +61,6 @@ Resolves GitHub issues #1 and the flag-casing half of #2.
   selects `-c`, `tar -x` selects `-x`. Both cases still appear in the popup
   (case-insensitive filter, matching upstream completeness); the exact case the
   user typed is now ranked first as the active/ghost suggestion. (#2, flag-casing)
-
-### Known / still open
-- **#2 (Windows shell skew)** — on PowerShell/cmd, Unix specs (e.g. GNU `ls`
-  flags) still surface; shell-aware spec resolution is deferred pending a Windows
-  repro. Tracked on #2.
 
 ## [0.0.2] — 2026-06-06
 
@@ -200,7 +237,7 @@ Cross-platform (Linux, macOS, Windows). 29 crates, ~5.8 MB binary
 - `is complete` JSON output matches upstream schema exactly (icon emoji,
   allNames, activeToken wrapper).
 
-## [Unreleased]
+## Historical development notes
 
 ### Phase 6.2e — 100.0% pure. Method-shorthand `generateSpec` fix.
 

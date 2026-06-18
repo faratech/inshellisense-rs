@@ -4,7 +4,7 @@
 //!
 //! Usage:
 //!     cargo run --release --bin parity-scan -- \
-//!         --ours target/release/insh \
+//!         --ours target/release/is \
 //!         --upstream /tmp/insh-bench/node_modules/@microsoft/inshellisense-linux-x64/inshellisense-linux-x64 \
 //!         --corpus tests/parity \
 //!         --report /tmp/parity-report.md
@@ -16,7 +16,7 @@ use std::process::ExitCode;
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
     let mut cfg = ScanConfig {
-        ours: PathBuf::from("target/release/insh"),
+        ours: PathBuf::from("target/release/is"),
         upstream: PathBuf::from(
             "/tmp/insh-bench/node_modules/@microsoft/inshellisense-linux-x64/inshellisense-linux-x64",
         ),
@@ -153,7 +153,7 @@ fn print_help() {
 Usage: parity-scan [OPTIONS]
 
 Options:
-  --ours <PATH>        Path to inshellisense-rs binary (default: target/release/insh)
+  --ours <PATH>        Path to inshellisense-rs binary (default: target/release/is)
   --upstream <PATH>    Path to upstream binary
   --corpus <DIR>       Corpus directory (default: tests/parity)
   --report <PATH>      Output markdown report (default: /tmp/parity-report.md)

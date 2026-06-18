@@ -15,10 +15,12 @@ $ git ch█eckout        ← grey suggestion ─ press → to accept
 
 **Close behavioral parity with upstream inshellisense**, validated against the
 upstream binary across the `complete` suggestion engine, CLI surface, and shell
-init (a handful of known divergences — opaque JS generators, a few spec-data
-deltas, and `requiresSeparator` — are tracked in the CHANGELOG). 1470 specs
-bundled (zstd-compressed), lazy-loaded on demand. Pure Rust — no JS runtime, no
-Node.js. 29 crates, 5.7 MB binary (vs upstream's 132 MB). Supports
+init. The checked-in parity corpus currently passes 117/117 cases. 1470 specs
+are bundled (zstd-compressed), lazy-loaded on demand, and extracted statically;
+known offline gaps that would require live network/process state or opaque JS
+runtime hooks are handled with Rust-native generators or documented as runtime
+boundaries. Pure Rust — no JS runtime, no Node.js. 29 crates, 5.7 MB binary (vs
+upstream's 132 MB). Supports
 bash, zsh, fish, pwsh, powershell, xonsh, nushell, and cmd.exe (Windows).
 
 | Platform | Status |
@@ -87,6 +89,8 @@ In the wrapped shell:
 
 Drop TOML files in `~/.config/inshellisense-rs/specs/` to add or override commands.
 The schema mirrors the Rust model in [`src/spec/model.rs`](src/spec/model.rs).
+Additional JSON spec directories can be loaded with `INSH_RS_SPECS_DIR` or the
+`[specs].path` array in `~/.config/inshellisense-rs/rc.toml`.
 
 ```toml
 # ~/.config/inshellisense-rs/specs/hello.toml
@@ -145,7 +149,7 @@ on the specs it covers. Where it differs:
 | Memory | ~60 MB | ~5.7 MB |
 | Binary size | 30+ MB (packaged) | ~5.8 MB stripped |
 | Shell support | bash, zsh, fish, pwsh, nu, xonsh, cmd | bash, zsh, fish, pwsh, powershell, xonsh, nu, cmd |
-| Fig spec coverage | ~715 specs via dynamic import | **1470/1470 pure (100.0%)** via the static extractor |
+| Fig spec coverage | ~715 specs via dynamic import | **1470/1470 loaded (100.0%)** via the static extractor |
 | JS runtime for opaque closures | always on (Node) | **none** — pure Rust static extraction only |
 | Ghost-text rendering | yes | yes |
 | Right-arrow to accept | yes | yes |
@@ -160,10 +164,11 @@ on the specs it covers. Where it differs:
 | 4 | `PostProcessKind` DSL + lazy `LoadSpec` + extractor isolation | ✅ done |
 | 4.5 | Extractor identifier + property-access resolution | ✅ done |
 | 4.6 | Static factory evaluator + template folding → 97.1% coverage | ✅ done |
-| 5 | 82-case parity corpus + GitHub Actions CI gate | ✅ done |
+| 5 | Initial parity corpus + GitHub Actions CI gate | ✅ done |
 | 6.1 | `createVersionedSpec` handler → 97.6% | ✅ done |
 | 6.2 | `ProjectFile` + `FileExistsThen` generators + shorthand fix → 99.86% pure / 100% loaded | ✅ done |
-| 6.6 | Parity expansion to 111 cases + CI threshold tightening | ✅ done |
+| 6.6 | Parity expansion to 117 cases + CI threshold tightening | ✅ done |
+| 6.7 | Audit remediation for CLI/config/completion/terminal edge cases | ✅ done |
 | ~~6~~ | ~~`rquickjs` JS runtime for opaque closures~~ | dropped — pure Rust path reached 99.86% |
 
 ## Credits

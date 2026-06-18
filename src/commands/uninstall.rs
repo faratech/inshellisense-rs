@@ -1,4 +1,4 @@
-//! `insh uninstall` — remove cached resources, preserving user config.
+//! `is uninstall` — remove cached resources, preserving user config.
 //!
 //! Port of `/tmp/inshellisense/src/commands/uninstall.ts`. Deletes the
 //! `~/.inshellisense/` resource tree (log/, shell/, init/, zsh-dotdir/, spec/,

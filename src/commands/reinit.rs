@@ -1,4 +1,4 @@
-//! `insh reinit` — regenerate all shell configs and re-unpack resources.
+//! `is reinit` — regenerate all shell configs and re-unpack resources.
 //!
 //! Port of `/tmp/inshellisense/src/commands/reinit.ts`. Forces a refresh
 //! of the `~/.inshellisense/` resource tree after an inshellisense-rs upgrade. Because

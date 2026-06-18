@@ -1,14 +1,8 @@
 //! Shell abstraction — enum, detection, source commands, init snippets.
 //!
-//! Port of `/tmp/inshellisense/src/utils/shell.ts`. Handles the seven shells
-//! that upstream inshellisense supports:
+//! Port of `/tmp/inshellisense/src/utils/shell.ts`. Handles the supported shells:
 //!   bash, zsh, fish, pwsh (PowerShell Core), powershell (Windows),
-//!   xonsh, nu (Nushell).
-//!
-//! P1 provides the enum + bash/zsh/fish detection + a bash init snippet.
-//! P3 fills in source_command/init_snippet for all 7 shells and adds
-//! ZDOTDIR isolation for zsh. For now the rest of the codebase only cares
-//! about the enum variants and the one implemented path.
+//!   xonsh, nu (Nushell), and cmd.exe on Windows.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Shell {

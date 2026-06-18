@@ -3,14 +3,14 @@
  *
  * Walks @withfig/autocomplete/src/*.ts, parses each file with ts-morph,
  * locates the default-exported Fig.Spec object literal, and converts the
- * pure-data subset into JSON matching insh-rs's Rust schema.
+ * pure-data subset into JSON matching inshellisense-rs's Rust schema.
  *
- * Functions (postProcess callbacks, custom generators, generateSpec, etc.)
- * are NOT extracted in this pass — a spec containing any function at any
- * depth below a supported field is classified as "partial" or "js_only"
- * and skipped. Phase 6 will handle those via rquickjs.
+ * Recognized static factories and generator idioms are converted directly.
+ * Unsupported function-backed fields are dropped when the surrounding object
+ * remains usable, so partial specs can still be emitted with their declarative
+ * skeleton. No JS runtime is required.
  *
- * Output: one .json file per pure spec into <out>/essentials/<name>.json.
+ * Output: one .json file per extracted spec into <out>/embed/ or <out>/extras/.
  * A manifest index.json enumerates everything extracted with kind tags.
  *
  * Usage:
@@ -1193,7 +1193,7 @@ function tryHandleCreateVersionedSpec(
 
   // The original relName for an index file is e.g. "heroku/index". We
   // want the emitted spec keyed under the parent dir name ("heroku") so
-  // that `insh complete "heroku ..."` finds it via the top-level lookup.
+  // that `is complete "heroku ..."` finds it via the top-level lookup.
   // If the relName ends with "/index", strip the suffix.
   let emitName = relName;
   if (emitName.endsWith("/index")) {

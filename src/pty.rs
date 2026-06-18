@@ -36,7 +36,7 @@ enum PopupMode {
 /// Spawn a wrapped shell.
 ///
 /// `ui_override` takes precedence over the `ui` field in the loaded
-/// config. This is how `insh start --ui popup` reaches the renderer.
+/// config. This is how `is start --ui popup` reaches the renderer.
 pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Result<()> {
     // Make sure the vendored shell integration scripts are on disk.
     crate::resources::unpack()?;
@@ -90,7 +90,7 @@ pub fn run_wrapped(shell: Shell, login: bool, ui_override: Option<UiMode>) -> Re
 
     // Clear the host terminal on startup — matches upstream's
     // `writeOutput(ansi.clearTerminal)` in ui-root.ts. Without this,
-    // any leftover output from before `insh start` was invoked stays
+    // any leftover output from before `is start` was invoked stays
     // visible and interferes with the popup's cursor-relative draws
     // (the first popup ends up rendering inside whatever stale text
     // happened to be on screen). `\x1b[2J` erases the visible screen,

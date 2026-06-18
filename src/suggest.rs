@@ -4,7 +4,7 @@
 //!
 //! Phase 1 keeps the old `suggest(line, cwd) -> Option<String>` method so
 //! the PTY renderer keeps working. Phase 2 introduces `suggest_blob()`
-//! returning `Vec<Suggestion>` for inspection via `insh complete --json`.
+//! returning `Vec<Suggestion>` for inspection via `is complete`.
 
 use crate::generator;
 use crate::history;

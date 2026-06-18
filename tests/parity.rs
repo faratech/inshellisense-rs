@@ -14,7 +14,7 @@
 //!
 //! The `corpus_drives_parity_above_threshold` test loads the JSONL at
 //! runtime, runs every case, prints a summary, and fails if the pass
-//! rate drops below the configured threshold (currently 90%).
+//! rate drops below the configured threshold (currently 95%).
 
 use inshellisense_rs::{
     shell::Shell,
