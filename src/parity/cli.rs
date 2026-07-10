@@ -106,7 +106,9 @@ fn load_invocations(path: &std::path::Path) -> std::io::Result<Vec<String>> {
 /// sentinel embeds the binary path so `ours` and `upstream` differ and the
 /// case fails loudly instead of matching.
 fn run_and_capture(bin: &std::path::Path, args: &[&str]) -> String {
-    let output = Command::new(bin).args(args).output();
+    let mut cmd = Command::new(bin);
+    super::deterministic(&mut cmd);
+    let output = cmd.args(args).output();
     match output {
         Ok(out) => {
             let mut s = String::from_utf8_lossy(&out.stdout).into_owned();

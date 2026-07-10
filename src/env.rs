@@ -51,6 +51,11 @@ pub fn spawn_env(login: bool, test: bool) -> Vec<(&'static str, &'static str)> {
     out
 }
 
+/// Skip probing for an installed coreutils multi-call binary.
+pub fn coreutils_disabled() -> bool {
+    flag_enabled("INSH_RS_NO_COREUTILS")
+}
+
 /// VS Code sets this during environment resolution; shell integrations must
 /// skip wrapping in this case to avoid interfering with VS Code's env probe.
 pub fn vscode_resolving() -> bool {

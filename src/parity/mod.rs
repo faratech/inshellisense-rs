@@ -218,7 +218,15 @@ pub fn isolated_home(cfg: &ScanConfig) -> std::path::PathBuf {
 /// Without this, doctor and render inherit the host's `HOME`, config files,
 /// and cwd — so their results depend on which shells the developer happens to
 /// have installed.
+/// Every spawned binary must behave the same on every machine. A host
+/// coreutils install would otherwise add specs to our side of the comparison
+/// and not to upstream's.
+pub fn deterministic(cmd: &mut std::process::Command) {
+    cmd.env("INSH_RS_NO_COREUTILS", "1");
+}
+
 pub fn isolate(cmd: &mut std::process::Command, home: &std::path::Path) {
+    deterministic(cmd);
     cmd.env("HOME", home)
         .env("USERPROFILE", home)
         .env("XDG_CONFIG_HOME", home.join(".config"))

@@ -185,6 +185,7 @@ fn run_complete(
     fixture_cwd: &Path,
 ) -> String {
     let mut cmd = Command::new(bin);
+    super::deterministic(&mut cmd);
     cmd.arg("complete");
     if ours {
         cmd.arg("--json");

@@ -33,7 +33,9 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
 }
 
 fn run_init(bin: &std::path::Path, shell: &str) -> String {
-    let out = Command::new(bin).args(["init", shell]).output();
+    let mut cmd = Command::new(bin);
+    super::deterministic(&mut cmd);
+    let out = cmd.args(["init", shell]).output();
     match out {
         Ok(o) => String::from_utf8_lossy(&o.stdout).into_owned(),
         Err(e) => format!("<error: {} failed to spawn: {}>", bin.display(), e),

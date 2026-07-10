@@ -44,6 +44,10 @@ struct Inner {
     /// aliases (`["R", "Rscript"]`), but the bundle is keyed only by the
     /// first, so typing an alias resolved to nothing.
     aliases: BTreeMap<String, String>,
+    /// An installed coreutils multi-call binary, if one was detected. Its
+    /// utilities that the bundle does not cover are synthesized on first
+    /// `get()` from their `--help` output.
+    coreutils: Option<&'static crate::coreutils::Coreutils>,
 }
 
 /// Pull the root `names` out of a spec's raw JSON without deserializing the
@@ -96,6 +100,13 @@ impl Registry {
     }
 
     pub fn new_with_defaults() -> Self {
+        Self::new_with_options(true)
+    }
+
+    /// `coreutils` controls whether an installed multi-call coreutils binary is
+    /// probed. Tests and the parity scanner pass `false` so their results do
+    /// not depend on what happens to be installed on the host.
+    pub fn new_with_options(coreutils: bool) -> Self {
         let mut r = Self::default();
         r.load_embedded_lazy();
         // Curated hand-ported specs override the bundle.
@@ -109,7 +120,28 @@ impl Registry {
         }
         r.load_configured_json_dirs();
         r.load_toml_dir();
+        if coreutils {
+            r.load_coreutils();
+        }
         r
+    }
+
+    /// Register an installed coreutils multi-call binary: the `coreutils` spec
+    /// itself, plus the names of every utility it provides so they resolve
+    /// even when the bundled corpus has no spec for them.
+    fn load_coreutils(&mut self) {
+        let Some(cu) = crate::coreutils::detect() else {
+            return;
+        };
+        let already_present = {
+            let inner = self.inner_mut();
+            inner.coreutils = Some(cu);
+            inner.specs.contains_key("coreutils") || inner.lazy.contains_key("coreutils")
+        };
+        // A user or bundled spec named `coreutils` wins over ours.
+        if !already_present {
+            self.insert(cu.root_spec());
+        }
     }
 
     fn load_embedded_lazy(&mut self) {
@@ -240,8 +272,18 @@ impl Registry {
             // A root alias resolves to the primary key the bundle is keyed by.
             let key = if inner.lazy.contains_key(name) {
                 name.to_string()
+            } else if let Some(primary) = inner.aliases.get(name) {
+                primary.clone()
             } else {
-                inner.aliases.get(name)?.clone()
+                // A coreutils utility the bundle does not cover. Synthesizing
+                // it spawns `coreutils <util> --help`, so the result — even a
+                // failure — is cached, and the utility is never probed twice.
+                let cu = inner.coreutils.filter(|cu| cu.provides(name))?;
+                let spec = cu.spec_for(name).unwrap_or_else(|| Subcommand::new(name));
+                inner.specs.insert(name.to_string(), Box::new(spec));
+                let spec: *const Subcommand = &**inner.specs.get(name)?;
+                // SAFETY: see the comment at the end of this function.
+                return Some(unsafe { &*spec });
             };
             if let Some(spec) = inner.specs.get(&key) {
                 let spec = spec.clone();
@@ -254,6 +296,16 @@ impl Registry {
                         // gaps (missing options, opaque-JS generators, lost
                         // fields).
                         crate::curated::patch(&mut spec, &key);
+                        // If an installed coreutils build *is* this command,
+                        // teach the spec the options that build actually
+                        // accepts. The bundled corpus is BSD-flavored and would
+                        // otherwise describe a different program than the one
+                        // that runs.
+                        if let Some(cu) = inner.coreutils {
+                            if cu.owns(&key) {
+                                cu.augment(&mut spec);
+                            }
+                        }
                         if key != name {
                             inner.specs.insert(key, Box::new(spec.clone()));
                         }
@@ -284,6 +336,9 @@ impl Registry {
         let mut names: Vec<String> = inner.specs.keys().cloned().collect();
         names.extend(inner.lazy.keys().cloned());
         names.extend(inner.aliases.keys().cloned());
+        if let Some(cu) = inner.coreutils {
+            names.extend(cu.utils.iter().cloned());
+        }
         names.sort();
         names.dedup();
         names

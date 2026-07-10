@@ -148,6 +148,7 @@ fn top_level_suggestions(
     ours: bool,
 ) -> Option<BTreeSet<String>> {
     let mut cmd = Command::new(bin);
+    super::deterministic(&mut cmd);
     cmd.arg("complete");
     if ours {
         cmd.arg("--json");
@@ -177,9 +178,9 @@ fn top_level_suggestions(
 /// `None` means the binary could not be run. Collapsing that to an empty set
 /// made two failed spawns compare as an identical (empty) spec list.
 fn list_specs_ours(bin: &std::path::Path) -> Option<BTreeSet<String>> {
-    let out = Command::new(bin)
-        .args(["specs", "list", "--plain"])
-        .output();
+    let mut cmd = Command::new(bin);
+    super::deterministic(&mut cmd);
+    let out = cmd.args(["specs", "list", "--plain"]).output();
     let Ok(o) = out else { return None };
     let text = String::from_utf8_lossy(&o.stdout);
     Some(
@@ -191,7 +192,9 @@ fn list_specs_ours(bin: &std::path::Path) -> Option<BTreeSet<String>> {
 }
 
 fn list_specs_upstream(bin: &std::path::Path) -> Option<BTreeSet<String>> {
-    let out = Command::new(bin).args(["specs", "list"]).output();
+    let mut cmd = Command::new(bin);
+    super::deterministic(&mut cmd);
+    let out = cmd.args(["specs", "list"]).output();
     let Ok(o) = out else { return None };
     let text = String::from_utf8_lossy(&o.stdout);
     // Upstream emits a JSON array of strings.

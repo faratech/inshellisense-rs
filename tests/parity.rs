@@ -34,7 +34,9 @@ fn build_registry() -> Registry {
     let extras_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("specs-data")
         .join("extras");
-    let mut registry = Registry::new_with_defaults();
+    // `false`: never probe a host coreutils install — its specs would make
+    // these comparisons depend on the machine the tests run on.
+    let mut registry = Registry::new_with_options(false);
     registry.load_spec_dir(&extras_dir);
     registry
 }

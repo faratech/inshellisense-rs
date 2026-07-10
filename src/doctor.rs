@@ -199,6 +199,14 @@ fn print_environment_summary() {
             "not in a wrapped session"
         }
     );
+    match crate::coreutils::detect() {
+        Some(cu) => println!(
+            "  coreutils     {} ({} utilities)",
+            cu.binary.display(),
+            cu.utils.len()
+        ),
+        None => println!("  coreutils     not installed"),
+    }
     println!("  js runtime    none (pure Rust)");
 }
 
