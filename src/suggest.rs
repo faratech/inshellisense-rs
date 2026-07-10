@@ -536,7 +536,7 @@ fn cmd_opt(names: &[&str], description: &str) -> Opt {
 }
 
 /// Port of upstream's name-picking logic from
-/// `/tmp/inshellisense/src/runtime/suggestion.ts::filter`.
+/// upstream inshellisense's `src/runtime/suggestion.ts::filter`.
 ///
 /// When the user has typed a partial token (e.g. `ls -`), upstream
 /// picks the first alias in `names` that starts with the partial —

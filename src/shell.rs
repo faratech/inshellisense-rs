@@ -1,6 +1,6 @@
 //! Shell abstraction — enum, detection, source commands, init snippets.
 //!
-//! Port of `/tmp/inshellisense/src/utils/shell.ts`. Handles the supported shells:
+//! Port of upstream inshellisense's `src/utils/shell.ts`. Handles the supported shells:
 //!   bash, zsh, fish, pwsh (PowerShell Core), powershell (Windows),
 //!   xonsh, nu (Nushell), and cmd.exe on Windows.
 
@@ -19,7 +19,7 @@ pub enum Shell {
 
 /// Complete spawn descriptor for `pty::run_wrapped_shell`. Computed from
 /// a `Shell` value via `Shell::spawn_target`. Port of
-/// `/tmp/inshellisense/src/isterm/pty.ts:377-429` (`convertToPtyTarget`).
+/// upstream inshellisense's `src/isterm/pty.ts:377-429` (`convertToPtyTarget`).
 pub struct SpawnTarget {
     /// The shell binary name or absolute path (passed to portable-pty).
     pub binary: String,
@@ -176,7 +176,7 @@ impl Shell {
 
 /// Detect the active shell from environment variables, falling back to
 /// parent-process inspection if none are set. Port of `inferShell` at
-/// `/tmp/inshellisense/src/utils/shell.ts:173-200`.
+/// upstream inshellisense's `src/utils/shell.ts:173-200`.
 pub fn detect() -> Shell {
     if std::env::var("NU_VERSION").is_ok() {
         return Shell::Nu;

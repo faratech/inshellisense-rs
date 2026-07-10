@@ -1,11 +1,10 @@
 //! Parity scanner — systematic divergence detection between inshellisense-rs
 //! and upstream inshellisense.
 //!
-//! See `/root/.claude/plans/whimsical-weaving-hanrahan.md` for the full
-//! design. tl;dr: for each category (cli, init, doctor, complete,
-//! specs, render), run the same corpus of inputs through both binaries,
-//! normalize their outputs into a common shape, and emit a markdown
-//! report that ranks divergences by user impact.
+//! For each category (cli, init, doctor, complete, specs, render), run the
+//! same corpus of inputs through both binaries, normalize their outputs into
+//! a common shape, and emit a markdown report that ranks divergences by user
+//! impact.
 
 pub mod cli;
 pub mod complete;

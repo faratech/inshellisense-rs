@@ -1,5 +1,5 @@
 //! Spec resolver — Rust port of inshellisense's runSubcommand/runArg/runOption
-//! from /tmp/inshellisense/src/runtime/runtime.ts:235-406.
+//! from upstream inshellisense's `src/runtime/runtime.ts:235-406`.
 //!
 //! Given a tokenized command line + a root Spec, walks the tree to find the
 //! "active context": which subcommand the user is inside, which arg they're

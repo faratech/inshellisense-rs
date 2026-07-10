@@ -1,6 +1,6 @@
 //! Popup suggestion renderer — 1:1 port of upstream inshellisense's
 //! `suggestionManager.render()` + `ui-root._render()` (see
-//! `/tmp/inshellisense/src/ui/suggestionManager.ts` and `ui-root.ts`).
+//! upstream inshellisense's `src/ui/suggestionManager.ts` and `ui-root.ts`).
 //!
 //! Visual layout: two side-by-side boxes drawn with Unicode box-drawing
 //! characters (┌ ─ ┐ │ └ ┘). The left box is 40 columns wide and

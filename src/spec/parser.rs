@@ -1,5 +1,5 @@
 //! Tokenizer — Rust port of inshellisense's lex() from
-//! /tmp/inshellisense/src/runtime/parser.ts.
+//! upstream inshellisense's `src/runtime/parser.ts`.
 //!
 //! The state machine is preserved exactly so parity tests hold. Four active
 //! states: reading-quoted, reading-quote-continued, reading-flag, reading-cmd.

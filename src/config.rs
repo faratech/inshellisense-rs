@@ -1,5 +1,5 @@
 //! Global config file loader — parity port of
-//! `/tmp/inshellisense/src/utils/config.ts`.
+//! upstream inshellisense's `src/utils/config.ts`.
 //!
 //! Load order (last one wins per field):
 //!   1. `~/.inshellisenserc` (upstream, for compat)

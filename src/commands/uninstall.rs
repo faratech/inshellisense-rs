@@ -1,6 +1,6 @@
 //! `is uninstall` — remove cached resources, preserving user config.
 //!
-//! Port of `/tmp/inshellisense/src/commands/uninstall.ts`. Deletes the
+//! Port of upstream inshellisense's `src/commands/uninstall.ts`. Deletes the
 //! `~/.inshellisense/` resource tree (log/, shell/, init/, zsh-dotdir/, spec/,
 //! version.txt) but leaves `~/.config/inshellisense-rs/` (user config, key
 //! bindings, user specs) intact. Idempotent — re-running is safe.

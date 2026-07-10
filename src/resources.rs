@@ -2,7 +2,7 @@
 //! and generate per-shell init files into `~/.inshellisense/init/<shell>/`.
 //!
 //! This is the equivalent of upstream's `unpackResources` + `createShellConfigs`
-//! flow (`/tmp/inshellisense/src/utils/shell.ts:106-134`). Called eagerly
+//! flow (upstream inshellisense's `src/utils/shell.ts:106-134`). Called eagerly
 //! from `Cmd::Start`, `Cmd::Init`, and `Cmd::Reinit` so the runtime layout
 //! is always in sync with the installed binary.
 //!
@@ -312,7 +312,7 @@ fn init_file_contents(shell: Shell) -> String {
 /// user startup sourcing to their matching integration scripts so each user
 /// file is sourced exactly once.
 ///
-/// Port of the flow at `/tmp/inshellisense/src/utils/shell.ts:54-163`.
+/// Port of the flow at upstream inshellisense's `src/utils/shell.ts:54-163`.
 fn populate_zsh_dotdir() -> Result<()> {
     let dir = paths::zsh_dotdir().context("no HOME directory")?;
     fs::create_dir_all(&dir)?;
