@@ -66,6 +66,10 @@ impl Shell {
             Shell::Bash => {
                 args.push("--init-file".into());
                 args.push(path_of("shellIntegration.bash"));
+                // Tells shellIntegration.bash that bash did *not* read the
+                // user's startup files itself, so the script must source them.
+                // Unset by the script, so nested shells don't re-source them.
+                env.push(("INSH_RS_BASH_INIT_FILE".into(), "1".into()));
             }
             Shell::Zsh => {
                 // Preserve the user's original ZDOTDIR (so their .zshrc etc.
@@ -74,10 +78,7 @@ impl Shell {
                 if let Ok(user_zdotdir) = std::env::var("ZDOTDIR") {
                     env.push(("USER_ZDOTDIR".into(), user_zdotdir));
                 } else if let Some(home) = std::env::var_os("HOME") {
-                    env.push((
-                        "USER_ZDOTDIR".into(),
-                        home.to_string_lossy().into_owned(),
-                    ));
+                    env.push(("USER_ZDOTDIR".into(), home.to_string_lossy().into_owned()));
                 }
                 env.push(("ZDOTDIR".into(), zsh_dotdir.display().to_string()));
             }
@@ -98,10 +99,7 @@ impl Shell {
                 // shadow them — matches upstream's ordering.
                 args.push("--rc".into());
                 if let Some(home) = crate::paths::home() {
-                    let candidates = [
-                        home.join(".xonshrc"),
-                        home.join(".config/xonsh/rc.xsh"),
-                    ];
+                    let candidates = [home.join(".xonshrc"), home.join(".config/xonsh/rc.xsh")];
                     for c in &candidates {
                         if c.exists() {
                             args.push(c.display().to_string());
@@ -117,23 +115,29 @@ impl Shell {
             #[cfg(windows)]
             Shell::Cmd => {
                 // cmd.exe uses the PROMPT env var for OSC 6973 markers.
-                // No shell integration script needed.
+                // No shell integration script needed. `$P` expands to the
+                // current drive and path — without the CWD marker the tracker
+                // never learned the directory, so filepath completion resolved
+                // against an empty base.
                 env.push((
                     "PROMPT".into(),
-                    "\x1b]6973;PS\x07$P$G \x1b]6973;PE\x07".into(),
+                    "\x1b]6973;PS\x07\x1b]6973;CWD;$P\x07$P$G \x1b]6973;PE\x07".into(),
                 ));
             }
         }
 
         if login {
             match self {
-                Shell::Bash => args.insert(0, "--login".into()),
+                // Bash deliberately gets no `--login`. An interactive *login*
+                // bash ignores `--init-file` outright and reads
+                // `~/.bash_profile` instead, so passing both silently dropped
+                // the shell integration. `shellIntegration.bash` performs the
+                // login startup sequence itself when `ISTERM_LOGIN` is set.
+                Shell::Bash => {}
                 Shell::Zsh | Shell::Fish | Shell::Xonsh | Shell::Nu => {
                     args.insert(0, "--login".into())
                 }
-                Shell::Pwsh | Shell::Powershell => {
-                    args.insert(0, "-Login".into())
-                }
+                Shell::Pwsh | Shell::Powershell => args.insert(0, "-Login".into()),
                 #[cfg(windows)]
                 Shell::Cmd => {} // cmd has no login concept
             }
@@ -198,12 +202,7 @@ pub fn detect() -> Shell {
             .next()
             .unwrap_or("")
             .strip_suffix(".exe")
-            .unwrap_or(
-                shell_env
-                    .rsplit(['/', '\\'])
-                    .next()
-                    .unwrap_or(""),
-            );
+            .unwrap_or(shell_env.rsplit(['/', '\\']).next().unwrap_or(""));
         match name {
             "bash" => return Shell::Bash,
             "zsh" => return Shell::Zsh,
@@ -262,5 +261,41 @@ mod tests {
         assert_eq!(Shell::Powershell.init_file_name(), "init.ps1");
         assert_eq!(Shell::Xonsh.init_file_name(), "init.xsh");
         assert_eq!(Shell::Nu.init_file_name(), "init.nu");
+    }
+
+    /// An interactive *login* bash ignores `--init-file` and reads
+    /// `~/.bash_profile` instead, so passing both silently dropped the shell
+    /// integration. `shellIntegration.bash` replays the login sequence itself
+    /// when `ISTERM_LOGIN` is set, so bash must not be given `--login`.
+    #[test]
+    fn login_bash_keeps_init_file_and_drops_login_flag() {
+        let shell_dir = std::path::Path::new("/tmp/shell");
+        let zsh_dotdir = std::path::Path::new("/tmp/zdot");
+        let target = Shell::Bash.spawn_target(shell_dir, zsh_dotdir, true);
+        assert!(
+            !target.args.iter().any(|a| a == "--login"),
+            "bash must not be spawned with --login: {:?}",
+            target.args
+        );
+        assert_eq!(target.args[0], "--init-file");
+        assert!(target.args[1].ends_with("shellIntegration.bash"));
+        // Tells the script that bash skipped the user's startup files.
+        assert!(
+            target
+                .env
+                .iter()
+                .any(|(k, v)| k == "INSH_RS_BASH_INIT_FILE" && v == "1")
+        );
+    }
+
+    /// Other shells still honor `--login`; only bash has the conflict.
+    #[test]
+    fn login_zsh_still_gets_login_flag() {
+        let target = Shell::Zsh.spawn_target(
+            std::path::Path::new("/tmp/shell"),
+            std::path::Path::new("/tmp/zdot"),
+            true,
+        );
+        assert_eq!(target.args.first().map(String::as_str), Some("--login"));
     }
 }

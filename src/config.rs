@@ -89,6 +89,11 @@ pub struct SpecsConfig {
     pub path: Vec<String>,
 }
 
+/// Keys the schema does not define. Captured rather than dropped so a typo
+/// like `maxSuggestion` is reported instead of silently doing nothing.
+/// Loading stays non-fatal: an unknown key warns, it does not brick the CLI.
+type Unknown = std::collections::BTreeMap<String, toml::Value>;
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 struct PartialConfig {
@@ -101,6 +106,8 @@ struct PartialConfig {
     #[serde(alias = "maxSuggestions")]
     max_suggestions: Option<u8>,
     ui: Option<UiMode>,
+    #[serde(flatten)]
+    unknown: Unknown,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -114,12 +121,16 @@ struct PartialBindings {
     accept_suggestion: Option<PartialKeyBinding>,
     #[serde(alias = "dismissSuggestions")]
     dismiss_suggestions: Option<PartialKeyBinding>,
+    #[serde(flatten)]
+    unknown: Unknown,
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 struct PartialSpecsConfig {
     path: Option<Vec<String>>,
+    #[serde(flatten)]
+    unknown: Unknown,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -128,6 +139,40 @@ struct PartialKeyBinding {
     key: Option<String>,
     shift: Option<bool>,
     control: Option<bool>,
+    #[serde(flatten)]
+    unknown: Unknown,
+}
+
+impl PartialConfig {
+    /// Fully-qualified names of every key the schema does not define.
+    fn unknown_keys(&self) -> Vec<String> {
+        let mut out: Vec<String> = self.unknown.keys().cloned().collect();
+        out.extend(self.specs.unknown.keys().map(|k| format!("specs.{k}")));
+        out.extend(
+            self.bindings
+                .unknown
+                .keys()
+                .map(|k| format!("bindings.{k}")),
+        );
+        let bindings = [
+            ("next_suggestion", &self.bindings.next_suggestion),
+            ("previous_suggestion", &self.bindings.previous_suggestion),
+            ("accept_suggestion", &self.bindings.accept_suggestion),
+            ("dismiss_suggestions", &self.bindings.dismiss_suggestions),
+        ];
+        for (name, binding) in bindings {
+            if let Some(binding) = binding {
+                out.extend(
+                    binding
+                        .unknown
+                        .keys()
+                        .map(|k| format!("bindings.{name}.{k}")),
+                );
+            }
+        }
+        out.sort();
+        out
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -212,15 +257,28 @@ impl KeyBinding {
             // Shift+Tab is backtab; Ctrl+Tab has no standard sequence.
             "tab" => self.shift && !self.control && bytes == b"\x1b[Z",
             other => {
+                let mut chars = other.chars();
+                let (Some(c), None) = (chars.next(), chars.next()) else {
+                    return false;
+                };
                 // Ctrl + single ASCII letter → C0 control byte (Ctrl-A=0x01).
                 if self.control && !self.shift {
-                    let mut chars = other.chars();
-                    if let (Some(c), None) = (chars.next(), chars.next()) {
-                        if c.is_ascii_alphabetic() {
-                            return bytes == [(c.to_ascii_uppercase() as u8) & 0x1f];
-                        }
+                    if c.is_ascii_alphabetic() {
+                        return bytes == [(c.to_ascii_uppercase() as u8) & 0x1f];
                     }
+                    return false;
                 }
+                // Shift + a character key. A terminal does not report a shift
+                // bit for character keys — it reports the *shifted character*.
+                // So `{ key = "a", shift = true }` must match the byte(s) for
+                // `A`. Without this a shift-only character binding could never
+                // match anything. Keys with no distinct shifted form (`?`) are
+                // accepted as themselves.
+                if self.shift && !self.control {
+                    let shifted: String = c.to_uppercase().collect();
+                    return bytes == shifted.as_bytes() || bytes == other.as_bytes();
+                }
+                // Ctrl+Shift+<char> has no portable encoding.
                 false
             }
         }
@@ -270,6 +328,35 @@ pub fn load() -> Config {
     cfg
 }
 
+/// Human-readable problems with the on-disk config files: parse errors,
+/// unreadable files, and keys the schema does not define. `load()` tolerates
+/// all of these; `is doctor` reports them.
+pub fn diagnose() -> Vec<String> {
+    let mut problems = Vec::new();
+    for path in candidate_paths() {
+        if !path.exists() {
+            continue;
+        }
+        let text = match fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(e) => {
+                problems.push(format!("{}: cannot read ({e})", path.display()));
+                continue;
+            }
+        };
+        match toml::from_str::<PartialConfig>(&text) {
+            Ok(parsed) => problems.extend(
+                parsed
+                    .unknown_keys()
+                    .into_iter()
+                    .map(|key| format!("{}: unknown key `{key}`", path.display())),
+            ),
+            Err(e) => problems.push(format!("{}: invalid TOML ({e})", path.display())),
+        }
+    }
+    problems
+}
+
 fn candidate_paths() -> Vec<PathBuf> {
     let mut out = paths::upstream_config_files();
     if let Some(p) = paths::user_config_file() {
@@ -284,7 +371,12 @@ fn try_load(path: &PathBuf) -> Option<PartialConfig> {
     }
     match fs::read_to_string(path) {
         Ok(text) => match toml::from_str::<PartialConfig>(&text) {
-            Ok(c) => Some(c),
+            Ok(c) => {
+                for key in c.unknown_keys() {
+                    eprintln!("is: {}: unknown config key `{}`", path.display(), key);
+                }
+                Some(c)
+            }
             Err(e) => {
                 eprintln!("is: {} is invalid TOML: {}", path.display(), e);
                 None
@@ -401,6 +493,59 @@ path = ["/tmp/extra"]
         assert!(!KeyBinding::new("down").matches(b"\x1b[A"));
     }
 
+    /// A terminal reports the shifted *character*, not a shift bit, so a
+    /// shift-only character binding must match the uppercase byte. Previously
+    /// this fell through to `false` and could never match any input.
+    #[test]
+    fn shift_only_character_binding_matches_shifted_char() {
+        let shift_a = KeyBinding {
+            key: "a".into(),
+            shift: true,
+            control: false,
+        };
+        assert!(shift_a.matches(b"A"));
+        assert!(!shift_a.matches(b"b"));
+        // A key with no distinct shifted form still matches itself.
+        let shift_question = KeyBinding {
+            key: "?".into(),
+            shift: true,
+            control: false,
+        };
+        assert!(shift_question.matches(b"?"));
+    }
+
+    /// Unknown / misspelled keys are surfaced rather than silently ignored.
+    #[test]
+    fn unknown_config_keys_are_reported() {
+        let text = r#"
+maxSuggestion = 7
+[specs]
+paths = ["/x"]
+[bindings]
+acceptSuggestions = { key = "tab" }
+[bindings.accept_suggestion]
+key = "tab"
+modifier = "ctrl"
+"#;
+        let parsed: PartialConfig = toml::from_str(text).unwrap();
+        assert_eq!(
+            parsed.unknown_keys(),
+            vec![
+                "bindings.acceptSuggestions",
+                "bindings.accept_suggestion.modifier",
+                "maxSuggestion",
+                "specs.paths",
+            ]
+        );
+        // A correctly-spelled config reports nothing.
+        let ok: PartialConfig = toml::from_str(
+            "max_suggestions = 7
+",
+        )
+        .unwrap();
+        assert!(ok.unknown_keys().is_empty());
+    }
+
     #[test]
     fn key_binding_honors_modifiers() {
         let ctrl_down = KeyBinding {
@@ -423,6 +568,12 @@ path = ["/tmp/extra"]
             control: true,
         };
         assert!(ctrl_n.matches(b"\x0e")); // Ctrl-N
+        let ctrl_shift_n = KeyBinding {
+            key: "n".into(),
+            shift: true,
+            control: true,
+        };
+        assert!(!ctrl_shift_n.matches(b"\x0e")); // no portable encoding
         let shift_tab = KeyBinding {
             key: "tab".into(),
             shift: true,

@@ -97,24 +97,39 @@ fn patch_make_options(spec: &mut Subcommand) {
     const ADD: &[(&str, &str)] = &[
         ("--always-make", "Unconditionally make all targets"),
         ("--assume-new", "Consider file to be infinitely new"),
-        ("--assume-old", "Consider file to be very old and do not remake it"),
-        ("--check-symlink-times", "Use the latest mtime between symlinks and target"),
+        (
+            "--assume-old",
+            "Consider file to be very old and do not remake it",
+        ),
+        (
+            "--check-symlink-times",
+            "Use the latest mtime between symlinks and target",
+        ),
         ("--directory", "Change to DIRECTORY before doing anything"),
         ("--dry-run", "Print commands without executing them"),
-        ("--environment-overrides", "Environment variables override makefiles"),
+        (
+            "--environment-overrides",
+            "Environment variables override makefiles",
+        ),
         ("--eval", "Evaluate string as makefile syntax"),
         ("--ignore-errors", "Ignore errors from commands"),
         ("--include-dir", "Search directory for included makefiles"),
         ("--jobs", "Allow N jobs at once"),
         ("--jobserver-style", "Select the jobserver style"),
         ("--just-print", "Print commands without executing them"),
-        ("--keep-going", "Keep going when some targets cannot be made"),
+        (
+            "--keep-going",
+            "Keep going when some targets cannot be made",
+        ),
         ("--load-average", "Avoid starting jobs above a load average"),
         ("--makefile", "Read FILE as a makefile"),
         ("--max-load", "Avoid starting jobs above a load average"),
         ("--new-file", "Consider file to be infinitely new"),
         ("--no-keep-going", "Turn off keep-going mode"),
-        ("--old-file", "Consider file to be very old and do not remake it"),
+        (
+            "--old-file",
+            "Consider file to be very old and do not remake it",
+        ),
         ("--output-sync", "Synchronize output of parallel jobs"),
         ("--quiet", "Run no commands; exit status says if up to date"),
         ("--recon", "Print commands without executing them"),
@@ -153,7 +168,11 @@ fn add_subcommand_alias(
 }
 
 fn add_option(spec: &mut Subcommand, name: &str, description: &str) {
-    if spec.options.iter().any(|o| o.names.iter().any(|n| n == name)) {
+    if spec
+        .options
+        .iter()
+        .any(|o| o.names.iter().any(|n| n == name))
+    {
         return;
     }
     spec.options.push(opt(name, description));
@@ -163,8 +182,16 @@ fn add_option(spec: &mut Subcommand, name: &str, description: &str) {
 /// options upstream lists.
 fn patch_npm(spec: &mut Subcommand) {
     const ADD: &[(&str, &str, bool)] = &[
-        ("--workspace", "Run the command in the context of the given workspace", true),
-        ("--workspaces", "Run the command in the context of all workspaces", false),
+        (
+            "--workspace",
+            "Run the command in the context of the given workspace",
+            true,
+        ),
+        (
+            "--workspaces",
+            "Run the command in the context of all workspaces",
+            false,
+        ),
     ];
     for s in &mut spec.subcommands {
         let is_run = s.names.iter().any(|n| n == "run" || n == "run-script");
@@ -208,14 +235,23 @@ fn patch_tar(spec: &mut Subcommand) {
         ("-d", "Find differences between archive and file system"),
         ("-t", "List the contents of an archive"),
         ("-r", "Append files to the end of an archive"),
-        ("-u", "Append files which are newer than the corresponding copy in the archive"),
+        (
+            "-u",
+            "Append files which are newer than the corresponding copy in the archive",
+        ),
         ("-x", "Extract files from an archive"),
         ("--delete", "Delete from the archive"),
         ("--test-label", "Test the archive volume label and exit"),
-        ("--show-defaults", "Show built-in defaults for various tar options"),
+        (
+            "--show-defaults",
+            "Show built-in defaults for various tar options",
+        ),
         ("-?", "Display a short option summary and exit"),
         ("--usage", "Display a list of available options and exit"),
-        ("--version", "Print program version and copyright information and exit"),
+        (
+            "--version",
+            "Print program version and copyright information and exit",
+        ),
     ];
     for (n, d) in ADD {
         if !spec.options.iter().any(|o| o.names.iter().any(|x| x == n)) {
@@ -229,9 +265,27 @@ fn patch_tar(spec: &mut Subcommand) {
 /// shell generator listing installed unit files.
 fn patch_systemctl(spec: &mut Subcommand) {
     const UNIT_CMDS: &[&str] = &[
-        "status", "start", "stop", "restart", "reload", "try-restart", "enable", "disable",
-        "reenable", "mask", "unmask", "cat", "show", "is-active", "is-enabled", "is-failed",
-        "kill", "clean", "freeze", "thaw", "list-dependencies",
+        "status",
+        "start",
+        "stop",
+        "restart",
+        "reload",
+        "try-restart",
+        "enable",
+        "disable",
+        "reenable",
+        "mask",
+        "unmask",
+        "cat",
+        "show",
+        "is-active",
+        "is-enabled",
+        "is-failed",
+        "kill",
+        "clean",
+        "freeze",
+        "thaw",
+        "list-dependencies",
     ];
     for s in &mut spec.subcommands {
         let is_unit_cmd = s
@@ -265,12 +319,28 @@ fn patch_systemctl(spec: &mut Subcommand) {
 /// yarn: the extractor dropped 6 root options present upstream.
 fn patch_yarn(spec: &mut Subcommand) {
     const ADD: &[(&str, &str, bool)] = &[
-        ("--cache-folder", "Specify a custom folder to store the yarn cache", true),
-        ("--check-files", "Verify file tree of packages for consistency", false),
+        (
+            "--cache-folder",
+            "Specify a custom folder to store the yarn cache",
+            true,
+        ),
+        (
+            "--check-files",
+            "Verify file tree of packages for consistency",
+            false,
+        ),
         ("--cwd", "Working directory to use", true),
-        ("--update-checksums", "Update package checksums from current repo", false),
+        (
+            "--update-checksums",
+            "Update package checksums from current repo",
+            false,
+        ),
         ("--use-yarnrc", "Specifies a yarnrc file to use", true),
-        ("--verbose", "Output verbose messages on internal operations", false),
+        (
+            "--verbose",
+            "Output verbose messages on internal operations",
+            false,
+        ),
     ];
     for (n, d, takes_arg) in ADD {
         if spec.options.iter().any(|o| o.names.iter().any(|x| x == n)) {
@@ -286,7 +356,11 @@ fn patch_yarn(spec: &mut Subcommand) {
 
 /// gh: the long-standing `co` alias (`pr checkout`) is missing from our snapshot.
 fn patch_gh(spec: &mut Subcommand) {
-    if spec.subcommands.iter().any(|s| s.names.iter().any(|n| n == "co")) {
+    if spec
+        .subcommands
+        .iter()
+        .any(|s| s.names.iter().any(|n| n == "co"))
+    {
         return;
     }
     let mut co = sub("co", "Alias for 'pr checkout'");
@@ -332,7 +406,9 @@ fn patch_asciinema(spec: &mut Subcommand) {
             continue;
         }
         for o in &mut s.options {
-            if o.names.iter().any(|n| n == "-i" || n == "--idle-time-limit")
+            if o.names
+                .iter()
+                .any(|n| n == "-i" || n == "--idle-time-limit")
                 && o.requires_separator.is_none()
             {
                 o.requires_separator = Some("=".to_string());
@@ -421,28 +497,58 @@ fn terraform() -> Subcommand {
             sub("plan", "Show changes required by the current configuration"),
             sub("apply", "Create or update infrastructure"),
             sub("destroy", "Destroy previously-created infrastructure"),
-            sub("console", "Try Terraform expressions at an interactive command prompt"),
+            sub(
+                "console",
+                "Try Terraform expressions at an interactive command prompt",
+            ),
             sub("fmt", "Reformat your configuration in the standard style"),
-            sub("force-unlock", "Release a stuck lock on the current workspace"),
+            sub(
+                "force-unlock",
+                "Release a stuck lock on the current workspace",
+            ),
             sub("get", "Install or upgrade remote Terraform modules"),
-            sub("graph", "Generate a Graphviz graph of the steps in an operation"),
-            sub("import", "Associate existing infrastructure with a Terraform resource"),
+            sub(
+                "graph",
+                "Generate a Graphviz graph of the steps in an operation",
+            ),
+            sub(
+                "import",
+                "Associate existing infrastructure with a Terraform resource",
+            ),
             sub("login", "Obtain and save credentials for a remote host"),
-            sub("logout", "Remove locally-stored credentials for a remote host"),
+            sub(
+                "logout",
+                "Remove locally-stored credentials for a remote host",
+            ),
             sub("output", "Show output values from your root module"),
-            sub("providers", "Show the providers required for this configuration"),
+            sub(
+                "providers",
+                "Show the providers required for this configuration",
+            ),
             sub("refresh", "Update the state to match remote systems"),
             sub("show", "Show the current state or a saved plan"),
             sub("state", "Advanced state management"),
             sub("taint", "Mark a resource instance as not fully functional"),
-            sub("untaint", "Remove the 'tainted' state from a resource instance"),
+            sub(
+                "untaint",
+                "Remove the 'tainted' state from a resource instance",
+            ),
             sub("workspace", "Workspace management"),
         ],
         options: vec![
             opt("-install-autocomplete", "Install bash/zsh tab completion"),
-            opt("-uninstall-autocomplete", "Uninstall bash/zsh tab completion"),
-            opt("-help", "Show this help output, or the help for a specified subcommand"),
-            opt("-chdir", "Switch to a different working directory before executing"),
+            opt(
+                "-uninstall-autocomplete",
+                "Uninstall bash/zsh tab completion",
+            ),
+            opt(
+                "-help",
+                "Show this help output, or the help for a specified subcommand",
+            ),
+            opt(
+                "-chdir",
+                "Switch to a different working directory before executing",
+            ),
             opt("-version", "Show the current Terraform version"),
         ],
         ..Default::default()

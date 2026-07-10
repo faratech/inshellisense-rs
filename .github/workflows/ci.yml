@@ -39,29 +39,43 @@ jobs:
 
       - name: Check release binary size
         run: |
+          # Compare raw bytes. Truncating to whole MiB first let anything
+          # under 7 MiB pass a nominal 6 MiB ceiling.
           size=$(stat -c '%s' target/release/is)
-          mb=$((size / 1024 / 1024))
-          echo "Release binary: ${size} bytes (${mb} MB)"
-          if [ $mb -gt 6 ]; then
-            echo "::error::Binary exceeded 6 MB ceiling"
+          limit=$((6 * 1024 * 1024))
+          echo "Release binary: ${size} bytes (limit ${limit})"
+          if [ "$size" -gt "$limit" ]; then
+            echo "::error::Binary is ${size} bytes, over the ${limit}-byte (6 MiB) ceiling"
             exit 1
           fi
 
       - name: rustfmt check
         run: cargo fmt --all -- --check
-        continue-on-error: true
 
       - name: clippy
         run: cargo clippy --release --all-targets -- -D warnings
-        continue-on-error: true
 
       - name: Smoke test binary
         run: |
           ./target/release/is --version
-          ./target/release/is doctor
+          ./target/release/is reinit
+          # doctor's exit code is the number of failing suites. A bare runner
+          # has a ~/.bashrc that doesn't source the plugin, so a small non-zero
+          # code is expected; anything larger means doctor itself crashed.
+          set +e; ./target/release/is doctor; doctor_code=$?; set -e
+          if [ "$doctor_code" -gt 5 ]; then
+            echo "::error::is doctor exited $doctor_code (crash, not a failing check)"
+            exit 1
+          fi
           ./target/release/is list-specs | head -20
           ./target/release/is complete "git ch"
           ./target/release/is complete "docker ru"
+          # Destructive commands must reject flags they don't implement
+          # rather than ignoring them and running anyway.
+          if ./target/release/is uninstall --dry-run; then
+            echo "::error::is uninstall accepted an unimplemented --dry-run"
+            exit 1
+          fi
 
       - name: Report parity coverage
         run: |
@@ -93,10 +107,10 @@ jobs:
 
       - name: Verify extraction ratio
         run: |
-          pure=$(python3 -c "import json; print(json.load(open('/tmp/specs-data-ci/index.json'))['stats']['pure'])")
-          total=$(python3 -c "import json; print(json.load(open('/tmp/specs-data-ci/index.json'))['stats']['total'])")
+          stats=$(python3 -c "import json; s=json.load(open('/tmp/specs-data-ci/index.json'))['stats']; print(s['pure'], s['total'], s.get('error', 0))")
+          read -r pure total errors <<< "$stats"
           pct=$(python3 -c "print(f'{$pure/$total*100:.1f}')")
-          echo "Pure extract: ${pure}/${total} (${pct}%)"
+          echo "Pure extract: ${pure}/${total} (${pct}%), errors: ${errors}"
           # Tightened to 100% after phase 6.2e closed the method-
           # shorthand generateSpec gap. All 1470 upstream specs now
           # extract cleanly with zero partials.
@@ -104,5 +118,17 @@ jobs:
           below=$(python3 -c "print(int(${pct} < ${min_pct}))")
           if [ "$below" = "1" ]; then
             echo "::error::Coverage ${pct}% below ${min_pct}% threshold"
+            exit 1
+          fi
+          # A spec that failed to emit still counted toward `pure`, so the
+          # ratio alone could read 100% while specs silently disappeared.
+          if [ "$errors" -ne 0 ]; then
+            echo "::error::${errors} spec(s) failed to extract"
+            exit 1
+          fi
+          emitted=$(find /tmp/specs-data-ci -name '*.json' ! -name index.json | wc -l)
+          echo "Emitted spec files: ${emitted}"
+          if [ "$emitted" -lt "$total" ]; then
+            echo "::error::Only ${emitted} of ${total} specs were written to disk"
             exit 1
           fi

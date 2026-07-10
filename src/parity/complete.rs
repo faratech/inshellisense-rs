@@ -46,12 +46,26 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
         .canonicalize()
         .unwrap_or_else(|_| cfg.corpus_dir.join("fixtures").join("cwd"));
     let corpus_path = cfg.corpus_dir.join("complete.jsonl");
+    // A missing, empty, or all-malformed corpus proves nothing. Reporting it
+    // as "skipped" left the category with zero cases, which used to score
+    // 100% and pass the threshold — silently disabling coverage.
     let entries = match load_corpus(&corpus_path) {
-        Ok(e) => e,
-        Err(_) => {
-            report.summary = format!(
-                "corpus not found at {} — category skipped",
-                corpus_path.display()
+        Ok(e) if !e.is_empty() => e,
+        Ok(_) => {
+            report.push_fail(
+                "corpus",
+                format!("corpus at {} has no usable cases", corpus_path.display()),
+                Vec::new(),
+                3,
+            );
+            return report;
+        }
+        Err(e) => {
+            report.push_fail(
+                "corpus",
+                format!("cannot read corpus at {}: {e}", corpus_path.display()),
+                Vec::new(),
+                3,
             );
             return report;
         }
@@ -61,66 +75,73 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
     let cases: Vec<Case> = std::thread::scope(|s| {
         let handles: Vec<_> = entries
             .iter()
-            .map(|entry| s.spawn(|| {
-            let label = entry.label.clone().unwrap_or_else(|| entry.line.clone());
+            .map(|entry| {
+                s.spawn(|| {
+                    let label = entry.label.clone().unwrap_or_else(|| entry.line.clone());
 
-            let ours_json =
-                run_complete(&cfg.ours, &entry.line, entry.cwd.as_deref(), true, &fixture_cwd);
-            let upstream_json = run_complete(
-                &cfg.upstream,
-                &entry.line,
-                entry.cwd.as_deref(),
-                false,
-                &fixture_cwd,
-            );
+                    let ours_json = run_complete(
+                        &cfg.ours,
+                        &entry.line,
+                        entry.cwd.as_deref(),
+                        true,
+                        &fixture_cwd,
+                    );
+                    let upstream_json = run_complete(
+                        &cfg.upstream,
+                        &entry.line,
+                        entry.cwd.as_deref(),
+                        false,
+                        &fixture_cwd,
+                    );
 
-            let ours_blob = match parse_ours(&ours_json) {
-                Ok(b) => b,
-                Err(e) => {
-                    return Case {
-                        name: label,
-                        result: CaseResult::Fail {
-                            reason: format!("failed to parse ours: {}", e),
-                            details: vec![ours_json.chars().take(200).collect()],
-                        },
-                        impact: 90,
+                    let ours_blob = match parse_ours(&ours_json) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            return Case {
+                                name: label,
+                                result: CaseResult::Fail {
+                                    reason: format!("failed to parse ours: {}", e),
+                                    details: vec![ours_json.chars().take(200).collect()],
+                                },
+                                impact: 90,
+                            };
+                        }
                     };
-                }
-            };
-            let upstream_blob = match parse_upstream(&upstream_json) {
-                Ok(b) => b,
-                Err(e) => {
-                    return Case {
-                        name: label,
-                        result: CaseResult::Fail {
-                            reason: format!("failed to parse upstream: {}", e),
-                            details: vec![upstream_json.chars().take(200).collect()],
-                        },
-                        impact: 90,
+                    let upstream_blob = match parse_upstream(&upstream_json) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            return Case {
+                                name: label,
+                                result: CaseResult::Fail {
+                                    reason: format!("failed to parse upstream: {}", e),
+                                    details: vec![upstream_json.chars().take(200).collect()],
+                                },
+                                impact: 90,
+                            };
+                        }
                     };
-                }
-            };
 
-            let diff = diff_blobs(&upstream_blob, &ours_blob);
-            if diff.is_empty() {
-                Case {
-                    name: label,
-                    result: CaseResult::Pass,
-                    impact: 0,
-                }
-            } else {
-                let impact = classify_impact(&upstream_blob, &ours_blob);
-                let reason = summarize(&diff);
-                Case {
-                    name: label,
-                    result: CaseResult::Fail {
-                        reason,
-                        details: diff,
-                    },
-                    impact,
-                }
-            }
-        }))
+                    let diff = diff_blobs(&upstream_blob, &ours_blob);
+                    if diff.is_empty() {
+                        Case {
+                            name: label,
+                            result: CaseResult::Pass,
+                            impact: 0,
+                        }
+                    } else {
+                        let impact = classify_impact(&upstream_blob, &ours_blob);
+                        let reason = summarize(&diff);
+                        Case {
+                            name: label,
+                            result: CaseResult::Fail {
+                                reason,
+                                details: diff,
+                            },
+                            impact,
+                        }
+                    }
+                })
+            })
             .collect();
         handles.into_iter().map(|h| h.join().unwrap()).collect()
     });
@@ -134,16 +155,23 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
     report
 }
 
+/// A malformed JSONL line is a corpus regression, not a line to skip.
 fn load_corpus(path: &Path) -> std::io::Result<Vec<CorpusEntry>> {
     let text = fs::read_to_string(path)?;
     let mut out = Vec::new();
-    for line in text.lines() {
+    for (idx, line) in text.lines().enumerate() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        if let Ok(entry) = serde_json::from_str::<CorpusEntry>(line) {
-            out.push(entry);
+        match serde_json::from_str::<CorpusEntry>(line) {
+            Ok(entry) => out.push(entry),
+            Err(e) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("{}:{}: {e}", path.display(), idx + 1),
+                ));
+            }
         }
     }
     Ok(out)
@@ -322,7 +350,12 @@ fn diff_blobs(upstream: &NormalizedBlob, ours: &NormalizedBlob) -> Vec<String> {
     if !missing.is_empty() {
         out.push(format!(
             "missing from ours: {}",
-            missing.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+            missing
+                .iter()
+                .take(5)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
 

@@ -21,6 +21,8 @@ use std::collections::HashMap;
 pub struct Engine {
     registry: Registry,
     history: Vec<String>,
+    /// mtime of the history file the current snapshot was read from.
+    history_revision: Option<std::time::SystemTime>,
     aliases: HashMap<String, String>,
     /// True for offline `complete` queries. Upstream's offline `complete`
     /// has no live shell-session history, so the `history` template must
@@ -37,10 +39,26 @@ impl Engine {
         Self {
             registry,
             history,
+            history_revision: None,
             aliases: HashMap::new(),
             offline: false,
             shell: None,
         }
+    }
+
+    /// Reload the ghost-text history if the shell has written to its history
+    /// file since the last load. The snapshot taken at startup went stale the
+    /// moment the user ran their first command.
+    pub fn refresh_history(&mut self) {
+        let Some(shell) = self.shell else {
+            return;
+        };
+        let revision = history::revision(shell);
+        if revision.is_some() && revision == self.history_revision {
+            return;
+        }
+        self.history_revision = revision;
+        self.history = history::load_for(shell);
     }
 
     pub fn set_aliases(&mut self, aliases: HashMap<String, String>) {
@@ -131,7 +149,15 @@ impl Engine {
         let Some(root) = shell_root.as_ref().or_else(|| self.registry.get(cmd)) else {
             return Vec::new();
         };
-        let result = resolver::resolve_with_registry(&self.registry, root, &tokens);
+        // PowerShell and cmd resolve names case-insensitively.
+        let case_insensitive = match self.shell {
+            Some(Shell::Pwsh) | Some(Shell::Powershell) => true,
+            #[cfg(windows)]
+            Some(Shell::Cmd) => true,
+            _ => false,
+        };
+        let result =
+            resolver::resolve_with_options(&self.registry, root, &tokens, case_insensitive);
 
         let partial = result
             .active_partial
@@ -164,6 +190,14 @@ impl Engine {
                     description: s.description.clone(),
                     suggestion_type: SuggestionType::Subcommand,
                     priority: Some(s.priority.unwrap_or(50)),
+                    // Carry the spec's own metadata through. Dropping it meant
+                    // the UI could never mark a destructive subcommand as
+                    // dangerous, nor show its icon or display name.
+                    display_name: s.display_name.clone(),
+                    icon: s.icon.clone(),
+                    is_dangerous: s.is_dangerous,
+                    deprecated: s.deprecated,
+                    hidden: s.hidden,
                     ..Default::default()
                 });
             }
@@ -177,19 +211,30 @@ impl Engine {
                 // Respect exclusive_on: if any of this option's names has
                 // already been used, or if any accepted option is listed in
                 // this option's exclusive_on set, suppress it.
-                let already_used = opt
+                use crate::spec::model::Repeatable;
+                let times_used = opt
                     .names
                     .iter()
-                    .any(|n| result.accepted_option_tokens.iter().any(|a| a == n));
-                use crate::spec::model::Repeatable;
-                let is_rep = matches!(opt.is_repeatable, Repeatable::Bool(true) | Repeatable::N(_));
-                if already_used && !is_rep {
+                    .map(|n| count_accepted(&result.accepted_option_tokens, n))
+                    .sum::<usize>();
+                // `Repeatable::N(n)` bounds the repeat count; it was treated as
+                // unbounded because the variant collapsed to a boolean.
+                let allowed = match opt.is_repeatable {
+                    Repeatable::Bool(false) => 1,
+                    Repeatable::Bool(true) => usize::MAX,
+                    Repeatable::N(n) => (n as usize).max(1),
+                };
+                if times_used >= allowed {
                     continue;
                 }
+                // `exclusive_on`/`depends_on` name options, and the user may
+                // have typed any of that option's aliases. Comparing the raw
+                // token against the declared name meant `-f` never satisfied a
+                // `dependsOn: ["--force"]`.
                 let excluded = opt
                     .exclusive_on
                     .iter()
-                    .any(|e| result.accepted_option_tokens.iter().any(|a| a == e));
+                    .any(|e| option_satisfied(&result, &result.accepted_option_tokens, e));
                 if excluded {
                     continue;
                 }
@@ -197,7 +242,7 @@ impl Engine {
                     && !opt
                         .depends_on
                         .iter()
-                        .any(|d| result.accepted_option_tokens.iter().any(|a| a == d));
+                        .any(|d| option_satisfied(&result, &result.accepted_option_tokens, d));
                 if dependency_missing {
                     continue;
                 }
@@ -218,6 +263,10 @@ impl Engine {
                     description: opt.description.clone(),
                     suggestion_type: SuggestionType::Option,
                     priority: Some(opt.priority.unwrap_or(45)),
+                    display_name: opt.display_name.clone(),
+                    icon: opt.icon.clone(),
+                    deprecated: opt.deprecated,
+                    hidden: opt.hidden,
                     ..Default::default()
                 });
             }
@@ -230,7 +279,31 @@ impl Engine {
                 cwd,
                 &partial,
                 !self.offline,
+                // `help` completes the *parent's* subcommands: `git help <TAB>`
+                // must list git's subcommands, not `help`'s (it has none).
+                result
+                    .parent_subcommand
+                    .map(|p| p.subcommands.as_slice())
+                    .unwrap_or(&result.subcommand.subcommands),
             ));
+
+            // An `isCommand` arg names another command (`sudo gi<TAB>`). The
+            // resolver can only substitute a *complete* command name, so a
+            // partial one offered nothing at all. Surface matching command
+            // names from the registry.
+            if arg.is_command && !partial.is_empty() {
+                for name in self.registry.names() {
+                    if !name.starts_with(&partial) || name.contains('/') {
+                        continue;
+                    }
+                    candidates.push(Suggestion {
+                        name,
+                        suggestion_type: SuggestionType::Subcommand,
+                        priority: Some(50),
+                        ..Default::default()
+                    });
+                }
+            }
         }
 
         // Filter by partial, using each candidate's effective filter strategy.
@@ -393,6 +466,9 @@ fn powershell_get_child_item_spec() -> Subcommand {
         name: Some("path".into()),
         is_optional: true,
         is_variadic: true,
+        // Without a template these overrides offered no filesystem entries at
+        // all — `ls <TAB>` in PowerShell completed nothing.
+        templates: vec![crate::spec::model::Template::Filepaths],
         ..Default::default()
     }];
     spec
@@ -441,6 +517,9 @@ fn cmd_dir_spec() -> Subcommand {
         name: Some("path".into()),
         is_optional: true,
         is_variadic: true,
+        // Without a template these overrides offered no filesystem entries at
+        // all — `ls <TAB>` in PowerShell completed nothing.
+        templates: vec![crate::spec::model::Template::Filepaths],
         ..Default::default()
     }];
     spec
@@ -472,6 +551,30 @@ fn cmd_opt(names: &[&str], description: &str) -> Opt {
 /// → `Checkout` keep the same case-insensitive prefix behaviour.
 ///
 /// Returns `None` when names is empty or no alias matches the partial.
+/// How many times `name` appears among the tokens the user has already typed.
+fn count_accepted(accepted: &[String], name: &str) -> usize {
+    accepted.iter().filter(|a| a.as_str() == name).count()
+}
+
+/// Has the option *named* `wanted` been supplied, under any of its aliases?
+///
+/// `exclusive_on` / `depends_on` reference an option by one of its names, but
+/// the user may have typed a different alias for the same option. Resolve
+/// `wanted` back to its `Opt` and check the whole alias set.
+fn option_satisfied(result: &ResolveResult, accepted: &[String], wanted: &str) -> bool {
+    if accepted.iter().any(|a| a == wanted) {
+        return true;
+    }
+    let Some(target) = result
+        .persistent_options
+        .iter()
+        .find(|o| o.names.iter().any(|n| n == wanted))
+    else {
+        return false;
+    };
+    target.names.iter().any(|n| accepted.iter().any(|a| a == n))
+}
+
 fn pick_primary(names: &[String], partial: &str) -> Option<String> {
     if names.is_empty() {
         return None;

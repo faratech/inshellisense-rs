@@ -8,11 +8,12 @@ use std::process::Command;
 pub fn run(cfg: &ScanConfig) -> CategoryReport {
     let mut report = CategoryReport::new(Category::Doctor);
 
-    let ours = run_doctor(&cfg.ours);
-    let upstream = run_doctor(&cfg.upstream);
+    let home = super::isolated_home(cfg);
+    let ours = run_doctor(&cfg.ours, &home);
+    let upstream = run_doctor(&cfg.upstream, &home);
 
-    let ours_n = normalize(&ours);
-    let up_n = normalize(&upstream);
+    let ours_n = normalize(&ours, &home);
+    let up_n = normalize(&upstream, &home);
 
     if ours_n == up_n {
         report.push_pass("doctor");
@@ -34,25 +35,29 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
     report
 }
 
-fn run_doctor(bin: &std::path::Path) -> String {
-    let out = Command::new(bin).arg("doctor").output();
-    match out {
+fn run_doctor(bin: &std::path::Path, home: &std::path::Path) -> String {
+    let mut cmd = Command::new(bin);
+    cmd.arg("doctor");
+    super::isolate(&mut cmd, home);
+    match cmd.output() {
         Ok(o) => {
             let mut s = String::from_utf8_lossy(&o.stdout).into_owned();
             s.push_str(&String::from_utf8_lossy(&o.stderr));
             s
         }
-        Err(e) => format!("<error: {}>", e),
+        Err(e) => format!("<error: {} failed to spawn: {}>", bin.display(), e),
     }
 }
 
-fn normalize(s: &str) -> String {
+fn normalize(s: &str, home: &std::path::Path) -> String {
     let no_ansi = strip_ansi(s);
     let mut out = no_ansi;
-    // Paths
-    for p in ["/root/.inshellisense", "/root/.inshellisense"] {
-        out = out.replace(p, "<CACHE>");
-    }
+    // Paths. Derive the cache path from the isolated HOME instead of
+    // hardcoding `/root`, which only ever matched one developer's machine
+    // (and was listed twice).
+    let cache = home.join(".inshellisense");
+    out = out.replace(&cache.display().to_string(), "<CACHE>");
+    out = out.replace(&home.display().to_string(), "<HOME>");
     for p in ["inshellisense-rs", "inshellisense"] {
         out = out.replace(p, "<PROG>");
     }

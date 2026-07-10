@@ -36,7 +36,7 @@ fn run_init(bin: &std::path::Path, shell: &str) -> String {
     let out = Command::new(bin).args(["init", shell]).output();
     match out {
         Ok(o) => String::from_utf8_lossy(&o.stdout).into_owned(),
-        Err(e) => format!("<error: {}>", e),
+        Err(e) => format!("<error: {} failed to spawn: {}>", bin.display(), e),
     }
 }
 
@@ -55,7 +55,13 @@ fn normalize(s: &str) -> String {
         out = out.replace(p, "<CACHE>");
     }
     // Program names
-    for p in ["inshellisense", "inshellisense-rs", "insh", "ISTERM", "INSH_RS"] {
+    for p in [
+        "inshellisense",
+        "inshellisense-rs",
+        "insh",
+        "ISTERM",
+        "INSH_RS",
+    ] {
         out = out.replace(p, "<PROG>");
     }
     out

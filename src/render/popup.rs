@@ -28,6 +28,9 @@ use std::io::{self, Write};
 use unicode_width::UnicodeWidthStr;
 
 pub const SUGGESTION_WIDTH: usize = 40;
+/// Below this the popup cannot be drawn without wrapping; skip it entirely
+/// rather than smearing partial rows the clear path cannot erase.
+pub const MIN_POPUP_WIDTH: usize = 12;
 pub const DESCRIPTION_WIDTH: usize = 30;
 pub const DESCRIPTION_HEIGHT: usize = 5;
 pub const BORDER_WIDTH: usize = 2;
@@ -89,15 +92,17 @@ pub enum Direction {
 
 pub struct PopupRenderer {
     max_suggestions: u8,
+    icons: IconSet,
     last_drawn_rows: u16,
     last_direction: Direction,
     last_signature: Option<u64>,
 }
 
 impl PopupRenderer {
-    pub fn new(max_suggestions: u8) -> Self {
+    pub fn new(max_suggestions: u8, icons: IconSet) -> Self {
         Self {
             max_suggestions: max_suggestions.max(1),
+            icons,
             last_drawn_rows: 0,
             last_direction: Direction::Below,
             last_signature: None,
@@ -106,7 +111,12 @@ impl PopupRenderer {
 
     /// Legacy non-interactive entry point — renders with `cursor=0` and
     /// `direction=Below` centered at column 0.
-    pub fn draw(&mut self, out: &mut impl Write, _tail: Option<&str>, all: &[Suggestion]) -> io::Result<()> {
+    pub fn draw(
+        &mut self,
+        out: &mut impl Write,
+        _tail: Option<&str>,
+        all: &[Suggestion],
+    ) -> io::Result<()> {
         self.draw_full(out, all, 0, Direction::Below, 0, 80)
     }
 
@@ -138,14 +148,28 @@ impl PopupRenderer {
 
         // Active description (for the right-hand box).
         let active = &all[cursor.min(all.len() - 1)];
-        let active_desc = active.description.clone().unwrap_or_default();
+        let mut active_desc = active.description.clone().unwrap_or_default();
+
+        // Adapt the layout to the terminal. The boxes used to be an
+        // unconditional 40 (+30) cells wide: in a narrower terminal every row
+        // wrapped, while `last_drawn_rows` counted *logical* rows, so `clear`
+        // erased the wrong lines and left the popup smeared on screen.
+        let cols = term_cols.max(1) as usize;
+        if cols < MIN_POPUP_WIDTH {
+            self.clear(out)?;
+            return Ok(());
+        }
+        let sug_width = SUGGESTION_WIDTH.min(cols);
+        if cols < sug_width + DESCRIPTION_WIDTH {
+            active_desc.clear();
+        }
 
         // Padding + swap decision (port of _calculatePadding).
         let (padding, swap_description) =
-            calculate_padding(cursor_col, term_cols, &active_desc);
+            calculate_padding(cursor_col, term_cols, &active_desc, sug_width);
 
         // Render each column.
-        let suggestion_box = render_suggestion_box(visible, active_in_page);
+        let suggestion_box = render_suggestion_box(visible, active_in_page, self.icons, sug_width);
         let description_box = render_description_box(&active_desc);
 
         let max_rows = suggestion_box.len().max(description_box.len());
@@ -188,6 +212,7 @@ impl PopupRenderer {
                 swap_description,
                 sug_row.is_some(),
                 desc_row.is_some(),
+                sug_width,
             );
             rows.push((row_pad, data));
         }
@@ -278,13 +303,18 @@ impl PopupRenderer {
 // ---------- upstream layout helpers ----------
 
 /// Port of `_calculatePadding` from suggestionManager.ts.
-fn calculate_padding(cursor_col: u16, term_cols: u16, description: &str) -> (usize, bool) {
+fn calculate_padding(
+    cursor_col: u16,
+    term_cols: u16,
+    description: &str,
+    sug_width: usize,
+) -> (usize, bool) {
     let cols = term_cols.max(1) as usize;
     let wrapped_padding = (cursor_col as usize) % cols;
     let max_padding = if !description.is_empty() {
-        cols.saturating_sub(SUGGESTION_WIDTH + DESCRIPTION_WIDTH)
+        cols.saturating_sub(sug_width + DESCRIPTION_WIDTH)
     } else {
-        cols.saturating_sub(SUGGESTION_WIDTH)
+        cols.saturating_sub(sug_width)
     };
     let swap_description = wrapped_padding > max_padding && !description.is_empty();
     let swapped_padding = if swap_description {
@@ -302,6 +332,7 @@ fn calc_row_padding(
     swap_description: bool,
     has_suggestion: bool,
     has_description: bool,
+    sug_width: usize,
 ) -> usize {
     if swap_description {
         if !has_description {
@@ -310,7 +341,7 @@ fn calc_row_padding(
             padding
         }
     } else if !has_suggestion {
-        padding + SUGGESTION_WIDTH
+        padding + sug_width
     } else {
         padding
     }
@@ -322,22 +353,21 @@ fn calc_row_padding(
 /// `\x1b[0m│<bg_on><38-cell padded text><bg_off>\x1b[0m│`, so the border
 /// bars are outside the highlighted region and chalk-style `\x1b[0m`
 /// resets bracket every color change.
-fn render_suggestion_box(visible: &[Suggestion], active_in_page: usize) -> Vec<String> {
-    let width = SUGGESTION_WIDTH;
-    let inner = width - BORDER_WIDTH; // 38 cells between the two borders
+fn render_suggestion_box(
+    visible: &[Suggestion],
+    active_in_page: usize,
+    icons: IconSet,
+    width: usize,
+) -> Vec<String> {
+    let inner = width.saturating_sub(BORDER_WIDTH); // cells between the borders
     let mut out = Vec::with_capacity(visible.len() + 2);
     // Top border
     out.push(format!("\x1b[0m┌{}┐", "─".repeat(inner)));
     for (idx, s) in visible.iter().enumerate() {
-        let text = format!("{} {}", icon_for(s), s.name);
+        let text = format!("{} {}", icon_for(s, icons), s.name);
         let padded = truncate_or_pad_wc(&text, inner);
         let body = if idx == active_in_page {
-            format!(
-                "{}{}{}\x1b[0m",
-                active_bg_on(),
-                padded,
-                ACTIVE_BG_OFF
-            )
+            format!("{}{}{}\x1b[0m", active_bg_on(), padded, ACTIVE_BG_OFF)
         } else {
             padded
         };
@@ -384,38 +414,73 @@ fn signature_hash(
     h.finish()
 }
 
-/// Upstream icon table (from /tmp/inshellisense/src/runtime/suggestion.ts).
-pub fn icon_for(s: &Suggestion) -> &'static str {
+/// Which glyph table `icon_for` draws from. Selected by the `use_nerd_font`
+/// config key: terminals without a Nerd Font render those glyphs as tofu, so
+/// emoji stay the default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum IconSet {
+    #[default]
+    Emoji,
+    /// Nerd Fonts' Font Awesome range (U+F000–U+F2FF).
+    NerdFont,
+}
+
+impl IconSet {
+    pub fn from_config(use_nerd_font: bool) -> Self {
+        if use_nerd_font {
+            IconSet::NerdFont
+        } else {
+            IconSet::Emoji
+        }
+    }
+}
+
+/// Upstream icon table (from upstream's `src/runtime/suggestion.ts`).
+pub fn icon_for(s: &Suggestion, icons: IconSet) -> &'static str {
     // Upstream first checks whether the spec's `icon` is already a
     // non-ASCII Unicode glyph (i.e. an actual emoji) and passes it
     // through. We don't store that in the extracted specs, so we fall
     // back to the suggestion type mapping.
     if let Some(icon) = s.icon.as_deref() {
-        if let Some(mapped) = icon_from_fig_uri(icon) {
+        if let Some(mapped) = icon_from_fig_uri(icon, icons) {
             return mapped;
         }
     }
-    match s.suggestion_type {
-        SuggestionType::File => "📄",
-        SuggestionType::Folder => "📁",
-        SuggestionType::Subcommand => "📦",
-        SuggestionType::Option => "🔗",
-        SuggestionType::Arg => "💲",
-        SuggestionType::Mixin => "🏝",
-        SuggestionType::Shortcut => "🔥",
-        SuggestionType::Special => "⭐",
+    icon_for_type(s.suggestion_type, icons)
+}
+
+fn icon_for_type(kind: SuggestionType, icons: IconSet) -> &'static str {
+    match (kind, icons) {
+        (SuggestionType::File, IconSet::Emoji) => "📄",
+        (SuggestionType::Folder, IconSet::Emoji) => "📁",
+        (SuggestionType::Subcommand, IconSet::Emoji) => "📦",
+        (SuggestionType::Option, IconSet::Emoji) => "🔗",
+        (SuggestionType::Arg, IconSet::Emoji) => "💲",
+        (SuggestionType::Mixin, IconSet::Emoji) => "🏝",
+        (SuggestionType::Shortcut, IconSet::Emoji) => "🔥",
+        (SuggestionType::Special, IconSet::Emoji) => "⭐",
+        // nf-fa-* glyphs; all single-width.
+        (SuggestionType::File, IconSet::NerdFont) => "\u{f15b}",
+        (SuggestionType::Folder, IconSet::NerdFont) => "\u{f07b}",
+        (SuggestionType::Subcommand, IconSet::NerdFont) => "\u{f1b2}",
+        (SuggestionType::Option, IconSet::NerdFont) => "\u{f0c1}",
+        (SuggestionType::Arg, IconSet::NerdFont) => "\u{f155}",
+        (SuggestionType::Mixin, IconSet::NerdFont) => "\u{f0ac}",
+        (SuggestionType::Shortcut, IconSet::NerdFont) => "\u{f0e7}",
+        (SuggestionType::Special, IconSet::NerdFont) => "\u{f005}",
     }
 }
 
-fn icon_from_fig_uri(icon: &str) -> Option<&'static str> {
-    match icon {
-        "fig://icon?type=folder" => Some("📁"),
-        "fig://icon?type=file" => Some("📄"),
-        "fig://icon?type=option" => Some("🔗"),
-        "fig://icon?type=command" => Some("📦"),
-        "fig://icon?type=string" => Some("💲"),
-        _ => None,
-    }
+fn icon_from_fig_uri(icon: &str, icons: IconSet) -> Option<&'static str> {
+    let kind = match icon {
+        "fig://icon?type=folder" => SuggestionType::Folder,
+        "fig://icon?type=file" => SuggestionType::File,
+        "fig://icon?type=option" => SuggestionType::Option,
+        "fig://icon?type=command" => SuggestionType::Subcommand,
+        "fig://icon?type=string" => SuggestionType::Arg,
+        _ => return None,
+    };
+    Some(icon_for_type(kind, icons))
 }
 
 /// Truncate text to `width` display cells, padding with spaces if
@@ -524,7 +589,11 @@ fn wrap_multiline(text: &str, width: usize, max_lines: usize) -> Vec<String> {
             }
             continue;
         }
-        let need = if current.is_empty() { word_w } else { current_w + 1 + word_w };
+        let need = if current.is_empty() {
+            word_w
+        } else {
+            current_w + 1 + word_w
+        };
         if need > width {
             lines.push(current.clone());
             current.clear();
@@ -603,7 +672,8 @@ mod tests {
 
     #[test]
     fn wrap_long_caps_at_max_lines() {
-        let text = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen";
+        let text =
+            "one two three four five six seven eight nine ten eleven twelve thirteen fourteen";
         let w = wrap_multiline(text, 10, 3);
         assert!(w.len() <= 3);
     }
@@ -616,8 +686,12 @@ mod tests {
 
     #[test]
     fn suggestion_box_top_bottom_match_width() {
-        let sugs = vec![mk("checkout", "Switch branches", SuggestionType::Subcommand)];
-        let box_ = render_suggestion_box(&sugs, 0);
+        let sugs = vec![mk(
+            "checkout",
+            "Switch branches",
+            SuggestionType::Subcommand,
+        )];
+        let box_ = render_suggestion_box(&sugs, 0, IconSet::default(), SUGGESTION_WIDTH);
         assert!(box_[0].contains("┌"));
         assert!(box_[0].ends_with('┐'));
         assert!(box_.last().unwrap().contains("└"));
@@ -635,12 +709,17 @@ mod tests {
     #[test]
     fn draw_full_emits_active_bg() {
         let mut buf: Vec<u8> = Vec::new();
-        let mut r = PopupRenderer::new(5);
+        let mut r = PopupRenderer::new(5, IconSet::default());
         let sugs = vec![
             mk("checkout", "Switch branches", SuggestionType::Subcommand),
-            mk("cherry-pick", "Apply the changes", SuggestionType::Subcommand),
+            mk(
+                "cherry-pick",
+                "Apply the changes",
+                SuggestionType::Subcommand,
+            ),
         ];
-        r.draw_full(&mut buf, &sugs, 0, Direction::Below, 10, 120).unwrap();
+        r.draw_full(&mut buf, &sugs, 0, Direction::Below, 10, 120)
+            .unwrap();
         let s = String::from_utf8_lossy(&buf);
         // Active bg is either truecolor (48;2;125;86;244) or 256-color
         // indexed (48;5;105) depending on COLORTERM.
@@ -655,14 +734,117 @@ mod tests {
 
     #[test]
     fn calculate_padding_no_swap_near_left_edge() {
-        let (pad, swap) = calculate_padding(5, 120, "some desc");
+        let (pad, swap) = calculate_padding(5, 120, "some desc", SUGGESTION_WIDTH);
         assert_eq!(pad, 5);
         assert!(!swap);
     }
 
     #[test]
     fn calculate_padding_swaps_near_right_edge() {
-        let (_pad, swap) = calculate_padding(80, 120, "some desc");
+        let (_pad, swap) = calculate_padding(80, 120, "some desc", SUGGESTION_WIDTH);
         assert!(swap);
+    }
+
+    /// Every emitted row must fit the terminal. A wrapped row costs two
+    /// physical lines while `last_drawn_rows` counts one, so `clear` erased
+    /// the wrong lines and left the popup on screen.
+    #[test]
+    fn rows_never_exceed_the_terminal_width() {
+        let sugs: Vec<Suggestion> = (0..3)
+            .map(|i| {
+                mk(
+                    &format!("subcommand-{i}"),
+                    "A fairly long description that wraps",
+                    SuggestionType::Subcommand,
+                )
+            })
+            .collect();
+        for cols in [12u16, 20, 39, 40, 55, 69, 70, 100] {
+            let mut r = PopupRenderer::new(5, IconSet::default());
+            let mut out = Vec::new();
+            r.draw_full(&mut out, &sugs, 0, Direction::Below, 0, cols)
+                .unwrap();
+            let text = String::from_utf8(out).unwrap();
+            for line in visible_rows(&text) {
+                let width = UnicodeWidthStr::width(line.as_str());
+                assert!(
+                    width <= cols as usize,
+                    "row of {width} cells in a {cols}-col terminal: {line:?}"
+                );
+            }
+        }
+    }
+
+    /// Terminals too narrow for even a minimal box draw nothing at all.
+    #[test]
+    fn very_narrow_terminal_draws_no_popup() {
+        let sugs = vec![mk(
+            "checkout",
+            "Switch branches",
+            SuggestionType::Subcommand,
+        )];
+        let mut r = PopupRenderer::new(5, IconSet::default());
+        let mut out = Vec::new();
+        r.draw_full(&mut out, &sugs, 0, Direction::Below, 0, 8)
+            .unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(!text.contains('┌'), "popup drawn in an 8-column terminal");
+    }
+
+    /// The description box is dropped rather than wrapped when it cannot fit.
+    #[test]
+    fn description_is_dropped_when_it_cannot_fit() {
+        let sugs = vec![mk(
+            "checkout",
+            "Switch branches",
+            SuggestionType::Subcommand,
+        )];
+        let mut r = PopupRenderer::new(5, IconSet::default());
+        let mut out = Vec::new();
+        r.draw_full(&mut out, &sugs, 0, Direction::Below, 0, 50)
+            .unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(!text.contains("Switch branches"));
+
+        let mut r = PopupRenderer::new(5, IconSet::default());
+        let mut out = Vec::new();
+        r.draw_full(&mut out, &sugs, 0, Direction::Below, 0, 100)
+            .unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(text.contains("Switch branches"));
+    }
+
+    /// Strip escapes and split on the CNL the renderer emits between rows.
+    fn visible_rows(text: &str) -> Vec<String> {
+        let mut rows = vec![String::new()];
+        let mut chars = text.chars().peekable();
+        while let Some(ch) = chars.next() {
+            if ch != '\x1b' {
+                rows.last_mut().unwrap().push(ch);
+                continue;
+            }
+            // CSI ... final-byte
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                let mut params = String::new();
+                for c in chars.by_ref() {
+                    if ('\u{40}'..='\u{7e}').contains(&c) {
+                        match c {
+                            // CNL / CPL start a new row.
+                            'E' | 'F' => rows.push(String::new()),
+                            // CUF by N pads the row.
+                            'C' => {
+                                let n: usize = params.parse().unwrap_or(1);
+                                rows.last_mut().unwrap().push_str(&" ".repeat(n));
+                            }
+                            _ => {}
+                        }
+                        break;
+                    }
+                    params.push(c);
+                }
+            }
+        }
+        rows.into_iter().filter(|r| !r.trim().is_empty()).collect()
     }
 }

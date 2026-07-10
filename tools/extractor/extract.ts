@@ -208,7 +208,12 @@ function tryEvaluateFactoryCall(call: Node, ctx: ExtractCtx): any | null {
   const savedFns = ctx.has_functions;
   ctx.has_functions = false;
   const value = extractValue(returnExpr, ctx);
-  ctx.has_functions = savedFns;
+  // Impurity found *inside* the factory body must survive. Restoring
+  // `savedFns` unconditionally discarded it, so a factory returning
+  // `{ name: "x", description: dynamic() }` dropped `dynamic()` and was
+  // still reported as a pure, full-fidelity extraction.
+  const bodyHadFunctions = ctx.has_functions;
+  ctx.has_functions = savedFns || bodyHadFunctions;
   ctx.param_subs = savedSubs;
 
   if (value == null) {
@@ -1389,16 +1394,15 @@ function extractFileAs(project: Project, filePath: string, relName: string): voi
   // generators that couldn't resolve are simply absent). This pushes
   // the corpus to literal 100%.
   const wasPartial = ctx.has_functions;
-  if (wasPartial) {
-    stats.function_skips++;
-    stats.partial++;
-  } else {
-    stats.pure++;
-  }
 
+  // Classify only after conversion succeeds. Counting a spec as `pure`
+  // up-front meant one that failed to convert incremented `pure` *and*
+  // `error`, wrote no JSON, and still landed a `kind: "pure"` manifest
+  // entry — so the pure/total ratio read 100% while the spec vanished.
   const rust = toRustSubcommand(raw);
   if (!rust || !Array.isArray(rust.names) || rust.names.length === 0) {
-    if (!wasPartial) stats.error++;
+    stats.error++;
+    if (wasPartial) stats.function_skips++;
     if (process.env.DEBUG_EMIT) {
       console.error(
         `empty/missing names after conversion: ${filePath} wasPartial=${wasPartial} raw_keys=${
@@ -1409,10 +1413,17 @@ function extractFileAs(project: Project, filePath: string, relName: string): voi
     manifest.push({
       name: rel,
       file: `${rel}.ts`,
-      kind: wasPartial ? "partial" : "pure",
+      kind: "error",
       has_functions: wasPartial,
     });
     return;
+  }
+
+  if (wasPartial) {
+    stats.function_skips++;
+    stats.partial++;
+  } else {
+    stats.pure++;
   }
   if (process.env.DEBUG_EMIT && wasPartial) {
     console.error(`emit-partial: ${rel}`);

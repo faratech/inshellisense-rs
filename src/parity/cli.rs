@@ -57,13 +57,23 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
         if !missing_flags.is_empty() {
             details.push(format!(
                 "missing flags: {}",
-                missing_flags.iter().take(10).copied().collect::<Vec<_>>().join(", ")
+                missing_flags
+                    .iter()
+                    .take(10)
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ));
         }
         if !missing_subs.is_empty() {
             details.push(format!(
                 "missing subcommands: {}",
-                missing_subs.iter().take(10).copied().collect::<Vec<_>>().join(", ")
+                missing_subs
+                    .iter()
+                    .take(10)
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ));
         }
         let reason = if !missing_flags.is_empty() {
@@ -92,6 +102,9 @@ fn load_invocations(path: &std::path::Path) -> std::io::Result<Vec<String>> {
         .collect())
 }
 
+/// A spawn failure must never be comparable to another spawn failure — the
+/// sentinel embeds the binary path so `ours` and `upstream` differ and the
+/// case fails loudly instead of matching.
 fn run_and_capture(bin: &std::path::Path, args: &[&str]) -> String {
     let output = Command::new(bin).args(args).output();
     match output {
@@ -100,7 +113,7 @@ fn run_and_capture(bin: &std::path::Path, args: &[&str]) -> String {
             s.push_str(&String::from_utf8_lossy(&out.stderr));
             s
         }
-        Err(e) => format!("<error: {}>", e),
+        Err(e) => format!("<error: {} failed to spawn: {}>", bin.display(), e),
     }
 }
 

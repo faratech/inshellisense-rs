@@ -29,14 +29,8 @@ impl UnixPty {
             ws_xpixel: 0,
             ws_ypixel: 0,
         };
-        let pid = unsafe {
-            libc::forkpty(
-                &mut master,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-                &ws,
-            )
-        };
+        let pid =
+            unsafe { libc::forkpty(&mut master, std::ptr::null_mut(), std::ptr::null_mut(), &ws) };
         match pid {
             -1 => Err(format!("forkpty failed: {}", std::io::Error::last_os_error()).into()),
             0 => {
@@ -105,11 +99,14 @@ impl PtyHandle for UnixPty {
         unsafe { libc::ioctl(self.master_fd, libc::TIOCSWINSZ, &ws) };
     }
 
+    /// Returns the child's *exit code*, matching the Windows implementation.
+    /// Returning the raw `waitpid` status here meant callers could not use the
+    /// value, so the wrapped shell's exit status was silently discarded.
     fn try_wait(&mut self) -> Option<i32> {
         let mut status: libc::c_int = 0;
         let w = unsafe { libc::waitpid(self.child_pid, &mut status, libc::WNOHANG) };
         if w > 0 {
-            Some(status)
+            Some(exit_code_from_status(status))
         } else {
             None
         }
@@ -139,7 +136,13 @@ impl PtyHandle for UnixPty {
     }
 
     fn read_pty(&self, buf: &mut [u8]) -> isize {
-        unsafe { libc::read(self.master_fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) }
+        unsafe {
+            libc::read(
+                self.master_fd,
+                buf.as_mut_ptr() as *mut libc::c_void,
+                buf.len(),
+            )
+        }
     }
 
     fn read_stdin(&self, buf: &mut [u8]) -> isize {
@@ -214,5 +217,35 @@ pub fn install_signal_handlers() {
         libc::signal(libc::SIGTERM, handler as *const () as libc::sighandler_t);
         libc::signal(libc::SIGHUP, handler as *const () as libc::sighandler_t);
         libc::signal(libc::SIGINT, handler as *const () as libc::sighandler_t);
+    }
+}
+
+/// Decode a `waitpid` status into the code a shell reports: the exit status,
+/// or `128 + signal` when the child was killed by a signal.
+fn exit_code_from_status(status: libc::c_int) -> i32 {
+    if libc::WIFEXITED(status) {
+        libc::WEXITSTATUS(status)
+    } else if libc::WIFSIGNALED(status) {
+        128 + libc::WTERMSIG(status)
+    } else {
+        0
+    }
+}
+
+#[cfg(test)]
+mod exit_status_tests {
+    use super::exit_code_from_status;
+
+    #[test]
+    fn decodes_normal_exit() {
+        // `exit 42` → WIFEXITED, code 42.
+        assert_eq!(exit_code_from_status(42 << 8), 42);
+        assert_eq!(exit_code_from_status(0), 0);
+    }
+
+    #[test]
+    fn decodes_signal_death() {
+        // Killed by SIGKILL (9) → 128 + 9.
+        assert_eq!(exit_code_from_status(libc::SIGKILL), 137);
     }
 }

@@ -175,12 +175,19 @@ impl Default for PostProcess {
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PostProcessKind {
     SplitLines {},
-    SplitLinesFiltered { skip_prefixes: Vec<String> },
+    SplitLinesFiltered {
+        skip_prefixes: Vec<String>,
+    },
     JsonParse {},
-    JsonPath { path: String },
+    JsonPath {
+        path: String,
+    },
     GitBranches {},
     KeyValueColon {},
-    TableColumn { index: u8, sep: String },
+    TableColumn {
+        index: u8,
+        sep: String,
+    },
     /// First whitespace token becomes the suggestion name, the remainder
     /// becomes its description (e.g. `ps -o pid=,comm=` → `{1234: systemd}`).
     FirstTokenRest {},

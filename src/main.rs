@@ -14,6 +14,7 @@ pub fn main() -> Result<()> {
     let mut shell: Option<Shell> = None;
     let mut check = false;
     let mut verbose = false;
+    let mut test = false;
     let mut rest: Vec<String> = Vec::new();
 
     let mut i = 0;
@@ -23,7 +24,7 @@ pub fn main() -> Result<()> {
             "-l" | "--login" => login = true,
             "-c" | "--check" => check = true,
             "-V" | "--verbose" => verbose = true,
-            "-T" | "--test" => {} // accepted, ignored (legacy)
+            "-T" | "--test" => test = true,
             "-h" | "--help" => {
                 print_help();
                 return Ok(());
@@ -83,7 +84,7 @@ pub fn main() -> Result<()> {
                 println!("inshellisense-rs session live");
                 return Ok(());
             }
-            let start_opts = parse_start_args(&rest, shell, login, verbose)?;
+            let start_opts = parse_start_args(&rest, shell, login, verbose, test)?;
             resources::unpack()?;
             let shell = start_opts
                 .shell
@@ -95,7 +96,7 @@ pub fn main() -> Result<()> {
                 eprintln!("inshellisense-rs: shell = {}", shell.as_str());
                 eprintln!("inshellisense-rs: login = {}", start_opts.login);
             }
-            pty::run_wrapped(shell, start_opts.login, start_opts.ui)
+            pty::run_wrapped(shell, start_opts.login, start_opts.ui, start_opts.test)
         }
         "init" => {
             if has_help_flag(&rest) {
@@ -116,6 +117,7 @@ pub fn main() -> Result<()> {
                 print_reinit_help();
                 return Ok(());
             }
+            reject_unknown_args("reinit", &rest, &["-h", "--help"], &[])?;
             commands::reinit::run()
         }
         "install" => {
@@ -123,6 +125,18 @@ pub fn main() -> Result<()> {
                 print_install_help();
                 return Ok(());
             }
+            // `install` only ever writes the bash auto-exec wrapper. Accepting
+            // and ignoring `--shell zsh` would silently edit `.bashrc` instead.
+            let names_a_shell = shell.is_some()
+                || rest
+                    .iter()
+                    .any(|a| a == "-s" || a == "--shell" || a.starts_with("--shell="));
+            if names_a_shell {
+                anyhow::bail!(
+                    "is install: `--shell` is not supported; run `is init <shell> --install-rc` instead"
+                );
+            }
+            reject_unknown_args("install", &rest, &["-h", "--help"], &[])?;
             resources::unpack()?;
             shell_init::install()
         }
@@ -131,6 +145,7 @@ pub fn main() -> Result<()> {
                 print_doctor_help();
                 return Ok(());
             }
+            reject_unknown_args("doctor", &rest, &["-h", "--help"], &[])?;
             commands::doctor::run()
         }
         "complete" => {
@@ -142,6 +157,13 @@ pub fn main() -> Result<()> {
             // switches to plain ghost-tail mode. --json accepted
             // as a no-op for backwards compat.
             let opts = parse_complete_args(&rest)?;
+            // `is complete "ls " --shell pwsh` — the shell flag may appear
+            // after the subcommand, where the root parser never sees it.
+            // It used to be appended to the completion line instead.
+            let shell = match parse_optional_shell_flag(&rest, "--shell")? {
+                Some(explicit) => Some(explicit),
+                None => shell,
+            };
             commands::complete::run(&opts.line, opts.text_mode, &opts.cwd, shell)
         }
         "specs" => {
@@ -168,6 +190,12 @@ pub fn main() -> Result<()> {
                         print_specs_list_help();
                         return Ok(());
                     }
+                    reject_unknown_args(
+                        "specs list",
+                        &rest[1..],
+                        &["-h", "--help", "--plain", "--shell", "-s"],
+                        &["--shell", "-s"],
+                    )?;
                     let plain = rest.iter().any(|a| a == "--plain");
                     let specs_shell = parse_optional_shell_flag(&rest, "--shell")?;
                     commands::specs::list(plain, specs_shell)
@@ -180,6 +208,7 @@ pub fn main() -> Result<()> {
         }
         "list-specs" | "listspecs" => {
             eprintln!("inshellisense-rs: `list-specs` is deprecated; use `is specs list` instead");
+            reject_unknown_args("list-specs", &rest, &["-h", "--help"], &[])?;
             commands::specs::list(true, None)
         }
         "uninstall" => {
@@ -187,6 +216,8 @@ pub fn main() -> Result<()> {
                 print_uninstall_help();
                 return Ok(());
             }
+            // Guard hardest here: an ignored `--dry-run` used to delete files.
+            reject_unknown_args("uninstall", &rest, &["-h", "--help"], &[])?;
             commands::uninstall::run()
         }
         other => {
@@ -237,6 +268,7 @@ struct StartArgs {
     shell: Option<Shell>,
     login: bool,
     verbose: bool,
+    test: bool,
     ui: Option<UiMode>,
 }
 
@@ -245,11 +277,13 @@ fn parse_start_args(
     root_shell: Option<Shell>,
     root_login: bool,
     root_verbose: bool,
+    root_test: bool,
 ) -> Result<StartArgs> {
     let mut out = StartArgs {
         shell: root_shell,
         login: root_login,
         verbose: root_verbose,
+        test: root_test,
         ui: None,
     };
     let mut i = 1;
@@ -257,6 +291,7 @@ fn parse_start_args(
         match args[i].as_str() {
             "-l" | "--login" => out.login = true,
             "-V" | "--verbose" => out.verbose = true,
+            "-T" | "--test" => out.test = true,
             "-s" | "--shell" => {
                 i += 1;
                 let value = args
@@ -356,16 +391,26 @@ fn parse_complete_args(args: &[String]) -> Result<CompleteArgs> {
         match args[i].as_str() {
             "--text" => text_mode = true,
             "--json" => {}
-            "--cwd" => {
+            "--cwd" | "--shell" | "-s" => {
+                let flag = args[i].clone();
                 i += 1;
-                cwd = args
+                let value = args
                     .get(i)
-                    .with_context(|| format!("missing value for {}", args[i - 1]))?
+                    .with_context(|| format!("missing value for {flag}"))?
                     .clone();
+                if flag == "--cwd" {
+                    cwd = value;
+                } else {
+                    // Validate here; the value is consumed, not treated as
+                    // part of the completion line.
+                    parse_shell_value(&value)?;
+                }
             }
             other => {
                 if let Some(value) = other.strip_prefix("--cwd=") {
                     cwd = value.to_string();
+                } else if let Some(value) = other.strip_prefix("--shell=") {
+                    parse_shell_value(value)?;
                 } else {
                     line_parts.push(other.to_string());
                 }
@@ -380,20 +425,55 @@ fn parse_complete_args(args: &[String]) -> Result<CompleteArgs> {
     })
 }
 
+/// Parse `--shell <v>` / `--shell=<v>`, plus upstream's `-s <v>` / `-s<v>`.
 fn parse_optional_shell_flag(args: &[String], flag: &str) -> Result<Option<Shell>> {
     let mut it = args.iter();
     while let Some(a) = it.next() {
-        if a == flag {
+        if a == flag || a == "-s" {
             let value = it
                 .next()
-                .with_context(|| format!("missing value for {}", flag))?;
+                .with_context(|| format!("missing value for {}", a))?;
             return Ok(Some(parse_shell_value(value)?));
         }
         if let Some(val) = a.strip_prefix(&format!("{}=", flag)) {
             return Ok(Some(parse_shell_value(val)?));
         }
+        if let Some(val) = a.strip_prefix("-s") {
+            if !val.is_empty() {
+                return Ok(Some(parse_shell_value(val)?));
+            }
+        }
     }
     Ok(None)
+}
+
+/// Reject any argument a subcommand does not understand.
+///
+/// Subcommands used to drop unrecognized arguments on the floor, so
+/// `is uninstall --dry-run` performed a real uninstall and `is install
+/// --shell zsh` wrote to `.bashrc`. A flag we do not implement must never be
+/// mistaken for one we honor, least of all on a destructive command.
+/// `value_flags` name the allowed flags that consume the following argument,
+/// so `--shell zsh` does not report `zsh` as unknown.
+fn reject_unknown_args(
+    cmd: &str,
+    args: &[String],
+    allowed: &[&str],
+    value_flags: &[&str],
+) -> Result<()> {
+    let mut skip_value = false;
+    for arg in args.iter().skip(1) {
+        if skip_value {
+            skip_value = false;
+            continue;
+        }
+        let name = arg.split('=').next().unwrap_or(arg.as_str());
+        if !allowed.contains(&name) {
+            anyhow::bail!("is {cmd}: unknown argument `{arg}`");
+        }
+        skip_value = value_flags.contains(&name) && !arg.contains('=');
+    }
+    Ok(())
 }
 
 /// True if any arg after the subcommand name itself is `-h` or `--help`.

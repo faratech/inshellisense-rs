@@ -27,11 +27,15 @@ struct CacheEntry {
 static CACHE: LazyLock<Mutex<HashMap<String, CacheEntry>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// `help_subcommands` are the subcommands of the command this arg belongs to.
+/// The `help` template completes them (`git help <TAB>` → `commit`, `log`, …);
+/// 93 bundled specs use it.
 pub fn suggestions_for_arg(
     arg: &Arg,
     cwd: &str,
     prefix: &str,
     include_history: bool,
+    help_subcommands: &[Subcommand],
 ) -> Vec<Suggestion> {
     let mut out: Vec<Suggestion> = arg.suggestions.clone();
 
@@ -44,6 +48,7 @@ pub fn suggestions_for_arg(
             prefix,
             include_history,
             false,
+            help_subcommands,
         ));
     }
 
@@ -57,6 +62,7 @@ pub fn suggestions_for_arg(
                 cwd,
                 prefix,
                 include_history,
+                help_subcommands,
             ));
         }
         _ => {
@@ -64,7 +70,11 @@ pub fn suggestions_for_arg(
                 let handles: Vec<_> = arg
                     .generators
                     .iter()
-                    .map(|g| scope.spawn(move || run_generator(g, cwd, prefix, include_history)))
+                    .map(|g| {
+                        scope.spawn(move || {
+                            run_generator(g, cwd, prefix, include_history, help_subcommands)
+                        })
+                    })
                     .collect();
                 handles.into_iter().filter_map(|h| h.join().ok()).collect()
             });
@@ -77,7 +87,13 @@ pub fn suggestions_for_arg(
     out
 }
 
-fn run_generator(g: &Generator, cwd: &str, prefix: &str, include_history: bool) -> Vec<Suggestion> {
+fn run_generator(
+    g: &Generator,
+    cwd: &str,
+    prefix: &str,
+    include_history: bool,
+    help_subcommands: &[Subcommand],
+) -> Vec<Suggestion> {
     match g {
         Generator::Script {
             input,
@@ -97,7 +113,14 @@ fn run_generator(g: &Generator, cwd: &str, prefix: &str, include_history: bool) 
         Generator::Template { template } => {
             // The generator form of a filepaths/folders template appends `..`
             // (upstream `python `/`node `/`cd ` show it).
-            template_suggestions(*template, cwd, prefix, include_history, true)
+            template_suggestions(
+                *template,
+                cwd,
+                prefix,
+                include_history,
+                true,
+                help_subcommands,
+            )
         }
         Generator::Glob { pattern } => glob_paths(pattern, cwd),
         Generator::Custom { .. } => Vec::new(), // always empty without JS
@@ -348,6 +371,7 @@ fn template_suggestions(
     prefix: &str,
     include_history: bool,
     from_generator: bool,
+    help_subcommands: &[Subcommand],
 ) -> Vec<Suggestion> {
     match tpl {
         // Only the FOLDERS generator appends `..` (matches upstream `cd `);
@@ -367,17 +391,66 @@ fn template_suggestions(
                 ..Default::default()
             })
             .collect(),
-        Template::Help => Vec::new(),
+        // Fig's `help` template completes the parent command's subcommands.
+        // Returning nothing meant `<cmd> help <TAB>` offered nothing at all.
+        Template::Help => help_subcommands
+            .iter()
+            .filter(|s| !s.hidden)
+            .filter_map(|s| {
+                let name = s.names.first()?;
+                Some(Suggestion {
+                    name: name.clone(),
+                    all_names: s.names.clone(),
+                    description: s.description.clone(),
+                    suggestion_type: SuggestionType::Subcommand,
+                    priority: Some(s.priority.unwrap_or(50)),
+                    icon: s.icon.clone(),
+                    deprecated: s.deprecated,
+                    ..Default::default()
+                })
+            })
+            .collect(),
     }
+}
+
+/// Split a path prefix into its directory part and the basename being typed.
+/// Windows accepts `\\` as a separator, so `src\\ma` must split at the
+/// backslash rather than being treated as one long filename.
+fn split_path_prefix(prefix: &str) -> (&str, &str) {
+    let sep = if cfg!(windows) {
+        prefix.rfind(['/', '\\'])
+    } else {
+        prefix.rfind('/')
+    };
+    match sep {
+        Some(idx) => (&prefix[..idx], &prefix[idx + 1..]),
+        None => ("", prefix),
+    }
+}
+
+/// Expand a leading `~` (or `~/...`) to the user's home directory. Without
+/// this, `ls ~/Doc` searched for a literal directory named `~`.
+fn expand_tilde(dir: &str) -> Option<std::path::PathBuf> {
+    let rest = dir.strip_prefix('~')?;
+    if !(rest.is_empty() || rest.starts_with('/') || (cfg!(windows) && rest.starts_with('\\'))) {
+        // `~user` — we do not resolve other users' homes.
+        return None;
+    }
+    let home = crate::paths::home()?;
+    let rest = rest.trim_start_matches(['/', '\\']);
+    Some(if rest.is_empty() {
+        home
+    } else {
+        home.join(rest)
+    })
 }
 
 fn list_paths(cwd: &str, prefix: &str, dirs_only: bool, add_parent: bool) -> Vec<Suggestion> {
     let base = Path::new(cwd);
-    let (dir, file_prefix) = match prefix.rfind('/') {
-        Some(idx) => (&prefix[..idx], &prefix[idx + 1..]),
-        None => ("", prefix),
-    };
-    let target = if dir.is_empty() {
+    let (dir, file_prefix) = split_path_prefix(prefix);
+    let target = if let Some(expanded) = expand_tilde(dir) {
+        expanded
+    } else if dir.is_empty() {
         base.to_path_buf()
     } else {
         base.join(dir)
@@ -395,7 +468,11 @@ fn list_paths(cwd: &str, prefix: &str, dirs_only: bool, add_parent: bool) -> Vec
         if !name.to_lowercase().contains(&needle) {
             continue;
         }
-        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+        // `entry.file_type()` does not follow symlinks, so a symlink to a
+        // directory reported `is_dir() == false` and was dropped by `cd`.
+        let is_dir = std::fs::metadata(entry.path())
+            .map(|m| m.is_dir())
+            .unwrap_or(false);
         if dirs_only && !is_dir {
             continue;
         }
@@ -456,7 +533,7 @@ fn list_paths(cwd: &str, prefix: &str, dirs_only: bool, add_parent: bool) -> Vec
 
 fn glob_paths(pattern: &str, cwd: &str) -> Vec<Suggestion> {
     let script_str = format!("ls -d {} 2>/dev/null", pattern);
-    run_shell_line(&script_str, "\n", None, 5000, None, cwd)
+    run_shell_line(&Invocation::Shell(script_str), "\n", None, 5000, None, cwd)
         .into_iter()
         .map(|name| Suggestion {
             name,
@@ -476,45 +553,67 @@ fn run_script(
     cwd: &str,
     _prefix: &str,
 ) -> Vec<Suggestion> {
-    let (cmd_key, script_str) = match input {
-        ScriptInput::Shell { script } => (script.clone(), script.clone()),
-        ScriptInput::Argv { argv } => (argv.join(" "), shell_escape_argv(argv)),
+    // An argv generator names a program and its arguments. Re-serializing it
+    // into a shell string changed its semantics (a literal `*` would glob, a
+    // literal `$X` would expand) and could not run at all on native Windows,
+    // where there is no `sh`.
+    let (cmd_key, command) = match input {
+        ScriptInput::Shell { script } => (script.clone(), Invocation::Shell(script.clone())),
+        ScriptInput::Argv { argv } => (argv.join(" "), Invocation::Argv(argv.clone())),
         ScriptInput::FnTemplate { template } => {
             // Phase 4 will expand {tokens[N]} placeholders. For now treat as
             // a literal shell command.
-            (template.clone(), template.clone())
+            (template.clone(), Invocation::Shell(template.clone()))
         }
     };
-    let sep = split_on.unwrap_or("\n");
-    let raw = run_shell_line(&script_str, sep, Some(&cmd_key), timeout_ms, cache, cwd);
+    // `PostProcess::Split { sep }` documents that it *overrides* the
+    // generator's `split_on`. It was silently ignored, and its `sep` never read.
+    let sep = match post {
+        PostProcess::Split { sep } => sep.as_str(),
+        _ => split_on.unwrap_or("\n"),
+    };
+    let raw = run_shell_line(&command, sep, Some(&cmd_key), timeout_ms, cache, cwd);
     apply_post_process(raw, post)
 }
 
-fn shell_escape_argv(argv: &[String]) -> String {
-    argv.iter()
-        .map(|a| {
-            if a.contains(' ') || a.contains('"') || a.contains('\'') {
-                format!("'{}'", a.replace('\'', "'\\''"))
-            } else {
-                a.clone()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+/// How a generator's script is executed.
+#[derive(Debug, Clone)]
+enum Invocation {
+    /// A shell fragment; needs a shell to interpret it.
+    Shell(String),
+    /// A program and its arguments; spawned directly.
+    Argv(Vec<String>),
 }
 
 fn run_shell_line(
-    script: &str,
+    command: &Invocation,
     sep: &str,
     cache_key: Option<&str>,
     timeout_ms: u32,
     cache: Option<&CacheSpec>,
     cwd: &str,
 ) -> Vec<String> {
-    let key = format!("{cwd}\0{}", cache_key.unwrap_or(script));
-    let ttl = cache
-        .map(|c| Duration::from_secs(c.ttl_secs))
-        .unwrap_or(Duration::from_secs(30));
+    let fallback_key = match command {
+        Invocation::Shell(script) => script.as_str(),
+        Invocation::Argv(_) => "",
+    };
+    let script_key = cache_key.unwrap_or(fallback_key);
+
+    // A generator that requests no caching must not be cached. Defaulting to a
+    // 30-second TTL made `cd <TAB>` keep serving a directory listing from the
+    // previous directory, and `git branch` keep branches that had been deleted.
+    let Some(spec) = cache else {
+        return run_and_split(command, sep, timeout_ms, cwd);
+    };
+
+    // `by_dir: false` means the result does not depend on the directory, so it
+    // must not be keyed by it.
+    let key = if spec.by_dir {
+        format!("{cwd}\0{script_key}")
+    } else {
+        format!("\0{script_key}")
+    };
+    let ttl = Duration::from_secs(spec.ttl_secs);
 
     {
         let c = CACHE.lock().unwrap();
@@ -525,15 +624,7 @@ fn run_shell_line(
         }
     }
 
-    let out = run_command_with_timeout(script, cwd, timeout_ms);
-    let values: Vec<String> = match out {
-        Some(bytes) => String::from_utf8_lossy(&bytes)
-            .split(sep)
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect(),
-        None => Vec::new(),
-    };
+    let values = run_and_split(command, sep, timeout_ms, cwd);
 
     let mut c = CACHE.lock().unwrap();
     c.insert(
@@ -553,12 +644,56 @@ fn run_shell_line(
     values
 }
 
-fn run_command_with_timeout(script: &str, cwd: &str, timeout_ms: u32) -> Option<Vec<u8>> {
-    let mut command = Command::new("sh");
+fn run_and_split(command: &Invocation, sep: &str, timeout_ms: u32, cwd: &str) -> Vec<String> {
+    match run_command_with_timeout(command, cwd, timeout_ms) {
+        Some(bytes) => String::from_utf8_lossy(&bytes)
+            .split(sep)
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect(),
+        None => Vec::new(),
+    }
+}
+
+/// Build the `Command` for an invocation. Argv generators are spawned
+/// directly — never re-serialized through a shell.
+fn build_command(invocation: &Invocation) -> Option<Command> {
+    match invocation {
+        Invocation::Argv(argv) => {
+            let (program, args) = argv.split_first()?;
+            let mut command = Command::new(program);
+            command.args(args);
+            Some(command)
+        }
+        Invocation::Shell(script) => {
+            // Native Windows has no `sh`; a shell generator there must run
+            // under `cmd`, otherwise the spawn fails and the generator
+            // silently produces no completions.
+            #[cfg(windows)]
+            {
+                let mut command = Command::new("cmd");
+                command.arg("/C").arg(script);
+                Some(command)
+            }
+            #[cfg(not(windows))]
+            {
+                let mut command = Command::new("sh");
+                command.arg("-c").arg(script);
+                Some(command)
+            }
+        }
+    }
+}
+
+fn run_command_with_timeout(
+    invocation: &Invocation,
+    cwd: &str,
+    timeout_ms: u32,
+) -> Option<Vec<u8>> {
+    let mut command = build_command(invocation)?;
     command
-        .arg("-c")
-        .arg(script)
         .current_dir(if cwd.is_empty() { "." } else { cwd })
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
     #[cfg(unix)]
@@ -574,10 +709,16 @@ fn run_command_with_timeout(script: &str, cwd: &str, timeout_ms: u32) -> Option<
     }
     let mut child = command.spawn().ok()?;
     let mut stdout = child.stdout.take()?;
-    let reader = std::thread::spawn(move || {
+    // The reader runs on its own thread and reports through a channel, so the
+    // wait for it can be bounded. `join()` could block forever: a backgrounded
+    // grandchild inherits the stdout pipe and holds its write end open long
+    // after the direct child has exited, so `read_to_end` never returns and
+    // the generator outlived its timeout.
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
         let mut buf = Vec::new();
         let _ = std::io::Read::read_to_end(&mut stdout, &mut buf);
-        buf
+        let _ = tx.send(buf);
     });
 
     let timeout = Duration::from_millis(timeout_ms.max(1) as u64);
@@ -585,14 +726,25 @@ fn run_command_with_timeout(script: &str, cwd: &str, timeout_ms: u32) -> Option<
     loop {
         match child.try_wait() {
             Ok(Some(status)) => {
-                let bytes = reader.join().unwrap_or_default();
-                return status.success().then_some(bytes);
+                // Killing the process group closes any inherited write end, so
+                // the reader unblocks; the deadline covers the case where a
+                // descendant escaped the group.
+                let grace = timeout
+                    .saturating_sub(start.elapsed())
+                    .max(Duration::from_millis(50));
+                let bytes = rx.recv_timeout(grace).ok();
+                if !status.success() {
+                    return None;
+                }
+                return bytes;
             }
             Ok(None) => {
                 if start.elapsed() >= timeout {
                     kill_generator_child(&mut child);
                     let _ = child.wait();
-                    let _ = reader.join();
+                    // Reader may still be blocked on an escaped descendant;
+                    // abandon it rather than hang the completion.
+                    let _ = rx.recv_timeout(Duration::from_millis(50));
                     return None;
                 }
                 std::thread::sleep(Duration::from_millis(10));
@@ -600,7 +752,7 @@ fn run_command_with_timeout(script: &str, cwd: &str, timeout_ms: u32) -> Option<
             Err(_) => {
                 kill_generator_child(&mut child);
                 let _ = child.wait();
-                let _ = reader.join();
+                let _ = rx.recv_timeout(Duration::from_millis(50));
                 return None;
             }
         }
@@ -847,7 +999,14 @@ mod tests {
     #[test]
     fn shell_line_timeout_returns_empty_quickly() {
         let start = Instant::now();
-        let got = run_shell_line("sleep 2; echo late", "\n", None, 50, None, ".");
+        let got = run_shell_line(
+            &Invocation::Shell("sleep 2; echo late".into()),
+            "\n",
+            None,
+            50,
+            None,
+            ".",
+        );
         assert!(got.is_empty());
         assert!(start.elapsed() < Duration::from_secs(1));
     }

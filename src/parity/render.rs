@@ -35,14 +35,39 @@ fn default_settle() -> u64 {
 pub fn run(cfg: &ScanConfig) -> CategoryReport {
     let mut report = CategoryReport::new(Category::Render);
     let corpus_path = cfg.corpus_dir.join("render.jsonl");
+    // Zero scenarios would score a vacuous 100% — fail instead.
     let scenarios = match load_corpus(&corpus_path) {
-        Ok(s) => s,
-        Err(_) => {
-            report.summary = format!("no render corpus at {}", corpus_path.display());
+        Ok(s) if !s.is_empty() => s,
+        Ok(_) => {
+            report.push_fail(
+                "corpus",
+                format!(
+                    "render corpus at {} has no scenarios",
+                    corpus_path.display()
+                ),
+                Vec::new(),
+                3,
+            );
+            return report;
+        }
+        Err(e) => {
+            report.push_fail(
+                "corpus",
+                format!(
+                    "cannot read render corpus at {}: {e}",
+                    corpus_path.display()
+                ),
+                Vec::new(),
+                3,
+            );
             return report;
         }
     };
     let _ = fs::create_dir_all(&cfg.raw_dir);
+    // Both binaries must run against the same scratch HOME and cwd, or the
+    // capture reflects the developer's installed shells and config rather
+    // than the implementations under test.
+    let home = super::isolated_home(cfg);
 
     // Render scenarios run in parallel — each scenario spawns its
     // own isolated PTY + subprocess pair, so there's no shared state
@@ -51,44 +76,48 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
     let cases: Vec<Case> = std::thread::scope(|s| {
         let handles: Vec<_> = scenarios
             .iter()
-            .map(|scenario| s.spawn(|| {
-            let ours_bytes = run_scenario(&cfg.ours, scenario);
-            let upstream_bytes = run_scenario(&cfg.upstream, scenario);
+            .map(|scenario| {
+                s.spawn(|| {
+                    let ours_bytes = run_scenario(&cfg.ours, scenario, &home);
+                    let upstream_bytes = run_scenario(&cfg.upstream, scenario, &home);
 
-            let ours_path = cfg.raw_dir.join(format!("render-{}-ours.bin", scenario.name));
-            let upstream_path = cfg
-                .raw_dir
-                .join(format!("render-{}-upstream.bin", scenario.name));
-            let _ = fs::write(&ours_path, &ours_bytes);
-            let _ = fs::write(&upstream_path, &upstream_bytes);
+                    let ours_path = cfg
+                        .raw_dir
+                        .join(format!("render-{}-ours.bin", scenario.name));
+                    let upstream_path = cfg
+                        .raw_dir
+                        .join(format!("render-{}-upstream.bin", scenario.name));
+                    let _ = fs::write(&ours_path, &ours_bytes);
+                    let _ = fs::write(&upstream_path, &upstream_bytes);
 
-            let ours_screen = replay(&ours_bytes);
-            let up_screen = replay(&upstream_bytes);
+                    let ours_screen = replay(&ours_bytes);
+                    let up_screen = replay(&upstream_bytes);
 
-            let diff = diff_screens(&up_screen, &ours_screen);
-            if diff.is_empty() {
-                Case {
-                    name: scenario.name.clone(),
-                    result: CaseResult::Pass,
-                    impact: 0,
-                }
-            } else {
-                let impact = if diff.len() > 50 { 80 } else { 60 };
-                Case {
-                    name: scenario.name.clone(),
-                    result: CaseResult::Fail {
-                        reason: format!(
-                            "{} cells differ (bytes: ours={}, upstream={})",
-                            diff.len(),
-                            ours_bytes.len(),
-                            upstream_bytes.len()
-                        ),
-                        details: diff.into_iter().take(10).collect(),
-                    },
-                    impact,
-                }
-            }
-        }))
+                    let diff = diff_screens(&up_screen, &ours_screen);
+                    if diff.is_empty() {
+                        Case {
+                            name: scenario.name.clone(),
+                            result: CaseResult::Pass,
+                            impact: 0,
+                        }
+                    } else {
+                        let impact = if diff.len() > 50 { 80 } else { 60 };
+                        Case {
+                            name: scenario.name.clone(),
+                            result: CaseResult::Fail {
+                                reason: format!(
+                                    "{} cells differ (bytes: ours={}, upstream={})",
+                                    diff.len(),
+                                    ours_bytes.len(),
+                                    upstream_bytes.len()
+                                ),
+                                details: diff.into_iter().take(10).collect(),
+                            },
+                            impact,
+                        }
+                    }
+                })
+            })
             .collect();
         handles.into_iter().map(|h| h.join().unwrap()).collect()
     });
@@ -102,22 +131,29 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
     report
 }
 
+/// A malformed JSONL line is a corpus regression, not a line to skip.
 fn load_corpus(path: &Path) -> std::io::Result<Vec<Scenario>> {
     let text = fs::read_to_string(path)?;
     let mut out = Vec::new();
-    for line in text.lines() {
+    for (idx, line) in text.lines().enumerate() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        if let Ok(s) = serde_json::from_str::<Scenario>(line) {
-            out.push(s);
+        match serde_json::from_str::<Scenario>(line) {
+            Ok(scenario) => out.push(scenario),
+            Err(e) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("{}:{}: {e}", path.display(), idx + 1),
+                ));
+            }
         }
     }
     Ok(out)
 }
 
-fn run_scenario(bin: &Path, scenario: &Scenario) -> Vec<u8> {
+fn run_scenario(bin: &Path, scenario: &Scenario, home: &Path) -> Vec<u8> {
     let mut master: libc::c_int = 0;
     let ws = libc::winsize {
         ws_row: PTY_ROWS,
@@ -125,9 +161,8 @@ fn run_scenario(bin: &Path, scenario: &Scenario) -> Vec<u8> {
         ws_xpixel: 0,
         ws_ypixel: 0,
     };
-    let pid = unsafe {
-        libc::forkpty(&mut master, std::ptr::null_mut(), std::ptr::null_mut(), &ws)
-    };
+    let pid =
+        unsafe { libc::forkpty(&mut master, std::ptr::null_mut(), std::ptr::null_mut(), &ws) };
     match pid {
         -1 => return Vec::new(),
         0 => {
@@ -137,13 +172,20 @@ fn run_scenario(bin: &Path, scenario: &Scenario) -> Vec<u8> {
                 std::env::set_var("TERM", "xterm-256color");
                 std::env::remove_var("COLORTERM");
                 std::env::set_var("PS1", "$ ");
+                std::env::set_var("HOME", home);
+                std::env::set_var("XDG_CONFIG_HOME", home.join(".config"));
+                std::env::remove_var("ZDOTDIR");
+                std::env::remove_var("ISTERM");
+                std::env::remove_var("INSH_RS");
             }
+            let _ = std::env::set_current_dir(home);
             let c_bin = std::ffi::CString::new(bin.to_str().unwrap_or("")).unwrap();
             let args = ["start", "--ui", "popup"];
             let c_args: Vec<std::ffi::CString> = std::iter::once(c_bin.clone())
                 .chain(args.iter().map(|a| std::ffi::CString::new(*a).unwrap()))
                 .collect();
-            let c_ptrs: Vec<*const libc::c_char> = c_args.iter()
+            let c_ptrs: Vec<*const libc::c_char> = c_args
+                .iter()
                 .map(|a| a.as_ptr())
                 .chain(std::iter::once(std::ptr::null()))
                 .collect();
@@ -159,7 +201,11 @@ fn run_scenario(bin: &Path, scenario: &Scenario) -> Vec<u8> {
         let end = Instant::now() + dur;
         let mut buf = [0u8; 4096];
         while Instant::now() < end {
-            let mut fds = [libc::pollfd { fd, events: libc::POLLIN, revents: 0 }];
+            let mut fds = [libc::pollfd {
+                fd,
+                events: libc::POLLIN,
+                revents: 0,
+            }];
             let remaining = (end - Instant::now()).as_millis().min(50) as i32;
             let n = unsafe { libc::poll(fds.as_mut_ptr(), 1, remaining) };
             if n > 0 && fds[0].revents & libc::POLLIN != 0 {
@@ -190,7 +236,10 @@ fn run_scenario(bin: &Path, scenario: &Scenario) -> Vec<u8> {
             unsafe { libc::write(fd, s.as_bytes().as_ptr() as _, s.len()) };
             drain(&mut captured, Duration::from_millis(150));
         }
-        drain(&mut captured, Duration::from_millis(scenario.then_settle_ms.unwrap_or(500)));
+        drain(
+            &mut captured,
+            Duration::from_millis(scenario.then_settle_ms.unwrap_or(500)),
+        );
     }
 
     unsafe { libc::write(fd, b"\x03".as_ptr() as _, 1) };
@@ -315,7 +364,6 @@ fn find_first_slice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     }
     None
 }
-
 
 fn strip_sequences(bytes: &[u8], needles: &[&[u8]]) -> Vec<u8> {
     let mut out = Vec::with_capacity(bytes.len());

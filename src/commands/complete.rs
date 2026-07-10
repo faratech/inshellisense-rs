@@ -3,7 +3,12 @@
 //! Default output is JSON matching upstream's exact schema:
 //! `{"suggestions":[...],"activeToken":{...}}`
 
-use crate::{history, render::popup::icon_for, shell::Shell, spec, suggest};
+use crate::{
+    history,
+    render::popup::{IconSet, icon_for},
+    shell::Shell,
+    spec, suggest,
+};
 use anyhow::Result;
 
 pub fn run(line: &str, text_mode: bool, cwd: &str, shell: Option<Shell>) -> Result<()> {
@@ -22,6 +27,7 @@ pub fn run(line: &str, text_mode: bool, cwd: &str, shell: Option<Shell>) -> Resu
     }
 
     // JSON output matching upstream's schema exactly.
+    let icons = IconSet::from_config(crate::config::load().use_nerd_font);
     let blob = engine.suggest_blob(line, cwd);
     let tokens = spec::parse_command(line);
     // Upstream emits a null activeToken once the last token is complete
@@ -34,7 +40,7 @@ pub fn run(line: &str, text_mode: bool, cwd: &str, shell: Option<Shell>) -> Resu
             let icon = s
                 .icon
                 .as_deref()
-                .unwrap_or_else(|| icon_for(&s))
+                .unwrap_or_else(|| icon_for(&s, icons))
                 .to_string();
             let all_names: Vec<&str> = s.all_names.iter().map(|n| n.as_str()).collect();
             let names = if all_names.is_empty() {

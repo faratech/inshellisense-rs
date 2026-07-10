@@ -147,9 +147,12 @@ impl CategoryReport {
         self.cases.len() - self.pass_count()
     }
 
+    /// A category that ran no cases proved nothing. Scoring it 1.0 meant a
+    /// deleted corpus, an unreadable corpus, or an all-malformed corpus
+    /// silently reported perfect parity and passed the threshold.
     pub fn score(&self) -> f64 {
         if self.cases.is_empty() {
-            return 1.0;
+            return 0.0;
         }
         self.pass_count() as f64 / self.cases.len() as f64
     }
@@ -171,11 +174,16 @@ impl Report {
         self.categories.iter().map(|c| c.fail_count()).sum()
     }
 
+    /// A report with no categories has no minimum to clear — treat it as a
+    /// failure rather than folding to a vacuous 1.0.
     pub fn min_score(&self) -> f64 {
+        if self.categories.is_empty() {
+            return 0.0;
+        }
         self.categories
             .iter()
             .map(|c| c.score())
-            .fold(1.0_f64, f64::min)
+            .fold(f64::INFINITY, f64::min)
     }
 }
 
@@ -198,9 +206,59 @@ pub struct ScanConfig {
     pub threshold: f64,
 }
 
+/// A scratch `HOME` for spawned binaries, so a scan never reads or writes the
+/// developer's real profile and produces the same result on every machine.
+pub fn isolated_home(cfg: &ScanConfig) -> std::path::PathBuf {
+    let home = cfg.raw_dir.join("isolated-home");
+    let _ = std::fs::create_dir_all(&home);
+    home
+}
+
+/// Point a child process at the isolated home and a fixed working directory.
+/// Without this, doctor and render inherit the host's `HOME`, config files,
+/// and cwd — so their results depend on which shells the developer happens to
+/// have installed.
+pub fn isolate(cmd: &mut std::process::Command, home: &std::path::Path) {
+    cmd.env("HOME", home)
+        .env("USERPROFILE", home)
+        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .env_remove("ZDOTDIR")
+        .env_remove("ISTERM")
+        .env_remove("INSH_RS")
+        .current_dir(home);
+}
+
+/// Can this binary actually be executed? Every category converts a spawn
+/// error into placeholder text and then compares placeholders, so two broken
+/// binaries used to score perfect parity. Establish up front that both sides
+/// run at all.
+pub fn spawn_check(bin: &std::path::Path) -> Result<(), String> {
+    match std::process::Command::new(bin).arg("--version").output() {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("cannot execute {}: {e}", bin.display())),
+    }
+}
+
 /// Drive all requested categories. Each category owns its own IO.
 pub fn run_scan(cfg: &ScanConfig) -> Report {
     let mut report = Report::new();
+
+    // Preflight: an unrunnable binary is a scanner failure, not 100% parity.
+    let preflight: Vec<String> = [&cfg.ours, &cfg.upstream]
+        .iter()
+        .filter_map(|bin| spawn_check(bin).err())
+        .collect();
+    if !preflight.is_empty() {
+        for cat in &cfg.categories {
+            let mut cat_report = CategoryReport::new(*cat);
+            for reason in &preflight {
+                cat_report.push_fail("preflight", reason.clone(), Vec::new(), 3);
+            }
+            report.categories.push(cat_report);
+        }
+        return report;
+    }
+
     for cat in &cfg.categories {
         if cfg.verbose {
             eprintln!("parity-scan: running {} …", cat.name());
@@ -226,4 +284,38 @@ pub fn run_scan(cfg: &ScanConfig) -> Report {
         report.categories.push(cat_report);
     }
     report
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A category with no cases proved nothing. Scoring it 1.0 let a deleted
+    /// or unreadable corpus report perfect parity and clear the threshold.
+    #[test]
+    fn empty_category_scores_zero() {
+        let report = CategoryReport::new(Category::Complete);
+        assert_eq!(report.score(), 0.0);
+    }
+
+    /// Likewise, an empty report (e.g. `--only` matched nothing) must not
+    /// fold to a vacuous minimum of 1.0.
+    #[test]
+    fn empty_report_min_score_is_zero() {
+        assert_eq!(Report::new().min_score(), 0.0);
+    }
+
+    #[test]
+    fn min_score_picks_the_worst_category() {
+        let mut report = Report::new();
+        let mut good = CategoryReport::new(Category::Cli);
+        good.push_pass("a");
+        good.push_pass("b");
+        let mut bad = CategoryReport::new(Category::Init);
+        bad.push_pass("a");
+        bad.push_fail("b", "diverged".to_string(), Vec::new(), 1);
+        report.categories.push(good);
+        report.categories.push(bad);
+        assert_eq!(report.min_score(), 0.5);
+    }
 }

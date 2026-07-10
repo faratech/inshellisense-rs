@@ -24,33 +24,37 @@ use inshellisense_rs::{
 use serde::Deserialize;
 use std::sync::OnceLock;
 
-/// Shared registry built once per test binary. Parity corpus runs 100+
-/// cases, and without this each case would rebuild a Registry from
-/// scratch — walking 1400+ spec files from disk for every case. The
-/// `INSH_RS_SPECS_DIR` env var must be set BEFORE first access so the
-/// singleton picks it up.
+/// Build a registry with the extras corpus loaded.
+///
+/// Every test used to depend on a `set_var("INSH_RS_SPECS_DIR", ..)` buried
+/// inside a lazy singleton: whether a sibling test saw the extras came down
+/// to which test touched the singleton first, and `set_var` races the other
+/// threads `cargo test` runs concurrently. Load the directory explicitly.
+fn build_registry() -> Registry {
+    let extras_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("specs-data")
+        .join("extras");
+    let mut registry = Registry::new_with_defaults();
+    registry.load_spec_dir(&extras_dir);
+    registry
+}
+
+/// Shared engine built once per test binary. The parity corpus runs 100+
+/// cases, and without this each case would rebuild a Registry from scratch —
+/// walking 1400+ spec files from disk for every case.
 fn shared_engine() -> &'static Engine {
     static CELL: OnceLock<Engine> = OnceLock::new();
-    CELL.get_or_init(|| {
-        let extras_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("specs-data")
-            .join("extras");
-        unsafe {
-            std::env::set_var("INSH_RS_SPECS_DIR", &extras_dir);
-        }
-        let registry = Registry::new_with_defaults();
-        Engine::new(registry, Vec::new())
-    })
+    CELL.get_or_init(|| Engine::new(build_registry(), Vec::new()))
 }
 
 fn top_suggestion(line: &str) -> Option<String> {
-    let registry = Registry::new_with_defaults();
+    let registry = build_registry();
     let engine = Engine::new(registry, Vec::new());
     engine.suggest(line, ".")
 }
 
 fn top_name(line: &str) -> Option<String> {
-    let registry = Registry::new_with_defaults();
+    let registry = build_registry();
     let engine = Engine::new(registry, Vec::new());
     let blob = engine.suggest_blob(line, ".");
     blob.first().map(|s| s.name.clone())
@@ -77,7 +81,7 @@ fn git_branch_suggestion() {
 fn docker_has_many_subcommands() {
     // Sanity check on the extracted docker spec: a rich subcommand tree.
     let blob = {
-        let registry = Registry::new_with_defaults();
+        let registry = build_registry();
         let engine = Engine::new(registry, Vec::new());
         engine.suggest_blob("docker ", ".")
     };
@@ -94,7 +98,7 @@ fn docker_run_has_detach() {
     // This exercises the PropertyAccessExpression resolver: the run
     // subcommand comes from sharedCommands.run in upstream docker.ts.
     let blob = {
-        let registry = Registry::new_with_defaults();
+        let registry = build_registry();
         let engine = Engine::new(registry, Vec::new());
         engine.suggest_blob("docker run ", ".")
     };
@@ -169,7 +173,7 @@ fn dash_dash_marks_raw_tokens() {
 #[test]
 fn completion_with_trailing_space_offers_subcommands() {
     let blob = {
-        let registry = Registry::new_with_defaults();
+        let registry = build_registry();
         let engine = Engine::new(registry, Vec::new());
         engine.suggest_blob("git ", ".")
     };
@@ -184,7 +188,7 @@ fn completion_with_trailing_space_offers_subcommands() {
 #[test]
 fn posix_short_flag_prefers_exact_case_match() {
     let blob = {
-        let registry = Registry::new_with_defaults();
+        let registry = build_registry();
         let engine = Engine::new(registry, Vec::new());
         engine.suggest_blob("ls -l", ".")
     };
@@ -215,7 +219,7 @@ fn exact_case_option_prefix_beats_wrong_case_priority() {
 
 #[test]
 fn powershell_ls_uses_get_childitem_options() {
-    let registry = Registry::new_with_defaults();
+    let registry = build_registry();
     let mut engine = Engine::new(registry, Vec::new());
     engine.set_shell(Shell::Pwsh);
 
@@ -238,7 +242,7 @@ fn powershell_ls_uses_get_childitem_options() {
 #[test]
 fn requires_separator_empty_value_suggests_values() {
     let blob = {
-        let registry = Registry::new_with_defaults();
+        let registry = build_registry();
         let engine = Engine::new(registry, Vec::new());
         engine.suggest_blob("eza --color-scale=", ".")
     };
@@ -249,7 +253,7 @@ fn requires_separator_empty_value_suggests_values() {
 
 #[test]
 fn depends_on_filters_options_until_dependency_is_present() {
-    let registry = Registry::new_with_defaults();
+    let registry = build_registry();
     let engine = Engine::new(registry, Vec::new());
     let without = engine.suggest_blob("cp -", ".");
     assert!(
@@ -270,7 +274,7 @@ fn depends_on_filters_options_until_dependency_is_present() {
 #[test]
 fn options_must_precede_arguments_suppresses_options_after_arg() {
     let blob = {
-        let registry = Registry::new_with_defaults();
+        let registry = build_registry();
         let engine = Engine::new(registry, Vec::new());
         engine.suggest_blob("nc example.com -", ".")
     };
@@ -283,7 +287,7 @@ fn options_must_precede_arguments_suppresses_options_after_arg() {
 
 #[test]
 fn alias_completion_uses_original_token_and_active_segment() {
-    let registry = Registry::new_with_defaults();
+    let registry = build_registry();
     let mut engine = Engine::new(registry, Vec::new());
     let mut aliases = std::collections::HashMap::new();
     aliases.insert("g".to_string(), "git".to_string());
@@ -307,7 +311,7 @@ fn alias_completion_uses_original_token_and_active_segment() {
 
 #[test]
 fn cargo_package_json_object_generator_suggests_packages() {
-    let registry = Registry::new_with_defaults();
+    let registry = build_registry();
     let engine = Engine::new(registry, Vec::new());
     let cwd = env!("CARGO_MANIFEST_DIR");
     let blob = engine.suggest_blob("cargo test --package i", cwd);
@@ -324,7 +328,7 @@ fn cargo_package_json_object_generator_suggests_packages() {
 fn extracted_find_has_options() {
     // find is an extracted pure-data spec — option -E should be discoverable.
     let blob = {
-        let registry = Registry::new_with_defaults();
+        let registry = build_registry();
         let engine = Engine::new(registry, Vec::new());
         engine.suggest_blob("find -", ".")
     };
@@ -493,7 +497,7 @@ fn loaded_spec_count_at_least_20() {
     // give us at least 20 commands out of the box. The full 1000+ specs
     // live under specs-data/extras/ and are loaded via INSH_RS_SPECS_DIR
     // or a CI-published tarball — not counted here.
-    let registry = Registry::new_with_defaults();
+    let registry = build_registry();
     assert!(
         registry.len() >= 20,
         "expected ≥20 specs loaded from embed + curated, got {}",

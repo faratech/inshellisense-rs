@@ -14,6 +14,9 @@ pub fn run() -> Result<()> {
         let _ = fs::remove_file(&v);
     }
     let root = resources::unpack()?;
-    println!("✓ inshellisense-rs resources regenerated at {}", root.display());
+    println!(
+        "✓ inshellisense-rs resources regenerated at {}",
+        root.display()
+    );
     Ok(())
 }

@@ -3,6 +3,11 @@
 //! Two implementations:
 //! - `unix.rs` (cfg(unix)) — POSIX forkpty/poll/termios. Linux + macOS.
 //! - `windows.rs` (cfg(windows)) — ConPTY + WaitForMultipleObjects.
+//!
+//! `keys.rs` holds the console key-decoding logic the Windows reader uses. It
+//! is compiled everywhere so it can be unit-tested off Windows.
+
+pub mod keys;
 
 #[cfg(unix)]
 mod unix;

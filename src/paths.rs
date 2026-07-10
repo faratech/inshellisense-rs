@@ -39,12 +39,30 @@
 use crate::shell::Shell;
 use std::path::PathBuf;
 
+/// Read an env var as an *absolute* directory path.
+///
+/// An empty or relative value is rejected rather than being joined onto the
+/// current directory: `HOME=` used to resolve `~/.inshellisense` to a
+/// project-local `.inshellisense`, which `is uninstall` would then delete.
+fn absolute_dir_var(name: &str) -> Option<PathBuf> {
+    let value = std::env::var_os(name)?;
+    if value.is_empty() {
+        return None;
+    }
+    let path = PathBuf::from(value);
+    path.is_absolute().then_some(path)
+}
+
 pub fn home() -> Option<PathBuf> {
     // Unix: $HOME. Windows: $USERPROFILE.
     #[cfg(unix)]
-    { std::env::var_os("HOME").map(PathBuf::from) }
+    {
+        absolute_dir_var("HOME")
+    }
     #[cfg(windows)]
-    { std::env::var_os("USERPROFILE").map(PathBuf::from) }
+    {
+        absolute_dir_var("USERPROFILE")
+    }
 }
 
 /// Config dir. Unix: `$XDG_CONFIG_HOME` or `~/.config`.
@@ -52,17 +70,11 @@ pub fn home() -> Option<PathBuf> {
 pub fn config_dir() -> Option<PathBuf> {
     #[cfg(windows)]
     {
-        return std::env::var_os("APPDATA").map(PathBuf::from);
+        return absolute_dir_var("APPDATA");
     }
     #[cfg(unix)]
     {
-        if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
-            let p = PathBuf::from(xdg);
-            if p.is_absolute() {
-                return Some(p);
-            }
-        }
-        home().map(|h| h.join(".config"))
+        absolute_dir_var("XDG_CONFIG_HOME").or_else(|| home().map(|h| h.join(".config")))
     }
 }
 
@@ -133,8 +145,37 @@ pub fn upstream_config_files() -> Vec<PathBuf> {
 
 /// Resolve a shell's rc file (absolute path). Returns None for shells
 /// whose rc file needs runtime resolution (e.g. pwsh's `$PROFILE`).
+///
+/// zsh and fish relocate their rc files via `$ZDOTDIR` and
+/// `$XDG_CONFIG_HOME`. Ignoring those wrote the init snippet to a file the
+/// shell never reads, so `is init` silently had no effect.
 pub fn shell_rc_file(shell: Shell) -> Option<PathBuf> {
-    let home = home()?;
-    let rel = shell.rc_file_relative()?;
-    Some(home.join(rel))
+    match shell {
+        Shell::Zsh => Some(absolute_dir_var("ZDOTDIR").or_else(home)?.join(".zshrc")),
+        #[cfg(unix)]
+        Shell::Fish => Some(config_dir()?.join("fish").join("config.fish")),
+        _ => Some(home()?.join(shell.rc_file_relative()?)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `absolute_dir_var` is the guard that keeps an empty or relative `HOME`
+    /// from resolving `~/.inshellisense` to a project-local directory that
+    /// `is uninstall` would then delete.
+    #[test]
+    fn absolute_dir_var_rejects_empty_and_relative() {
+        let name = "INSH_RS_PATHS_TEST";
+        for value in ["", "relative/dir", "."] {
+            // SAFETY: a test-only variable no other thread reads.
+            unsafe { std::env::set_var(name, value) };
+            assert_eq!(absolute_dir_var(name), None, "value {value:?}");
+        }
+        unsafe { std::env::set_var(name, "/abs/dir") };
+        assert_eq!(absolute_dir_var(name), Some(PathBuf::from("/abs/dir")));
+        unsafe { std::env::remove_var(name) };
+        assert_eq!(absolute_dir_var(name), None);
+    }
 }

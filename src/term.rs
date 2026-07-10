@@ -22,14 +22,19 @@ pub struct TermTracker {
 
 #[derive(Debug, Clone, Default)]
 pub struct CmdState {
-    /// Absolute row (baseY + cursorY) where the prompt ended — our "start of
-    /// command" anchor. `None` before the first prompt is observed.
+    /// Screen row where the prompt ended — our "start of command" anchor.
+    /// `None` before the first prompt is observed. Screen-relative, so it is
+    /// re-derived whenever the screen scrolls (see `refresh_command`).
     prompt_end_row: Option<usize>,
     prompt_end_col: Option<usize>,
     /// True between PromptStart and PromptEnd.
     in_prompt: bool,
-    /// Last snapshot of the command text extracted from the screen.
+    /// Last snapshot of the *whole* command line, not just the part before
+    /// the cursor.
     pub command: String,
+    /// How many characters of `command` sit before the cursor. Equal to
+    /// `command.chars().count()` exactly when the cursor is at end-of-line.
+    pub cursor_offset: usize,
     pub cursor_row: u16,
     pub cursor_col: u16,
 }
@@ -93,23 +98,27 @@ impl TermTracker {
     ///
     /// Returns `true` when there's no active command (nothing to be
     /// mid-edit in).
+    ///
+    /// This compares the cursor against the *full* command line. Comparing it
+    /// against the prompt-to-cursor text (which is what `command` used to
+    /// hold) made the answer tautologically `true`, so ghost text happily
+    /// erased the suffix of a line the user had cursored back into.
     pub fn cursor_at_command_end(&self) -> bool {
-        let Some(pc) = self.state.prompt_end_col else {
+        if self.state.prompt_end_row.is_none() {
             return true;
-        };
-        let Some(pr) = self.state.prompt_end_row else {
-            return true;
-        };
-        let expected_row = pr as u16;
-        // Single-line case: cursor_col should be at prompt_end_col + command.len()
-        if self.state.cursor_row == expected_row {
-            let expected_col = pc + self.state.command.chars().count();
-            return self.state.cursor_col as usize == expected_col;
         }
-        // Multi-line: assume at end if cursor_row > prompt_end_row.
-        // We don't track the wrapped last-row col precisely for the
-        // MVP — multi-line ghost is a follow-up.
-        self.state.cursor_row as usize > pr
+        self.state.cursor_offset == self.state.command.chars().count()
+    }
+
+    /// The command text up to the cursor. Completions are computed from what
+    /// precedes the cursor, not from the whole line — with the cursor after
+    /// `git s` in `git status`, the candidate is `s`, not `status`.
+    pub fn command_before_cursor(&self) -> String {
+        self.state
+            .command
+            .chars()
+            .take(self.state.cursor_offset)
+            .collect()
     }
 
     /// Called on SIGWINCH — tell the headless vt parser about the new
@@ -184,6 +193,13 @@ impl TermTracker {
         self.refresh_command();
     }
 
+    fn clear_anchor(&mut self) {
+        self.state.prompt_end_row = None;
+        self.state.prompt_end_col = None;
+        self.state.command.clear();
+        self.state.cursor_offset = 0;
+    }
+
     fn refresh_command(&mut self) {
         let (cursor_row, cursor_col) = self.parser.screen().cursor_position();
         self.state.cursor_row = cursor_row;
@@ -193,50 +209,93 @@ impl TermTracker {
             // No anchor — nothing to extract. Keep command empty so
             // renderers don't draw anything.
             self.state.command.clear();
+            self.state.cursor_offset = 0;
             return;
         };
 
-        let row = cursor_row as usize;
+        let screen = self.parser.screen();
+        // Where does the logical line under the cursor actually begin? A row
+        // that wraps into its successor marks the continuation, so walking up
+        // through wrapped rows finds the line's first screen row no matter how
+        // far the screen has scrolled since the prompt was drawn.
+        let first_row = logical_line_start(screen, cursor_row) as usize;
 
-        // Anchor-staleness check. The anchor is set by the shell
-        // integration script's PromptEnd OSC marker; if the user spawns
-        // a nested shell (e.g. `sudo su root`) that doesn't source our
-        // integration, no new PromptStart/End will fire, and the anchor
-        // will stay frozen at the outer shell's last prompt position.
-        // Meanwhile the cursor walks down the screen as the nested
-        // shell emits its own output + prompts, and extracting
-        // "command" from the old anchor to the new cursor would read
-        // arbitrary lines of prior output and feed them to the
-        // suggestion engine.
-        //
-        // Typing a real multi-line command via wrap is rare and almost
-        // never exceeds 2 wrapped rows; any larger gap is far more
-        // likely to be stale-anchor drift. Clear the anchor in that
-        // case and wait for a fresh PromptEnd.
-        if row > pr + 2 || (row < pr) {
-            self.state.prompt_end_row = None;
-            self.state.prompt_end_col = None;
-            self.state.command.clear();
+        let pr = if first_row < pr {
+            // The screen scrolled: the prompt moved up by `pr - first_row`
+            // rows. The stored anchor now points at unrelated text — typing
+            // past the bottom row used to reduce the tracked command to just
+            // its last wrapped fragment. Re-anchor to where the line really is.
+            self.state.prompt_end_row = Some(first_row);
+            first_row
+        } else if first_row > pr {
+            // The cursor is on a *different* logical line than the anchor.
+            // This is the stale-anchor case: a nested shell (`sudo su`) that
+            // never sourced our integration emits its own prompts, so no fresh
+            // PromptStart/End arrives and the old anchor drifts. Extracting
+            // from it would feed arbitrary prior output to the suggestion
+            // engine. Drop the anchor and wait for a real PromptEnd.
+            self.clear_anchor();
+            return;
+        } else {
+            pr
+        };
+
+        // A prompt that has scrolled off the top leaves us no way to know how
+        // many columns of the first visible row belong to it.
+        if pc > self.cols as usize {
+            self.clear_anchor();
             return;
         }
 
-        // Extract text from the prompt-end anchor out to the cursor.
-        let screen = self.parser.screen();
+        let cols = self.cols as usize;
+        let last_row = logical_line_end(screen, pr as u16, self.rows) as usize;
+
+        // Extract the whole line, not merely the part before the cursor.
         let mut cmd = String::new();
-        if row == pr {
-            let line = row_text(screen, row, pc, cursor_col as usize);
-            cmd.push_str(&line);
+        if pr == last_row {
+            cmd.push_str(&row_text(screen, pr, pc, cols));
         } else {
-            // 1- or 2-row wrap.
-            let first = row_text(screen, pr, pc, self.cols as usize);
-            cmd.push_str(&first);
-            for r in (pr + 1)..row {
-                cmd.push_str(&row_text(screen, r, 0, self.cols as usize));
+            cmd.push_str(&row_text(screen, pr, pc, cols));
+            for r in (pr + 1)..last_row {
+                cmd.push_str(&row_text(screen, r, 0, cols));
             }
-            cmd.push_str(&row_text(screen, row, 0, cursor_col as usize));
+            cmd.push_str(&row_text(screen, last_row, 0, cols));
         }
-        self.state.command = cmd;
+
+        // Characters between the anchor and the cursor.
+        let cursor_offset = if (cursor_row as usize) == pr {
+            (cursor_col as usize).saturating_sub(pc)
+        } else {
+            (cols - pc) + (cursor_row as usize - pr - 1) * cols + cursor_col as usize
+        };
+
+        // The row is padded with blanks out to the last column. Trim them, but
+        // never past the cursor: a trailing space the user actually typed
+        // (`git `) is indistinguishable from padding except by cursor position.
+        let typed_len = cmd.trim_end_matches(' ').chars().count();
+        let keep = typed_len.max(cursor_offset);
+        self.state.command = cmd.chars().take(keep).collect();
+        self.state.cursor_offset = cursor_offset.min(self.state.command.chars().count());
     }
+}
+
+/// First screen row of the logical line containing `row`, found by walking up
+/// through rows that wrap into their successor.
+fn logical_line_start(screen: &vt100::Screen, row: u16) -> u16 {
+    let mut first = row;
+    while first > 0 && screen.row_wrapped(first - 1) {
+        first -= 1;
+    }
+    first
+}
+
+/// Last screen row of the logical line beginning at `row`.
+fn logical_line_end(screen: &vt100::Screen, row: u16, rows: u16) -> u16 {
+    let mut last = row;
+    while last + 1 < rows && screen.row_wrapped(last) {
+        last += 1;
+    }
+    last
 }
 
 fn row_text(screen: &vt100::Screen, row: usize, start_col: usize, end_col: usize) -> String {
@@ -268,5 +327,79 @@ mod tests {
         tracker.feed(b"$ ", &[IsEvent::PromptStart, IsEvent::PromptEnd]);
         tracker.feed(b"git ", &[]);
         assert_eq!(tracker.state().command, "git ");
+        assert!(tracker.cursor_at_command_end());
+    }
+
+    /// Cursoring back into the middle of a line must be detected. The tracker
+    /// used to re-extract only the text before the cursor, which made
+    /// `cursor_at_command_end()` compare a value against itself and always
+    /// return true — so ghost text erased the real `tatus` suffix.
+    #[test]
+    fn detects_cursor_moved_into_middle_of_line() {
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.feed(b"$ ", &[IsEvent::PromptStart, IsEvent::PromptEnd]);
+        tracker.feed(b"git status", &[]);
+        assert_eq!(tracker.state().command, "git status");
+        assert!(tracker.cursor_at_command_end());
+
+        // Cursor left five columns: now sitting between `git s` and `tatus`.
+        tracker.feed(b"\x1b[5D", &[]);
+        assert_eq!(
+            tracker.state().command,
+            "git status",
+            "the whole line must still be tracked, not just the prefix"
+        );
+        assert_eq!(tracker.state().cursor_offset, 5);
+        assert!(
+            !tracker.cursor_at_command_end(),
+            "ghost text would overwrite the `tatus` suffix"
+        );
+    }
+
+    /// A command typed on the bottom row wraps and scrolls the screen. The
+    /// prompt anchor is screen-relative, so it must follow the scroll —
+    /// otherwise the tracked command collapses to its last wrapped fragment.
+    #[test]
+    fn survives_wrap_scroll_on_bottom_row() {
+        let mut tracker = TermTracker::new(5, 10);
+        // Push the prompt down to the last row.
+        tracker.feed(b"\r\n\r\n\r\n\r\n", &[]);
+        tracker.feed(b"$ ", &[IsEvent::PromptStart, IsEvent::PromptEnd]);
+        assert_eq!(tracker.state().cursor_row, 4);
+
+        // 8 chars fill the row, the 9th wraps and scrolls the screen up.
+        tracker.feed(b"abcdefghijk", &[]);
+        assert_eq!(tracker.state().command, "abcdefghijk");
+        assert!(tracker.cursor_at_command_end());
+    }
+
+    /// Multi-row wraps of any depth are tracked, not just the two the old
+    /// staleness heuristic allowed for.
+    #[test]
+    fn tracks_command_wrapped_across_several_rows() {
+        let mut tracker = TermTracker::new(24, 10);
+        tracker.feed(b"$ ", &[IsEvent::PromptStart, IsEvent::PromptEnd]);
+        // 8 cols on the first row, then 10 per row after: 30 chars spans 4 rows.
+        let typed = "abcdefghijklmnopqrstuvwxyz0123";
+        tracker.feed(typed.as_bytes(), &[]);
+        assert_eq!(tracker.state().command, typed);
+        assert!(tracker.cursor_at_command_end());
+    }
+
+    /// A nested shell that never sourced our integration emits its own prompts
+    /// with no PromptEnd, leaving the anchor pointing at an older line. The
+    /// tracker must drop the anchor rather than feed prior output to the
+    /// suggestion engine.
+    #[test]
+    fn drops_stale_anchor_when_cursor_leaves_the_line() {
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.feed(b"$ ", &[IsEvent::PromptStart, IsEvent::PromptEnd]);
+        tracker.feed(b"sudo su", &[]);
+        assert_eq!(tracker.state().command, "sudo su");
+
+        // Nested shell prints output and its own (unmarked) prompt.
+        tracker.feed(b"\r\nroot output\r\nroot# ", &[]);
+        assert!(!tracker.has_prompt_anchor());
+        assert_eq!(tracker.state().command, "");
     }
 }

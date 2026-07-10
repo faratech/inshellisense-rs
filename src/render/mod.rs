@@ -38,28 +38,31 @@ pub enum Renderer {
 }
 
 impl Renderer {
-    pub fn new(mode: UiMode, max_suggestions: u8) -> Self {
+    pub fn new(mode: UiMode, max_suggestions: u8, icons: popup::IconSet) -> Self {
         match mode {
             UiMode::Ghost => Renderer::Ghost(ghost::GhostRenderer::new()),
-            UiMode::Popup => Renderer::Popup(popup::PopupRenderer::new(max_suggestions)),
+            UiMode::Popup => Renderer::Popup(popup::PopupRenderer::new(max_suggestions, icons)),
             UiMode::Hybrid => Renderer::Hybrid {
                 ghost: ghost::GhostRenderer::new(),
-                popup: popup::PopupRenderer::new(max_suggestions),
+                popup: popup::PopupRenderer::new(max_suggestions, icons),
             },
         }
     }
 
+    /// `ghost_cells` is the number of columns left on the cursor's row; the
+    /// ghost tail is truncated to fit so it never wraps.
     pub fn draw(
         &mut self,
         out: &mut impl io::Write,
         tail: Option<&str>,
         all: &[Suggestion],
+        ghost_cells: usize,
     ) -> io::Result<()> {
         match self {
-            Renderer::Ghost(g) => g.draw(out, tail),
+            Renderer::Ghost(g) => g.draw(out, tail, ghost_cells),
             Renderer::Popup(p) => p.draw(out, tail, all),
             Renderer::Hybrid { ghost, popup } => {
-                ghost.draw(out, tail)?;
+                ghost.draw(out, tail, ghost_cells)?;
                 popup.draw(out, tail, all)
             }
         }
@@ -76,11 +79,12 @@ impl Renderer {
         cursor_col: u16,
         term_cols: u16,
     ) -> io::Result<()> {
+        let ghost_cells = term_cols.saturating_sub(cursor_col) as usize;
         match self {
-            Renderer::Ghost(g) => g.draw(out, tail),
+            Renderer::Ghost(g) => g.draw(out, tail, ghost_cells),
             Renderer::Popup(p) => p.draw_full(out, all, cursor, direction, cursor_col, term_cols),
             Renderer::Hybrid { ghost, popup } => {
-                ghost.draw(out, tail)?;
+                ghost.draw(out, tail, ghost_cells)?;
                 popup.draw_full(out, all, cursor, direction, cursor_col, term_cols)
             }
         }

@@ -12,9 +12,7 @@ pub fn matches(strategy: FilterStrategy, candidate: &str, query: &str) -> bool {
     // change here special-cased flags as case-sensitive; that diverged
     // from upstream and has been reverted.
     match strategy {
-        FilterStrategy::Default | FilterStrategy::Prefix => {
-            ci_starts_with(candidate, query)
-        }
+        FilterStrategy::Default | FilterStrategy::Prefix => ci_starts_with(candidate, query),
         FilterStrategy::Fuzzy => {
             // Substring match — matches inshellisense's default fuzzy which
             // is really case-insensitive contains.
@@ -25,7 +23,10 @@ pub fn matches(strategy: FilterStrategy, candidate: &str, query: &str) -> bool {
 
 fn ci_starts_with(s: &str, prefix: &str) -> bool {
     let sl = s.chars().flat_map(|c| c.to_lowercase()).collect::<String>();
-    let pl = prefix.chars().flat_map(|c| c.to_lowercase()).collect::<String>();
+    let pl = prefix
+        .chars()
+        .flat_map(|c| c.to_lowercase())
+        .collect::<String>();
     sl.starts_with(&pl)
 }
 

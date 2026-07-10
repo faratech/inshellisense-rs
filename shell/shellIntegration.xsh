@@ -9,13 +9,18 @@ def __is_prompt_end() -> str:
     return "\001" + "\x1b]6973;PE\x07" + "\002"
 
 def __is_escape_value(value: str) -> str:
-    byte_list = [bytes([byte]).decode("utf-8") for byte in list(value.encode("utf-8"))]
-    return "".join(
-        [
-            "\\x3b" if byte == ";" else "\\\\" if byte == "\\" else "\\x1b" if byte == "\x1b" else "\x0a" if byte == "\n"else "\\x07" if byte == "\x07" else byte
-            for byte in byte_list
-        ]
-    )
+    # Escape per character, not per UTF-8 byte: decoding an individual
+    # continuation byte raises UnicodeDecodeError, so any non-ASCII cwd used
+    # to break the prompt outright. Non-ASCII characters are emitted as-is and
+    # reach the reader as raw UTF-8 bytes, matching shellIntegration.bash.
+    escapes = {
+        "\\": "\\\\",
+        ";": "\\x3b",
+        "\n": "\\x0a",
+        "\x1b": "\\x1b",
+        "\x07": "\\x07",
+    }
+    return "".join([escapes.get(ch, ch) for ch in value])
 
 def __is_update_cwd() -> str:
     return f"\x1b]6973;CWD;{__is_escape_value(os.getcwd())}\x07" + "\002"

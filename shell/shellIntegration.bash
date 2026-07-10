@@ -1,18 +1,38 @@
-if [ -z "$ISTERM_LOGIN" ]; then
-	if [ -r ~/.bashrc ]; then
-		. ~/.bashrc
-	fi
-else
-	if [ -r /etc/profile ]; then
-		. /etc/profile
-	fi
-	# execute the first that exists
-	if [ -r ~/.bash_profile ]; then
-		. ~/.bash_profile
-	elif [ -r ~/.bash_login ]; then
-		. ~/.bash_login
-	elif [ -r ~/.profile ]; then
-		. ~/.profile
+# Idempotency guard. This file is loaded as bash's `--init-file` in a wrapped
+# session, and may also be sourced from `~/.bashrc` via the generated
+# `init.sh`. Without this guard the second load re-registers every prompt hook.
+if [ -n "${__is_integration_loaded:-}" ]; then
+	return 0 2>/dev/null || true
+fi
+__is_integration_loaded=1
+
+# Source the user's startup files ONLY when bash skipped them because we were
+# passed as `--init-file`. When this script is reached from `~/.bashrc`, bash
+# is already reading that file, and sourcing it again recursed until the shell
+# died (`.bashrc` -> `init.sh` -> this file -> `.bashrc` -> ...).
+#
+# The variable is unset immediately so nested shells — which *do* read
+# `~/.bashrc` themselves — take the other branch.
+if [ "${INSH_RS_BASH_INIT_FILE:-}" = "1" ]; then
+	unset INSH_RS_BASH_INIT_FILE
+	if [ -z "$ISTERM_LOGIN" ]; then
+		if [ -r ~/.bashrc ]; then
+			. ~/.bashrc
+		fi
+	else
+		# An interactive login bash ignores --init-file, so we are never
+		# spawned with --login; replay the login startup sequence here.
+		if [ -r /etc/profile ]; then
+			. /etc/profile
+		fi
+		# execute the first that exists
+		if [ -r ~/.bash_profile ]; then
+			. ~/.bash_profile
+		elif [ -r ~/.bash_login ]; then
+			. ~/.bash_login
+		elif [ -r ~/.profile ]; then
+			. ~/.profile
+		fi
 	fi
 fi
 

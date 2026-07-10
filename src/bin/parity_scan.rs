@@ -9,7 +9,7 @@
 //!         --corpus tests/parity \
 //!         --report /tmp/parity-report.md
 
-use inshellisense_rs::parity::{self, report, Category, ScanConfig};
+use inshellisense_rs::parity::{self, Category, ScanConfig, report};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -31,37 +31,76 @@ fn main() -> ExitCode {
     let mut i = 1;
     while i < args.len() {
         let arg = &args[i];
+        // Every value-taking flag needs its operand. Indexing `args[i]` after
+        // a bare `--ours` panicked with an out-of-bounds slice index.
+        let mut value = || -> Result<&String, ExitCode> {
+            i += 1;
+            args.get(i).ok_or_else(|| {
+                eprintln!("parity-scan: missing value for `{}`", arg);
+                ExitCode::from(2)
+            })
+        };
         match arg.as_str() {
-            "--ours" => {
-                i += 1;
-                cfg.ours = PathBuf::from(&args[i]);
-            }
-            "--upstream" => {
-                i += 1;
-                cfg.upstream = PathBuf::from(&args[i]);
-            }
-            "--corpus" => {
-                i += 1;
-                cfg.corpus_dir = PathBuf::from(&args[i]);
-            }
-            "--report" => {
-                i += 1;
-                cfg.output_path = PathBuf::from(&args[i]);
-            }
-            "--raw-dir" => {
-                i += 1;
-                cfg.raw_dir = PathBuf::from(&args[i]);
-            }
+            "--ours" => match value() {
+                Ok(v) => cfg.ours = PathBuf::from(v),
+                Err(code) => return code,
+            },
+            "--upstream" => match value() {
+                Ok(v) => cfg.upstream = PathBuf::from(v),
+                Err(code) => return code,
+            },
+            "--corpus" => match value() {
+                Ok(v) => cfg.corpus_dir = PathBuf::from(v),
+                Err(code) => return code,
+            },
+            "--report" => match value() {
+                Ok(v) => cfg.output_path = PathBuf::from(v),
+                Err(code) => return code,
+            },
+            "--raw-dir" => match value() {
+                Ok(v) => cfg.raw_dir = PathBuf::from(v),
+                Err(code) => return code,
+            },
             "--only" => {
-                i += 1;
-                cfg.categories = args[i]
-                    .split(',')
-                    .filter_map(Category::parse)
-                    .collect();
+                let raw = match value() {
+                    Ok(v) => v.clone(),
+                    Err(code) => return code,
+                };
+                // Silently dropping unknown names selected zero categories,
+                // which then scored a vacuous 100% and exited 0.
+                let mut selected = Vec::new();
+                for name in raw.split(',').map(str::trim).filter(|n| !n.is_empty()) {
+                    match Category::parse(name) {
+                        Some(cat) => selected.push(cat),
+                        None => {
+                            eprintln!("parity-scan: unknown category `{}`", name);
+                            return ExitCode::from(2);
+                        }
+                    }
+                }
+                if selected.is_empty() {
+                    eprintln!("parity-scan: `--only` selected no categories");
+                    return ExitCode::from(2);
+                }
+                cfg.categories = selected;
             }
             "--threshold" => {
-                i += 1;
-                cfg.threshold = args[i].parse().unwrap_or(0.90);
+                let raw = match value() {
+                    Ok(v) => v.clone(),
+                    Err(code) => return code,
+                };
+                // `"NaN".parse::<f64>()` succeeds, and `min < NaN` is always
+                // false — a NaN threshold could never fail the run.
+                match raw.parse::<f64>() {
+                    Ok(t) if t.is_finite() && (0.0..=1.0).contains(&t) => cfg.threshold = t,
+                    _ => {
+                        eprintln!(
+                            "parity-scan: --threshold must be a number in [0.0, 1.0], got `{}`",
+                            raw
+                        );
+                        return ExitCode::from(2);
+                    }
+                }
             }
             "-v" | "--verbose" => {
                 cfg.verbose = true;
@@ -78,16 +117,11 @@ fn main() -> ExitCode {
         i += 1;
     }
 
-    if !cfg.ours.exists() {
-        eprintln!("parity-scan: --ours binary not found: {}", cfg.ours.display());
-        return ExitCode::from(2);
+    if let Err(code) = check_executable("--ours", &cfg.ours) {
+        return code;
     }
-    if !cfg.upstream.exists() {
-        eprintln!(
-            "parity-scan: --upstream binary not found: {}",
-            cfg.upstream.display()
-        );
-        return ExitCode::from(2);
+    if let Err(code) = check_executable("--upstream", &cfg.upstream) {
+        return code;
     }
 
     // Canonicalize binary paths so subprocess-with-current-dir still
@@ -144,6 +178,38 @@ fn main() -> ExitCode {
     }
 
     ExitCode::from(0)
+}
+
+/// `Path::exists` was the only gate, so two non-executable files compared as
+/// perfect parity: both spawns failed identically and every category saw two
+/// empty results.
+fn check_executable(flag: &str, path: &std::path::Path) -> Result<(), ExitCode> {
+    let meta = match std::fs::metadata(path) {
+        Ok(meta) => meta,
+        Err(e) => {
+            eprintln!(
+                "parity-scan: {flag} binary not usable: {} ({e})",
+                path.display()
+            );
+            return Err(ExitCode::from(2));
+        }
+    };
+    if !meta.is_file() {
+        eprintln!("parity-scan: {flag} is not a file: {}", path.display());
+        return Err(ExitCode::from(2));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if meta.permissions().mode() & 0o111 == 0 {
+            eprintln!(
+                "parity-scan: {flag} binary is not executable: {}",
+                path.display()
+            );
+            return Err(ExitCode::from(2));
+        }
+    }
+    Ok(())
 }
 
 fn print_help() {

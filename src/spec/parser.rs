@@ -26,6 +26,11 @@ pub struct CommandToken {
     /// Differs from `token.len()` for quoted/escaped tokens. Mirrors
     /// upstream's `tokenLength` used for replacement math.
     pub token_length: usize,
+    /// Set on an option token whose value was attached with `=`
+    /// (`--opt=value`). Distinguishes it from `--opt value`, which the
+    /// resolver must not treat as an attached value for a
+    /// `requiresSeparator` option.
+    pub separated: bool,
 }
 
 /// Parse a command line into tokens for the *last* pipeline segment.
@@ -154,6 +159,8 @@ fn lex(command: &str) -> Vec<CommandToken> {
                 complete: true,
                 is_option: true,
                 token_length: idx - reading_idx,
+                // Only an `=` attaches the value to the option token.
+                separated: ch == '=',
                 ..Default::default()
             });
             if ch == '=' && idx + 1 == chars.len() {

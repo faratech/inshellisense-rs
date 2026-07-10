@@ -5,6 +5,8 @@
 
 #![cfg(windows)]
 
+use super::keys::{Modifiers, decode_utf16_unit, vkey_sequence};
+use super::keys::{VK_BACK, VK_ESCAPE, VK_RETURN, VK_TAB};
 use super::{PtyHandle, PtyResult, RawDescriptor};
 use std::mem;
 use std::ptr;
@@ -16,35 +18,6 @@ use windows_sys::Win32::System::Threading::*;
 
 const PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE: usize = 0x00020016;
 
-// Virtual-key constants (defined locally to avoid pulling in
-// Win32_UI_Input_KeyboardAndMouse just for these).
-const VK_BACK: u16 = 0x08;
-const VK_TAB: u16 = 0x09;
-const VK_RETURN: u16 = 0x0D;
-const VK_ESCAPE: u16 = 0x1B;
-const VK_PRIOR: u16 = 0x21; // Page Up
-const VK_NEXT: u16 = 0x22; // Page Down
-const VK_END: u16 = 0x23;
-const VK_HOME: u16 = 0x24;
-const VK_LEFT: u16 = 0x25;
-const VK_UP: u16 = 0x26;
-const VK_RIGHT: u16 = 0x27;
-const VK_DOWN: u16 = 0x28;
-const VK_INSERT: u16 = 0x2D;
-const VK_DELETE: u16 = 0x2E;
-const VK_F1: u16 = 0x70;
-const VK_F2: u16 = 0x71;
-const VK_F3: u16 = 0x72;
-const VK_F4: u16 = 0x73;
-const VK_F5: u16 = 0x74;
-const VK_F6: u16 = 0x75;
-const VK_F7: u16 = 0x76;
-const VK_F8: u16 = 0x77;
-const VK_F9: u16 = 0x78;
-const VK_F10: u16 = 0x79;
-const VK_F11: u16 = 0x7A;
-const VK_F12: u16 = 0x7B;
-
 pub struct WindowsPty {
     hpc: HPCON,
     child_process: HANDLE,
@@ -52,6 +25,8 @@ pub struct WindowsPty {
     pty_input_write: HANDLE,
     pty_output_read: HANDLE,
     stdin_handle: HANDLE,
+    /// High half of a UTF-16 surrogate pair, awaiting its low half.
+    pending_surrogate: std::cell::Cell<u16>,
 }
 
 impl WindowsPty {
@@ -84,13 +59,7 @@ impl WindowsPty {
                 Y: rows as i16,
             };
             let mut hpc: HPCON = 0;
-            let hr = CreatePseudoConsole(
-                size,
-                pty_input_read,
-                pty_output_write,
-                0,
-                &mut hpc,
-            );
+            let hr = CreatePseudoConsole(size, pty_input_read, pty_output_write, 0, &mut hpc);
             if hr != 0 {
                 CloseHandle(pty_input_read);
                 CloseHandle(pty_input_write);
@@ -146,7 +115,8 @@ impl WindowsPty {
                 })
                 .collect::<Vec<_>>()
                 .join(" ");
-            let mut cmd_wide: Vec<u16> = cmd_line.encode_utf16().chain(std::iter::once(0)).collect();
+            let mut cmd_wide: Vec<u16> =
+                cmd_line.encode_utf16().chain(std::iter::once(0)).collect();
 
             // Build environment block (null-separated, double-null terminated).
             // Windows uses the FIRST occurrence of a duplicate key, so
@@ -196,11 +166,9 @@ impl WindowsPty {
                 ClosePseudoConsole(hpc);
                 CloseHandle(pty_input_write);
                 CloseHandle(pty_output_read);
-                return Err(format!(
-                    "CreateProcessW failed: {}",
-                    std::io::Error::last_os_error()
-                )
-                .into());
+                return Err(
+                    format!("CreateProcessW failed: {}", std::io::Error::last_os_error()).into(),
+                );
             }
 
             let stdin_handle = GetStdHandle(STD_INPUT_HANDLE);
@@ -212,6 +180,7 @@ impl WindowsPty {
                 pty_input_write,
                 pty_output_read,
                 stdin_handle,
+                pending_surrogate: std::cell::Cell::new(0),
             })
         }
     }
@@ -229,13 +198,23 @@ impl PtyHandle for WindowsPty {
     fn pty_write(&self, data: &[u8]) {
         let mut written: u32 = 0;
         unsafe {
-            WriteFile(
-                self.pty_input_write,
-                data.as_ptr(),
-                data.len() as u32,
-                &mut written,
-                ptr::null_mut(),
-            );
+            // Loop like the Unix implementation: `WriteFile` may report a
+            // short write on a full pipe, and its failure was ignored
+            // entirely, so the remainder of a keystroke burst was dropped.
+            let mut offset = 0usize;
+            while offset < data.len() {
+                let ok = WriteFile(
+                    self.pty_input_write,
+                    data[offset..].as_ptr(),
+                    (data.len() - offset) as u32,
+                    &mut written,
+                    ptr::null_mut(),
+                );
+                if ok == 0 || written == 0 {
+                    break;
+                }
+                offset += written as usize;
+            }
         }
     }
 
@@ -270,21 +249,14 @@ impl PtyHandle for WindowsPty {
             // mouse, focus, resize) is queued — read_stdin() filters for
             // key-down events via ReadConsoleInputW.
             let handles = [self.pty_output_read, self.stdin_handle];
-            let result = WaitForMultipleObjects(
-                2,
-                handles.as_ptr(),
-                FALSE,
-                timeout_ms as u32,
-            );
+            let result = WaitForMultipleObjects(2, handles.as_ptr(), FALSE, timeout_ms as u32);
             match result {
                 WAIT_OBJECT_0 => {
-                    let stdin_also =
-                        WaitForSingleObject(self.stdin_handle, 0) == WAIT_OBJECT_0;
+                    let stdin_also = WaitForSingleObject(self.stdin_handle, 0) == WAIT_OBJECT_0;
                     (true, stdin_also)
                 }
                 v if v == WAIT_OBJECT_0 + 1 => {
-                    let pty_also =
-                        WaitForSingleObject(self.pty_output_read, 0) == WAIT_OBJECT_0;
+                    let pty_also = WaitForSingleObject(self.pty_output_read, 0) == WAIT_OBJECT_0;
                     (pty_also, true)
                 }
                 _ => (false, false),
@@ -347,12 +319,8 @@ impl PtyHandle for WindowsPty {
                 }
                 let mut rec: INPUT_RECORD = mem::zeroed();
                 let mut num_read: u32 = 0;
-                if ReadConsoleInputW(
-                    self.stdin_handle,
-                    &mut rec,
-                    1,
-                    &mut num_read,
-                ) == 0 || num_read == 0
+                if ReadConsoleInputW(self.stdin_handle, &mut rec, 1, &mut num_read) == 0
+                    || num_read == 0
                 {
                     break;
                 }
@@ -371,54 +339,43 @@ impl PtyHandle for WindowsPty {
                 if key.wVirtualKeyCode == 0 {
                     continue;
                 }
-                // Keys like Backspace, Tab, Return have non-zero
-                // UnicodeChar (0x08, 0x09, 0x0D) but need specific
-                // byte values. Handle them via vkey BEFORE the
-                // generic ch!=0 path.
+
+                let mods = Modifiers::from_control_key_state(key.dwControlKeyState);
                 let ch = key.uChar.UnicodeChar;
+
+                // Keys like Backspace, Tab, Return have a non-zero
+                // UnicodeChar (0x08, 0x09, 0x0D) but need specific byte
+                // values, so resolve them by virtual key first.
                 let handled_by_vkey = matches!(
                     key.wVirtualKeyCode,
                     VK_BACK | VK_TAB | VK_RETURN | VK_ESCAPE
                 );
-                if ch != 0 && !handled_by_vkey {
-                    // Regular character — encode as UTF-8.
-                    if let Some(c) = char::from_u32(ch as u32) {
-                        let encoded = c.encode_utf8(&mut buf[total..]);
-                        total += encoded.len();
-                    }
-                } else {
-                    // Generate the correct byte from vkey.
-                    let seq: &[u8] = match key.wVirtualKeyCode {
-                        VK_BACK => b"\x7f",
-                        VK_TAB => b"\t",
-                        VK_RETURN => b"\r",
-                        VK_ESCAPE => b"\x1b",
-                        VK_UP => b"\x1b[A",
-                        VK_DOWN => b"\x1b[B",
-                        VK_RIGHT => b"\x1b[C",
-                        VK_LEFT => b"\x1b[D",
-                        VK_HOME => b"\x1b[H",
-                        VK_END => b"\x1b[F",
-                        VK_INSERT => b"\x1b[2~",
-                        VK_DELETE => b"\x1b[3~",
-                        VK_PRIOR => b"\x1b[5~",
-                        VK_NEXT => b"\x1b[6~",
-                        VK_F1 => b"\x1bOP",
-                        VK_F2 => b"\x1bOQ",
-                        VK_F3 => b"\x1bOR",
-                        VK_F4 => b"\x1bOS",
-                        VK_F5 => b"\x1b[15~",
-                        VK_F6 => b"\x1b[17~",
-                        VK_F7 => b"\x1b[18~",
-                        VK_F8 => b"\x1b[19~",
-                        VK_F9 => b"\x1b[20~",
-                        VK_F10 => b"\x1b[21~",
-                        VK_F11 => b"\x1b[23~",
-                        VK_F12 => b"\x1b[24~",
-                        _ => continue,
+
+                // Windows collapses auto-repeat into one record. Emitting the
+                // key once dropped every repeat but the first.
+                let repeat = key.wRepeatCount.max(1) as usize;
+
+                let mut scratch = [0u8; 8];
+                let mut utf8 = [0u8; 4];
+                let bytes: &[u8] = if ch != 0 && !handled_by_vkey {
+                    let Some(scalar) = decode_utf16_unit(&self.pending_surrogate, ch) else {
+                        continue;
                     };
-                    buf[total..total + seq.len()].copy_from_slice(seq);
-                    total += seq.len();
+                    let len = scalar.encode_utf8(&mut utf8).len();
+                    &utf8[..len]
+                } else {
+                    match vkey_sequence(key.wVirtualKeyCode, mods, &mut scratch) {
+                        Some(seq) => seq,
+                        None => continue,
+                    }
+                };
+
+                for _ in 0..repeat {
+                    if total + bytes.len() > buf.len() {
+                        break;
+                    }
+                    buf[total..total + bytes.len()].copy_from_slice(bytes);
+                    total += bytes.len();
                 }
             }
             if total == 0 { -1 } else { total as isize }
@@ -498,20 +455,14 @@ pub fn enable_raw_mode() {
         let h_in = GetStdHandle(STD_INPUT_HANDLE);
         if GetConsoleMode(h_in, std::ptr::addr_of_mut!(ORIG_INPUT_MODE)) != 0 {
             INPUT_MODE_SAVED = true;
-            SetConsoleMode(
-                h_in,
-                ENABLE_WINDOW_INPUT,
-            );
+            SetConsoleMode(h_in, ENABLE_WINDOW_INPUT);
         }
         let h_out = GetStdHandle(STD_OUTPUT_HANDLE);
         if GetConsoleMode(h_out, std::ptr::addr_of_mut!(ORIG_OUTPUT_MODE)) != 0 {
             OUTPUT_MODE_SAVED = true;
             // Enable VT output (needed for powershell.exe). Do NOT
             // set DISABLE_NEWLINE_AUTO_RETURN — causes flash on exit.
-            SetConsoleMode(
-                h_out,
-                ORIG_OUTPUT_MODE | ENABLE_VIRTUAL_TERMINAL_PROCESSING,
-            );
+            SetConsoleMode(h_out, ORIG_OUTPUT_MODE | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
         }
     }
 }
@@ -559,7 +510,10 @@ pub fn find_git_bash() -> Option<String> {
         ("ProgramFiles(x86)", r"Git\bin\bash.exe"),
         ("LocalAppData", r"Programs\Git\bin\bash.exe"),
         ("UserProfile", r"scoop\apps\git\current\bin\bash.exe"),
-        ("UserProfile", r"scoop\apps\git-with-openssh\current\bin\bash.exe"),
+        (
+            "UserProfile",
+            r"scoop\apps\git-with-openssh\current\bin\bash.exe",
+        ),
     ];
     for (env_var, suffix) in &candidates {
         if let Ok(base) = std::env::var(env_var) {

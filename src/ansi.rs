@@ -154,35 +154,49 @@ fn parse_payload(s: &str, events: &mut Vec<IsEvent>) {
     }
 }
 
+fn hex_byte(pair: &[u8]) -> Option<u8> {
+    let digit = |b: u8| (b as char).to_digit(16).map(|d| d as u8);
+    Some(digit(pair[0])? << 4 | digit(pair[1])?)
+}
+
+/// Reverse the shell integrations' `__is_escape_value`. The wire format is a
+/// *byte* stream — non-ASCII characters travel as their raw UTF-8 bytes, and
+/// only `\`, `;`, ESC, BEL and LF are escaped as `\\` / `\xNN`. So unescaping
+/// must rebuild the byte sequence and decode it as UTF-8 at the end; decoding
+/// each byte to a `char` individually would turn `café` into `cafÃ©`.
 fn unescape(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
     let bytes = s.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'\\' && i + 1 < bytes.len() {
             match bytes[i + 1] {
                 b'\\' => {
-                    out.push('\\');
+                    out.push(b'\\');
                     i += 2;
                 }
                 b'x' if i + 3 < bytes.len() => {
-                    let hex = &s[i + 2..i + 4];
-                    if let Ok(n) = u8::from_str_radix(hex, 16) {
-                        out.push(n as char);
+                    // Index bytes, not `&s[..]`: a malformed `\x` followed by
+                    // a multi-byte character would panic on a str slice.
+                    if let Some(n) = hex_byte(&bytes[i + 2..i + 4]) {
+                        out.push(n);
+                        i += 4;
+                    } else {
+                        out.push(bytes[i]);
+                        i += 1;
                     }
-                    i += 4;
                 }
                 _ => {
-                    out.push(bytes[i] as char);
+                    out.push(bytes[i]);
                     i += 1;
                 }
             }
         } else {
-            out.push(bytes[i] as char);
+            out.push(bytes[i]);
             i += 1;
         }
     }
-    out
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 #[cfg(test)]
@@ -208,6 +222,35 @@ mod tests {
             IsEvent::Cwd(s) => assert_eq!(s, "/home/user"),
             _ => panic!("expected Cwd"),
         }
+    }
+
+    /// Non-ASCII cwds travel as raw UTF-8 bytes (see `__is_escape_value` in
+    /// the shell integrations), so they must round-trip unchanged.
+    #[test]
+    fn scan_parses_non_ascii_cwd() {
+        let input = "\x1b]6973;CWD;/tmp/café\x07".as_bytes();
+        let (_, events) = scan(input);
+        match &events[0] {
+            IsEvent::Cwd(s) => assert_eq!(s, "/tmp/café"),
+            _ => panic!("expected Cwd"),
+        }
+    }
+
+    /// The same path escaped byte-wise as `\xNN` must decode identically.
+    #[test]
+    fn unescape_rebuilds_utf8_from_hex_escapes() {
+        assert_eq!(unescape("/tmp/caf\\xc3\\xa9"), "/tmp/café");
+        assert_eq!(unescape("a\\x3bb"), "a;b");
+        assert_eq!(unescape("a\\\\b"), "a\\b");
+        // 日本語 passes through as raw bytes.
+        assert_eq!(unescape("/tmp/日本語"), "/tmp/日本語");
+    }
+
+    /// A stray `\x` before a multi-byte character must not panic on a str slice.
+    #[test]
+    fn unescape_tolerates_malformed_hex_escape() {
+        assert_eq!(unescape("\\xé"), "\\xé");
+        assert_eq!(unescape("\\xZZtail"), "\\xZZtail");
     }
 
     #[test]
