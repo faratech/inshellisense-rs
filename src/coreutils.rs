@@ -360,6 +360,7 @@ pub fn parse_help(name: &str, help: &str) -> Subcommand {
     let mut section = Section::Preamble;
     let mut options: Vec<Opt> = Vec::new();
     let mut usage = String::new();
+    let mut option_indent: Option<usize> = None;
 
     for line in help.lines() {
         let trimmed = line.trim();
@@ -397,7 +398,11 @@ pub fn parse_help(name: &str, help: &str) -> Subcommand {
                     section = Section::Other;
                     continue;
                 }
-                if trimmed.starts_with('-') {
+                if starts_option_line(line, option_indent) {
+                    let indent = indent_of(line);
+                    if option_indent.is_none_or(|seen| indent < seen) {
+                        option_indent = Some(indent);
+                    }
                     if let Some(opt) = parse_option_line(trimmed) {
                         options.push(opt);
                     }
@@ -421,6 +426,65 @@ enum Section {
     Other,
 }
 
+/// Does `line` begin a new option rather than continue the previous one?
+///
+/// Wrapped descriptions routinely start with a dash — uutils `cp` continues
+/// `--remove-destination` with "`--force). On Windows, …`" and `pr` continues
+/// `--sep-string` with "`-J and \`<space>\``" — so "starts with -" is not
+/// enough. A real option line leads with a token shaped like a flag and sits
+/// at (or near) the column the section's other option lines use: prose hangs
+/// deeper, under the description column.
+fn starts_option_line(line: &str, option_indent: Option<usize>) -> bool {
+    // `-c, --check` leads with `-c,`; the comma belongs to the flag.
+    let token = line
+        .split([',', ' ', '\t'])
+        .find(|t| !t.is_empty())
+        .unwrap_or("");
+    is_flag_spec(token)
+        && option_indent.is_none_or(|seen| indent_of(line) <= seen + OPTION_INDENT_SLACK)
+}
+
+/// How much deeper than the shallowest option line an option may still start:
+/// GNU/clap pad long-only flags to `  -x, ` width (2 → 6).
+const OPTION_INDENT_SLACK: usize = 4;
+
+fn indent_of(line: &str) -> usize {
+    line.len() - line.trim_start().len()
+}
+
+/// Is `token` shaped like a flag (`-x`, `--long`, `--multi-word`), possibly
+/// with a value part attached? Prose fragments (`--force).`) are not.
+fn is_flag_spec(token: &str) -> bool {
+    let Some(body) = token.strip_prefix("--").or_else(|| token.strip_prefix('-')) else {
+        return false;
+    };
+    // The flag name ends at a value delimiter; what follows is the value
+    // (`=<SIZE>`, `[=<WHEN>]`) and is judged by `is_value_placeholder`.
+    let name = body.split(['=', '[', '<', ' ']).next().unwrap_or("");
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(first) if first.is_ascii_alphanumeric() => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+/// Is `value` a placeholder naming the option's argument (`<file>`,
+/// `[=<when>]`, `SIZE`) rather than the start of a sentence that happens to
+/// follow the flag ("On Windows", "and `<space>`")?
+fn is_value_placeholder(value: &str) -> bool {
+    let value = value.trim().trim_start_matches('=');
+    if value.starts_with('<') || value.starts_with('[') {
+        return true;
+    }
+    // GNU style writes bare all-caps placeholders: `-S STRING`, `-i LO-HI`.
+    let word = value.split_whitespace().next().unwrap_or("");
+    !word.is_empty()
+        && word
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || c == '_' || c == '-' || c.is_ascii_digit())
+}
+
 /// `-l, --length <length>  digest length in bits` → names, value, description.
 fn parse_option_line(line: &str) -> Option<Opt> {
     // The description begins at the first run of two or more spaces.
@@ -438,11 +502,13 @@ fn parse_option_line(line: &str) -> Option<Opt> {
         }
         // `--length <length>`, `--block-size=<SIZE>`, `--hyperlink[=<WHEN>]`
         let (flag, value) = split_flag(token);
-        if !flag.starts_with('-') {
+        if !is_flag_spec(flag) {
             continue;
         }
         names.push(flag.to_string());
-        if let Some(value) = value {
+        if let Some(value) = value
+            && is_value_placeholder(value)
+        {
             // A bracketed value is optional (`--color[=<when>]`). Getting this
             // wrong would make the resolver eat the following filename as the
             // option's value.
@@ -779,5 +845,130 @@ Options:
     fn cache_filenames_are_sanitized() {
         assert_eq!(sanitize("["), "_");
         assert_eq!(sanitize("sha256sum"), "sha256sum");
+    }
+
+    /// Real uutils 0.10 `cp --help` output: the `--remove-destination`
+    /// description wraps onto a line starting with "`--force).`", which used
+    /// to be parsed as an option named `--force).` requiring the value "On
+    /// Windows" — and persisted into the cache.
+    const CP: &str = "\
+Usage: cp [OPTION]... [-T] SOURCE DEST
+
+Options:
+  -t, --target-directory <target-directory>
+          copy all SOURCE arguments into target-directory
+  -f, --force
+          if an existing destination file cannot be opened, remove it and try again (this option is
+          ignored when the -n option is also used). Currently not implemented for Windows.
+      --remove-destination
+          remove each existing destination file before attempting to open it (contrast with
+          --force). On Windows, currently only works for writeable files.
+      --backup[=<CONTROL>]
+          make a backup of each existing destination file
+";
+
+    /// Real uutils 0.10 `pr --help` output: the `--sep-string` description
+    /// wraps onto "`-J and \`<space>\``", which used to manufacture a second,
+    /// value-taking `-J` that shadowed the real one.
+    const PR: &str = r#"Options:
+  -S, --sep-string [<string>]           separate columns by STRING,
+                                                        without -S: Default separator `<TAB>` with
+                                                        -J and `<space>`
+                                                        otherwise (same as -S" "), no effect on
+                                                        column options
+  -J                                    merge full lines, turns off -W line truncation, no column
+                                                        alignment, --sep-string[=STRING] sets
+                                                        separators
+      --help                            Print help information
+"#;
+
+    /// A wrapped description that begins with a dash is not an option (#57).
+    #[test]
+    fn wrapped_prose_starting_with_a_dash_is_not_an_option() {
+        let spec = parse_help("cp", CP);
+        let names: Vec<&str> = spec
+            .options
+            .iter()
+            .flat_map(|o| o.names.iter().map(String::as_str))
+            .collect();
+        assert!(
+            names.iter().all(|name| !name.contains([')', '.'])),
+            "manufactured option from wrapped prose: {names:?}"
+        );
+        // The prose stays where it belongs — in the description it continues.
+        let remove = spec
+            .options
+            .iter()
+            .find(|o| o.names.contains(&"--remove-destination".to_string()))
+            .unwrap();
+        assert!(
+            remove
+                .description
+                .as_deref()
+                .unwrap_or_default()
+                .ends_with("--force). On Windows, currently only works for writeable files.")
+        );
+    }
+
+    #[test]
+    fn cp_options_keep_their_values_and_defaults() {
+        let spec = parse_help("cp", CP);
+        let force = spec
+            .options
+            .iter()
+            .find(|o| o.names.contains(&"--force".to_string()))
+            .unwrap();
+        assert!(force.args.is_empty(), "--force takes no value");
+
+        let backup = spec
+            .options
+            .iter()
+            .find(|o| o.names.contains(&"--backup".to_string()))
+            .unwrap();
+        assert_eq!(backup.args[0].name.as_deref(), Some("CONTROL"));
+        assert!(backup.args[0].is_optional);
+    }
+
+    #[test]
+    fn a_mid_sentence_flag_mention_does_not_shadow_the_real_option() {
+        let spec = parse_help("pr", PR);
+        let js: Vec<&Opt> = spec
+            .options
+            .iter()
+            .filter(|o| o.names.contains(&"-J".to_string()))
+            .collect();
+        assert_eq!(js.len(), 1, "one -J, not the sentence fragment");
+        assert!(js[0].args.is_empty(), "-J takes no value");
+        assert_eq!(
+            js[0].description.as_deref(),
+            Some(
+                "merge full lines, turns off -W line truncation, no column alignment, --sep-string[=STRING] sets separators"
+            )
+        );
+    }
+
+    /// GNU-style bare uppercase placeholders still mark a value-taking option.
+    #[test]
+    fn bare_uppercase_placeholders_take_a_value() {
+        assert!(is_value_placeholder("<FILE>"));
+        assert!(is_value_placeholder("[=<WHEN>]"));
+        assert!(is_value_placeholder("=<SIZE>"));
+        assert!(is_value_placeholder("SIZE"));
+        assert!(!is_value_placeholder("and `<space>`"));
+        assert!(!is_value_placeholder("On Windows"));
+    }
+
+    #[test]
+    fn flag_shapes_are_distinguished_from_prose() {
+        assert!(is_flag_spec("-c"));
+        assert!(is_flag_spec("-J"));
+        assert!(is_flag_spec("--all"));
+        assert!(is_flag_spec("--sep-string"));
+        assert!(is_flag_spec("--hyperlink[=<WHEN>]"));
+        assert!(is_flag_spec("--block-size=<SIZE>"));
+        assert!(!is_flag_spec("--force)."));
+        assert!(!is_flag_spec("--"));
+        assert!(!is_flag_spec("-S\""));
+        assert!(!is_flag_spec("hyperlink"));
     }
 }
