@@ -18,6 +18,26 @@ use std::sync::LazyLock;
 /// spec with no subcommands/options/args yields an empty suggestion list.
 static EMPTY_SUBCOMMAND: LazyLock<Subcommand> = LazyLock::new(Subcommand::default);
 
+/// Stand-in returned once a bare `--` has been seen. Everything after `--`
+/// is positional-only, so the suggestion surface must expose neither
+/// subcommand names nor options. The real subcommand's positional args stay
+/// reachable through `active_arg`, which is built from the actual spec
+/// before this substitution is applied.
+static POSITIONAL_ONLY_SUBCOMMAND: LazyLock<Subcommand> = LazyLock::new(|| Subcommand {
+    names: vec![String::new()],
+    ..Subcommand::default()
+});
+
+/// The spec whose *name* surface the caller may offer. After a bare `--`
+/// that is the empty stand-in; otherwise it is `sub` itself.
+fn surface<'a>(ctx: &Ctx<'a>, sub: &'a Subcommand) -> &'a Subcommand {
+    if ctx.end_of_options {
+        &POSITIONAL_ONLY_SUBCOMMAND
+    } else {
+        sub
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ResolveResult<'a> {
     pub subcommand: &'a Subcommand,
@@ -40,6 +60,10 @@ pub struct ResolveResult<'a> {
     pub accepted_option_tokens: Vec<String>,
     /// True once this subcommand has consumed a positional argument.
     pub positional_args_consumed: bool,
+    /// True once a bare `--` was seen: every remaining token is positional.
+    /// `persistent_options` is empty and `subcommand` carries no subcommand
+    /// list, so neither can be offered past that point.
+    pub end_of_options: bool,
 }
 
 /// Resolve the token stream against the spec. `tokens` should be the output
@@ -138,7 +162,7 @@ fn run_subcommand<'a>(
     // Base case: no tokens left — suggest at this subcommand's level.
     if tokens.is_empty() {
         return ResolveResult {
-            subcommand: sub,
+            subcommand: surface(&ctx, sub),
             parent_subcommand: ctx.parent,
             active_arg: sub.args.first(),
             persistent_options: visible_options(&ctx, &sub.options),
@@ -147,13 +171,14 @@ fn run_subcommand<'a>(
             from_option: false,
             accepted_option_tokens: ctx.accepted_options.clone(),
             positional_args_consumed: ctx.positional_args_consumed,
+            end_of_options: ctx.end_of_options,
         };
     }
 
     // If the first token is incomplete, that's the partial the user is typing.
     if !tokens[0].complete {
         return ResolveResult {
-            subcommand: sub,
+            subcommand: surface(&ctx, sub),
             parent_subcommand: ctx.parent,
             active_arg: sub.args.first(),
             persistent_options: visible_options(&ctx, &sub.options),
@@ -162,6 +187,7 @@ fn run_subcommand<'a>(
             from_option: false,
             accepted_option_tokens: ctx.accepted_options.clone(),
             positional_args_consumed: ctx.positional_args_consumed,
+            end_of_options: ctx.end_of_options,
         };
     }
 
@@ -219,7 +245,7 @@ fn run_subcommand<'a>(
 
         // Unknown option — fall through but don't match as subcommand.
         return ResolveResult {
-            subcommand: sub,
+            subcommand: surface(&ctx, sub),
             parent_subcommand: ctx.parent,
             active_arg: None,
             persistent_options: visible_options(&ctx, &sub.options),
@@ -228,11 +254,14 @@ fn run_subcommand<'a>(
             from_option: false,
             accepted_option_tokens: ctx.accepted_options.clone(),
             positional_args_consumed: ctx.positional_args_consumed,
+            end_of_options: ctx.end_of_options,
         };
     }
 
-    // Raw tokens (after `--`) only match positional args.
-    if !active.is_raw {
+    // Raw tokens (after `--`) only match positional args. The end-of-options
+    // guard keeps the rule even if a token slipped through unmarked: past a
+    // bare `--` nothing may resolve as a subcommand or an option.
+    if !active.is_raw && !ctx.end_of_options {
         // Subcommand?
         if let Some(next) = find_subcommand(sub, &active.token, ctx.case_insensitive) {
             let mut new_ctx = ctx.clone();
@@ -281,6 +310,7 @@ fn run_option<'a>(
                     from_option: true,
                     accepted_option_tokens: ctx.accepted_options.clone(),
                     positional_args_consumed: ctx.positional_args_consumed,
+                    end_of_options: false,
                 };
             }
             // `-i val` — `val` belongs to the command, not to this option.
@@ -309,7 +339,7 @@ fn run_arg<'a>(
     // No tokens left → suggest for the first remaining arg.
     if tokens.is_empty() {
         return ResolveResult {
-            subcommand: sub,
+            subcommand: surface(&ctx, sub),
             parent_subcommand: ctx.parent,
             active_arg: Some(&args[0]),
             persistent_options: visible_options(&ctx, &sub.options),
@@ -318,13 +348,14 @@ fn run_arg<'a>(
             from_option,
             accepted_option_tokens: ctx.accepted_options.clone(),
             positional_args_consumed: ctx.positional_args_consumed,
+            end_of_options: ctx.end_of_options,
         };
     }
 
     // First token incomplete → active partial.
     if !tokens[0].complete {
         return ResolveResult {
-            subcommand: sub,
+            subcommand: surface(&ctx, sub),
             parent_subcommand: ctx.parent,
             active_arg: Some(&args[0]),
             persistent_options: visible_options(&ctx, &sub.options),
@@ -333,6 +364,7 @@ fn run_arg<'a>(
             from_option,
             accepted_option_tokens: ctx.accepted_options.clone(),
             positional_args_consumed: ctx.positional_args_consumed,
+            end_of_options: ctx.end_of_options,
         };
     }
 
@@ -353,7 +385,7 @@ fn run_arg<'a>(
                 return run_option(tokens, opt, sub, new_ctx);
             }
             return ResolveResult {
-                subcommand: sub,
+                subcommand: surface(&ctx, sub),
                 parent_subcommand: ctx.parent,
                 active_arg: Some(&args[0]),
                 persistent_options: visible_options(&ctx, &sub.options),
@@ -362,9 +394,11 @@ fn run_arg<'a>(
                 from_option,
                 accepted_option_tokens: ctx.accepted_options.clone(),
                 positional_args_consumed: ctx.positional_args_consumed,
+                end_of_options: ctx.end_of_options,
             };
         }
         if !active.is_raw
+            && !ctx.end_of_options
             && let Some(next) = find_subcommand(sub, &active.token, ctx.case_insensitive)
         {
             // Inherit this level's persistent options, exactly as
@@ -620,7 +654,13 @@ mod tests {
         let root = make_spec("git", vec![make_spec("log", vec![], vec![])], vec![]);
         let tokens = tok("git log -- file1");
         let result = resolve(&root, &tokens);
-        assert_eq!(result.subcommand.names[0], "log");
+        // Past the bare `--` the surface is the positional-only stand-in;
+        // `end_of_options` records that resolution stayed at `log`'s level,
+        // and the raw token is completed as a plain positional.
+        assert!(result.end_of_options);
+        let partial = result.active_partial.expect("raw token is being typed");
+        assert_eq!(partial.token, "file1");
+        assert!(partial.is_raw);
     }
 
     #[test]
@@ -806,5 +846,122 @@ mod tests {
         let result = resolve(&spec, &tokens);
         assert_eq!(result.subcommand.name(), "help");
         assert_eq!(result.parent_subcommand.map(|p| p.name()), Some("git"));
+    }
+
+    /// After a bare `--` everything is positional-only: options were already
+    /// suppressed, but subcommand names were still offered. The suggestion
+    /// surface must expose neither, while positional args keep resolving.
+    #[test]
+    fn double_dash_suppresses_subcommands_too() {
+        let mut log = make_spec(
+            "log",
+            vec![make_spec("stat", vec![], vec![])],
+            vec![make_opt("--follow")],
+        );
+        log.args = vec![Arg {
+            name: Some("path".into()),
+            is_variadic: true,
+            ..Default::default()
+        }];
+        let root = make_spec("git", vec![log], vec![]);
+
+        // Trailing space after `--`: no subcommand names, no options, and the
+        // positional arg still drives suggestions.
+        let tokens = tok("git log -- ");
+        let result = resolve(&root, &tokens);
+        assert!(result.end_of_options);
+        assert!(
+            result.subcommand.subcommands.is_empty(),
+            "subcommand names must not be offered past `--`"
+        );
+        assert!(result.persistent_options.is_empty());
+        assert_eq!(
+            result.active_arg.and_then(|a| a.name.as_deref()),
+            Some("path")
+        );
+
+        // A completed token that names a subcommand stays a plain positional:
+        // it must not descend into `stat`.
+        let tokens = tok("git log -- stat ");
+        let result = resolve(&root, &tokens);
+        assert!(result.end_of_options);
+        assert!(result.active_arg.is_some());
+
+        // Same for a partial token.
+        let tokens = tok("git log -- st");
+        let result = resolve(&root, &tokens);
+        assert!(result.end_of_options);
+        assert_eq!(result.active_partial.unwrap().token, "st");
+        assert!(result.persistent_options.is_empty());
+
+        // Without `--`, the same context offers both surfaces.
+        let tokens = tok("git log ");
+        let result = resolve(&root, &tokens);
+        assert!(!result.end_of_options);
+        assert_eq!(result.subcommand.subcommands.len(), 1);
+        assert_eq!(result.persistent_options.len(), 1);
+    }
+
+    /// A bare `--` inside one level keeps suppressing at deeper levels too —
+    /// there is no way back into option/subcommand space.
+    #[test]
+    fn double_dash_state_survives_descending() {
+        let inner = make_spec("add", vec![], vec![make_opt("--force")]);
+        let remote = make_spec("remote", vec![inner], vec![]);
+        let root = make_spec("git", vec![remote], vec![]);
+        let tokens = tok("git -- remote add ");
+        let result = resolve(&root, &tokens);
+        assert!(result.end_of_options);
+        // "remote" was treated positionally, not descended into.
+        assert!(result.subcommand.subcommands.is_empty());
+        assert!(result.persistent_options.is_empty());
+    }
+
+    /// End to end through the suggestion engine (the consumer of this
+    /// resolver): before a bare `--` subcommand names and options are
+    /// offered; after it only the positional candidates survive.
+    #[test]
+    fn engine_offers_only_positional_suggestions_after_double_dash() {
+        use crate::suggest::Engine;
+
+        let mut log = make_spec(
+            "log",
+            vec![make_spec("stat", vec![], vec![])],
+            vec![make_opt("--follow")],
+        );
+        log.args = vec![Arg {
+            name: Some("path".into()),
+            is_variadic: true,
+            suggestions: vec![crate::spec::model::Suggestion {
+                name: "tracked-file".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }];
+        let mut registry = Registry::new_with_options(false);
+        registry.insert(make_spec("git", vec![log], vec![]));
+        let engine = Engine::new(registry, Vec::new());
+
+        let kinds = |blob: &[crate::spec::model::Suggestion]| -> Vec<SuggestionType> {
+            blob.iter().map(|s| s.suggestion_type).collect()
+        };
+
+        // Without `--`: subcommands and options are on the table.
+        let blob = engine.suggest_blob("git log ", "/");
+        assert!(kinds(&blob).contains(&SuggestionType::Subcommand));
+        assert!(kinds(&blob).contains(&SuggestionType::Option));
+
+        // After it: neither, but the positional suggestion still flows.
+        let blob = engine.suggest_blob("git log -- ", "/");
+        let after = kinds(&blob);
+        assert!(
+            !after.contains(&SuggestionType::Subcommand),
+            "subcommand names leaked past `--`: {blob:?}"
+        );
+        assert!(
+            !after.contains(&SuggestionType::Option),
+            "options leaked past `--`: {blob:?}"
+        );
+        assert!(blob.iter().any(|s| s.name == "tracked-file"));
     }
 }
