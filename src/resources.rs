@@ -296,10 +296,20 @@ fn quote_nu(path: &str) -> String {
 ///
 ///  1. **Inside** a wrapped session (`ISTERM`/`INSH_RS` set): source the OSC
 ///     6973 integration so the wrapper can see prompt markers.
-///  2. **Outside** one, in an interactive shell: `exec is start`, replacing
-///     the shell with the wrapped one.
+///  2. **Outside** one, in an interactive shell: run `is start`, which wraps
+///     this shell with ghost text. The wrapper runs as a child and the shell
+///     falls through to its own prompt once it ends, so a startup failure of
+///     `is` (unwritable HOME, missing binary, exhausted PTYs) costs the
+///     session its suggestions — never the shell itself.
 ///
-/// Step 2 used to be missing entirely. The init file only installed the
+/// Step 2 used to be `exec is start` (`is start` + `exit` on PowerShell,
+/// `os.execvp` on xonsh), which *replaced* the shell: any such failure exited
+/// 1 and closed the terminal, and every newly opened window repeated the
+/// cycle, leaving no local shell to fix the problem with. Ending a wrapped
+/// session now drops the user into a plain prompt of the same shell instead
+/// of closing it — the price of keeping a way back in.
+///
+/// Step 2 was originally missing entirely: the init file only installed the
 /// marker hooks, so an ordinary shell emitted OSC 6973 sequences that no
 /// process was listening for, and no suggestions ever appeared.
 ///
@@ -317,7 +327,7 @@ fn init_file_contents(shell: Shell) -> String {
              \x20   [ -f '{sd}/shellIntegration.bash' ] && source '{sd}/shellIntegration.bash'\n\
              elif [[ $- == *i* ]] && [ -z \"${{VSCODE_RESOLVING_ENVIRONMENT:-}}\" ] \\\n\
              \x20    && command -v is >/dev/null 2>&1; then\n\
-             \x20   exec is start\n\
+             \x20   is start || echo \"inshellisense-rs: 'is start' failed; continuing without suggestions\" >&2\n\
              fi\n",
             sd = quote_posix(&shell_dir)
         ),
@@ -327,7 +337,7 @@ fn init_file_contents(shell: Shell) -> String {
              \x20   [[ -f '{sd}/shellIntegration-rc.zsh' ]] && source '{sd}/shellIntegration-rc.zsh'\n\
              elif [[ -o interactive ]] && [[ -z \"${{VSCODE_RESOLVING_ENVIRONMENT:-}}\" ]] \\\n\
              \x20    && (( $+commands[is] )); then\n\
-             \x20   exec is start\n\
+             \x20   is start || echo \"inshellisense-rs: 'is start' failed; continuing without suggestions\" >&2\n\
              fi\n",
             sd = quote_posix(&shell_dir)
         ),
@@ -336,7 +346,7 @@ fn init_file_contents(shell: Shell) -> String {
              if set -q ISTERM; or set -q INSH_RS\n\
              \x20   test -f '{sd}/shellIntegration.fish'; and source '{sd}/shellIntegration.fish'\n\
              else if status is-interactive; and not set -q VSCODE_RESOLVING_ENVIRONMENT; and command -q is\n\
-             \x20   exec is start\n\
+             \x20   is start; or echo \"inshellisense-rs: 'is start' failed; continuing without suggestions\" >&2\n\
              end\n",
             sd = quote_fish(&shell_dir)
         ),
@@ -347,17 +357,18 @@ fn init_file_contents(shell: Shell) -> String {
              \x20   if ( Test-Path '{sd}/shellIntegration.ps1' -PathType Leaf ) {{ . '{sd}/shellIntegration.ps1' }}\n\
              }} elseif ( [Environment]::UserInteractive -and -not $env:VSCODE_RESOLVING_ENVIRONMENT -and (Get-Command is -ErrorAction SilentlyContinue) ) {{\n\
              \x20   is start\n\
-             \x20   exit\n\
+             \x20   if ( $LASTEXITCODE -ne 0 ) {{ Write-Warning \"inshellisense-rs: 'is start' failed; continuing without suggestions\" }}\n\
              }}\n",
             sd = quote_pwsh(&shell_dir)
         ),
         Shell::Xonsh => format!(
             "# inshellisense-rs xonsh init\n\
-             import os, shutil\n\
+             import os, shutil, subprocess, sys\n\
              if os.environ.get('ISTERM') or os.environ.get('INSH_RS'):\n\
              \x20   p'{sd}/shellIntegration.xsh'.exists() and source '{sd}/shellIntegration.xsh'\n\
              elif not os.environ.get('VSCODE_RESOLVING_ENVIRONMENT') and shutil.which('is'):\n\
-             \x20   os.execvp('is', ['is', 'start'])\n",
+             \x20   if subprocess.call(['is', 'start']) != 0:\n\
+             \x20       print(\"inshellisense-rs: 'is start' failed; continuing without suggestions\", file=sys.stderr)\n",
             sd = quote_python(&shell_dir)
         ),
         Shell::Nu => format!(
@@ -365,7 +376,7 @@ fn init_file_contents(shell: Shell) -> String {
              if ('ISTERM' in $env) or ('INSH_RS' in $env) {{\n\
              \x20   if (\"{sd}/shellIntegration.nu\" | path exists) {{ source \"{sd}/shellIntegration.nu\" }}\n\
              }} else if ('VSCODE_RESOLVING_ENVIRONMENT' not-in $env) and ((which is | length) > 0) {{\n\
-             \x20   exec is start\n\
+             \x20   ^is start\n\
              }}\n",
             sd = quote_nu(&shell_dir)
         ),
@@ -470,12 +481,43 @@ mod init_file_tests {
                 shell.as_str()
             );
             let starts_wrapper =
-                contents.contains("is start") || contents.contains("'is', 'start'");
+                contents.contains("is start") || contents.contains("'is', 'start']");
             assert!(
                 starts_wrapper,
                 "{} init never starts the wrapper:\n{contents}",
                 shell.as_str()
             );
+        }
+    }
+
+    /// `exec is start` replaced the user's shell, so any startup failure of
+    /// `is` — unwritable HOME, missing binary, PTY exhaustion — exited 1 and
+    /// closed every new terminal, with no local shell left to fix it. The
+    /// snippets must leave the sourcing shell alive instead.
+    #[test]
+    fn init_files_never_replace_the_shell() {
+        for &shell in ALL_SHELLS {
+            let contents = init_file_contents(shell);
+            assert!(
+                !contents.contains("exec is start"),
+                "{} still exec-replaces the shell:\n{contents}",
+                shell.as_str()
+            );
+            assert!(
+                !contents.contains("execvp") && !contents.contains("os.exec"),
+                "{} still replaces the shell via os.exec*:\n{contents}",
+                shell.as_str()
+            );
+            // PowerShell followed `is start` with a bare `exit`, which kills
+            // the session just as dead when the wrapper fails to spawn.
+            for line in contents.lines() {
+                let trimmed = line.trim();
+                assert!(
+                    trimmed != "exit" && !trimmed.starts_with("exit "),
+                    "{} exits the shell after starting the wrapper: {trimmed:?}",
+                    shell.as_str()
+                );
+            }
         }
     }
 
