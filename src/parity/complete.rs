@@ -4,9 +4,10 @@
 //! run `{ours} complete <line> --json` and `{upstream} complete <line>`,
 //! parse both into a common `NormalizedBlob`, and diff field by field.
 //!
-//! Both binaries emit JSON. The shapes differ: upstream wraps the
-//! suggestions in `{"suggestions": [...], "activeToken": {...}}`, ours
-//! emits a flat `[...]`. The normalizer handles both.
+//! Both binaries emit JSON with the same shape: suggestions wrapped in
+//! `{"suggestions": [...], "activeToken": {...}}` (`src/commands/complete.rs`
+//! builds that object unconditionally). A bare `[...]` array is accepted too,
+//! so older builds still compare. Anything else fails the case.
 
 use super::{Case, CaseResult, Category, CategoryReport, ScanConfig};
 use serde::Deserialize;
@@ -94,7 +95,7 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
                         &fixture_cwd,
                     );
 
-                    let ours_blob = match parse_ours(&ours_json) {
+                    let ours_blob = match parse_suggestions(&ours_json) {
                         Ok(b) => b,
                         Err(e) => {
                             return Case {
@@ -107,7 +108,7 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
                             };
                         }
                     };
-                    let upstream_blob = match parse_upstream(&upstream_json) {
+                    let upstream_blob = match parse_suggestions(&upstream_json) {
                         Ok(b) => b,
                         Err(e) => {
                             return Case {
@@ -199,87 +200,98 @@ fn run_complete(
         .unwrap_or_else(|| fixture_cwd.to_path_buf());
     cmd.current_dir(&resolved_cwd);
     match cmd.output() {
-        Ok(o) => String::from_utf8_lossy(&o.stdout).into_owned(),
-        Err(e) => format!("<error: {}>", e),
+        Ok(o) => {
+            let stdout = String::from_utf8_lossy(&o.stdout).into_owned();
+            // A crashed child used to look identical to "no suggestions",
+            // so two crashed binaries compared as equal and passed. Surface
+            // the failure instead; parse errors carry this text into the
+            // report.
+            if stdout.trim().is_empty() && !o.status.success() {
+                let stderr: String = String::from_utf8_lossy(&o.stderr)
+                    .chars()
+                    .take(200)
+                    .collect();
+                return format!(
+                    "<error: exited with {}: {stderr}>",
+                    o.status.code().unwrap_or(-1)
+                );
+            }
+            stdout
+        }
+        Err(e) => format!("<error: {e}>"),
     }
 }
 
-/// Parse our flat array output.
-fn parse_ours(s: &str) -> Result<NormalizedBlob, String> {
+/// Parse `complete` JSON from either binary.
+///
+/// Both sides emit the same `{"suggestions": [...], "activeToken": {...}}`
+/// wrapper (`src/commands/complete.rs` builds it unconditionally, and so does
+/// upstream); a bare `[...]` array is accepted so older builds still compare.
+/// Anything else is an error: mapping unparseable output to "zero
+/// suggestions" let two broken binaries compare as identical empty results.
+fn parse_suggestions(s: &str) -> Result<NormalizedBlob, String> {
     let trimmed = s.trim();
+    // A side that legitimately has nothing to offer prints nothing.
     if trimmed.is_empty() || trimmed == "null" {
         return Ok(NormalizedBlob {
             suggestions: Vec::new(),
         });
     }
-    #[derive(Deserialize)]
-    struct RowOurs {
-        name: String,
-        #[serde(rename = "type", default)]
-        ty: String,
-        #[serde(default)]
-        description: Option<String>,
+    let value: serde_json::Value = serde_json::from_str(trimmed).map_err(|e| e.to_string())?;
+    let rows = match value {
+        serde_json::Value::Array(rows) => rows,
+        serde_json::Value::Object(map) => match map.get("suggestions") {
+            Some(serde_json::Value::Array(rows)) => rows.clone(),
+            Some(other) => {
+                return Err(format!(
+                    "`suggestions` is {}, expected an array",
+                    json_kind(other)
+                ));
+            }
+            None => return Err("object has no `suggestions` array".to_string()),
+        },
+        other => {
+            return Err(format!(
+                "expected an object or array, got {}",
+                json_kind(&other)
+            ));
+        }
+    };
+    let mut suggestions = Vec::with_capacity(rows.len());
+    for row in rows {
+        let name = match row.get("name") {
+            Some(serde_json::Value::String(s)) => s.clone(),
+            // `name` may be an alias array; the first entry is primary.
+            Some(serde_json::Value::Array(a)) => a
+                .first()
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .ok_or_else(|| "`name` array is empty".to_string())?,
+            _ => return Err(format!("suggestion row has no string `name`: {row}")),
+        };
+        let ty = row.get("type").and_then(|v| v.as_str()).unwrap_or("");
+        let description = row
+            .get("description")
+            .and_then(|v| v.as_str())
+            .map(str::to_string);
+        suggestions.push(NormalizedSuggestion {
+            name,
+            ty: normalize_type(ty),
+            description,
+        });
     }
-    let rows: Vec<RowOurs> = serde_json::from_str(trimmed).map_err(|e| e.to_string())?;
-    Ok(NormalizedBlob {
-        suggestions: rows
-            .into_iter()
-            .map(|r| NormalizedSuggestion {
-                name: r.name,
-                ty: normalize_type(&r.ty),
-                description: r.description,
-            })
-            .collect(),
-    })
+    Ok(NormalizedBlob { suggestions })
 }
 
-/// Parse upstream's `{suggestions, activeToken}` wrapper.
-fn parse_upstream(s: &str) -> Result<NormalizedBlob, String> {
-    let trimmed = s.trim();
-    if trimmed.is_empty() || trimmed == "null" {
-        return Ok(NormalizedBlob {
-            suggestions: Vec::new(),
-        });
+fn json_kind(v: &serde_json::Value) -> &'static str {
+    match v {
+        serde_json::Value::Null => "null",
+        serde_json::Value::Bool(_) => "a boolean",
+        serde_json::Value::Number(_) => "a number",
+        serde_json::Value::String(_) => "a string",
+        serde_json::Value::Array(_) => "an array",
+        serde_json::Value::Object(_) => "an object",
     }
-    // Upstream sometimes prints nothing when there's no active suggestion.
-    #[derive(Deserialize)]
-    struct RowUpstream {
-        name: String,
-        #[serde(default, rename = "type")]
-        ty: Option<String>,
-        #[serde(default)]
-        description: Option<String>,
-    }
-    #[derive(Deserialize)]
-    struct UpstreamWrapper {
-        #[serde(default)]
-        suggestions: Vec<RowUpstream>,
-    }
-    // Try wrapper first, then fall back to bare array.
-    if let Ok(w) = serde_json::from_str::<UpstreamWrapper>(trimmed) {
-        return Ok(NormalizedBlob {
-            suggestions: w
-                .suggestions
-                .into_iter()
-                .map(|r| NormalizedSuggestion {
-                    name: r.name,
-                    ty: normalize_type(r.ty.as_deref().unwrap_or("")),
-                    description: r.description,
-                })
-                .collect(),
-        });
-    }
-    let rows: Vec<RowUpstream> = serde_json::from_str(trimmed).map_err(|e| e.to_string())?;
-    Ok(NormalizedBlob {
-        suggestions: rows
-            .into_iter()
-            .map(|r| NormalizedSuggestion {
-                name: r.name,
-                ty: normalize_type(r.ty.as_deref().unwrap_or("")),
-                description: r.description,
-            })
-            .collect(),
-    })
 }
 
 /// Strip trailing `/` from folder names so our `sub1/` compares equal
@@ -378,5 +390,96 @@ fn classify_impact(up: &NormalizedBlob, ours: &NormalizedBlob) -> u8 {
         (Some(_), Some(_)) if up.suggestions.len() != ours.suggestions.len() => 50,
         (Some(_), None) | (None, Some(_)) => 80,
         _ => 30,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The shape our binary actually emits (see `src/commands/complete.rs`):
+    /// a wrapper object, not a flat array.
+    #[test]
+    fn parses_our_wrapper_object() {
+        let json = r#"{"suggestions":[
+            {"name":"checkout","type":"subcommand","description":"Switch branches"},
+            {"name":"--all"}
+        ],"activeToken":{"token":"ch"}}"#;
+        let blob = parse_suggestions(json).unwrap();
+        assert_eq!(blob.suggestions.len(), 2);
+        assert_eq!(blob.suggestions[0].name, "checkout");
+        assert_eq!(blob.suggestions[0].ty, "subcommand");
+        assert_eq!(
+            blob.suggestions[0].description.as_deref(),
+            Some("Switch branches")
+        );
+        assert_eq!(blob.suggestions[1].name, "--all");
+        assert_eq!(blob.suggestions[1].ty, "");
+        assert_eq!(blob.suggestions[1].description, None);
+    }
+
+    /// Upstream's wrapper omits `type`; it must normalize to "" rather than
+    /// failing the row.
+    #[test]
+    fn parses_upstream_wrapper_without_type() {
+        let blob =
+            parse_suggestions(r#"{"suggestions":[{"name":"cherry-pick"},{"name":"clean"}]}"#)
+                .unwrap();
+        assert_eq!(blob.suggestions.len(), 2);
+        assert_eq!(blob.suggestions[0].name, "cherry-pick");
+        assert_eq!(blob.suggestions[0].ty, "");
+    }
+
+    /// Older builds printed a bare array; keep comparing those.
+    #[test]
+    fn still_parses_a_bare_array() {
+        let blob = parse_suggestions(r#"[{"name":"commit","type":"subcommand"}]"#).unwrap();
+        assert_eq!(blob.suggestions.len(), 1);
+        assert_eq!(blob.suggestions[0].ty, "subcommand");
+    }
+
+    /// An alias-style `name` array takes its first entry.
+    #[test]
+    fn takes_first_alias_as_name() {
+        let blob = parse_suggestions(r#"{"suggestions":[{"name":["co","com"]}]}"#).unwrap();
+        assert_eq!(blob.suggestions[0].name, "co");
+    }
+
+    /// Unparseable output must fail loudly: silently yielding "no
+    /// suggestions" made two broken binaries compare as equal.
+    #[test]
+    fn rejects_an_object_without_suggestions() {
+        let err = parse_suggestions(r#"{"error":"boom"}"#).unwrap_err();
+        assert!(err.contains("suggestions"), "err={err}");
+    }
+
+    #[test]
+    fn rejects_a_non_array_suggestions_field() {
+        let err = parse_suggestions(r#"{"suggestions":"git ch"}"#).unwrap_err();
+        assert!(err.contains("a string"), "err={err}");
+    }
+
+    #[test]
+    fn rejects_garbage_and_scalars() {
+        assert!(parse_suggestions("not json at all").is_err());
+        assert!(parse_suggestions("42").is_err());
+        let err = parse_suggestions(r#"[{"no_name":1}]"#).unwrap_err();
+        assert!(err.contains("`name`"), "err={err}");
+    }
+
+    /// Empty output is a legitimate "nothing to offer", not an error.
+    #[test]
+    fn empty_output_yields_an_empty_blob() {
+        for empty in ["", "   ", "null"] {
+            let blob = parse_suggestions(empty).unwrap();
+            assert!(blob.suggestions.is_empty(), "{empty}");
+        }
+    }
+
+    /// A crashed child's placeholder text (from `run_complete`) can never
+    /// masquerade as suggestions.
+    #[test]
+    fn error_placeholder_fails_to_parse() {
+        assert!(parse_suggestions("<error: exited with 101: panic>").is_err());
     }
 }
