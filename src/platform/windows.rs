@@ -18,6 +18,23 @@ use windows_sys::Win32::System::Threading::*;
 
 const PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE: usize = 0x00020016;
 
+/// Releases a process thread attribute list on drop.
+///
+/// `InitializeProcThreadAttributeList` allocates internal structures that
+/// MSDN requires be released with `DeleteProcThreadAttributeList` before the
+/// backing memory is freed. Nothing called it, so every spawn leaked — on the
+/// success path and on both failure paths after initialization succeeded
+/// (#75).
+struct AttrListGuard {
+    list: LPPROC_THREAD_ATTRIBUTE_LIST,
+}
+
+impl Drop for AttrListGuard {
+    fn drop(&mut self) {
+        unsafe { DeleteProcThreadAttributeList(self.list) };
+    }
+}
+
 pub struct WindowsPty {
     hpc: HPCON,
     child_process: HANDLE,
@@ -77,7 +94,7 @@ impl WindowsPty {
             let mut attr_size: usize = 0;
             InitializeProcThreadAttributeList(ptr::null_mut(), 1, 0, &mut attr_size);
             let attr_buf = vec![0u8; attr_size];
-            let attr_list = attr_buf.as_ptr() as *mut LPPROC_THREAD_ATTRIBUTE_LIST;
+            let attr_list: LPPROC_THREAD_ATTRIBUTE_LIST = attr_buf.as_ptr() as _;
 
             if InitializeProcThreadAttributeList(attr_list as _, 1, 0, &mut attr_size) == 0 {
                 ClosePseudoConsole(hpc);
@@ -85,6 +102,11 @@ impl WindowsPty {
                 CloseHandle(pty_output_read);
                 return Err("InitializeProcThreadAttributeList failed".into());
             }
+
+            // Initialized: the internals must be deleted before `attr_buf`
+            // drops. Declared after it, so the guard drops first on every
+            // path out of this scope (both error returns and success).
+            let _attr_guard = AttrListGuard { list: attr_list };
 
             if UpdateProcThreadAttribute(
                 attr_list as _,
