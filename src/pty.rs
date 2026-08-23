@@ -348,6 +348,7 @@ pub fn run_wrapped(
                         &ranked,
                         &ranked_typed,
                         &bindings,
+                        shell,
                         &tracker,
                         &mut renderer,
                         &mut out,
@@ -456,7 +457,8 @@ pub fn run_wrapped(
                 };
                 let tail = if !ranked.is_empty() && has_ghost && cursor_at_end {
                     let partial = current_partial(&typed);
-                    let repl = replacement_tail(&ranked[active_cursor], &typed, &partial);
+                    let repl =
+                        replacement_tail(&ranked[active_cursor], &typed, &partial, Some(shell));
                     // A replacement that erases the token starts with
                     // backspaces, and one with a `{cursor}` needs a caret
                     // move — neither is displayable as inline ghost text.
@@ -554,6 +556,9 @@ fn handle_stdin(
     // event loop, so they can lag the line by a tick.
     ranked_typed: &str,
     bindings: &Bindings,
+    // The shell being wrapped — decides how an accepted filesystem
+    // suggestion is quoted (POSIX splice vs PowerShell/cmd rules).
+    shell: Shell,
     tracker: &TermTracker,
     renderer: &mut Renderer,
     out: &mut impl Write,
@@ -601,7 +606,7 @@ fn handle_stdin(
             }
             let selected = &ranked[cursor.min(ranked.len() - 1)];
             let partial = current_partial(&typed);
-            let repl = replacement_tail(selected, &typed, &partial);
+            let repl = replacement_tail(selected, &typed, &partial, Some(shell));
             renderer.clear(out).ok();
             if !repl.tail.is_empty() {
                 pty.pty_write(repl.tail.as_bytes());
@@ -823,17 +828,52 @@ fn needs_quoting(s: &str) -> bool {
     s.chars().any(|c| SPECIAL.contains(&c))
 }
 
-/// Wrap a filesystem name in POSIX single quotes so spaces and metacharacters
-/// insert literally. Applied only to File/Folder suggestions, whose names come
-/// from the filesystem; an `insert_value` is shell text authored by the spec
-/// and must be inserted verbatim.
-fn quote_word(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
+/// Wrap a filesystem name in the quoting syntax of the shell being wrapped so
+/// spaces and metacharacters insert literally. Applied only to File/Folder
+/// suggestions, whose names come from the filesystem; an `insert_value` is
+/// shell text authored by the spec and must be inserted verbatim.
+///
+/// The quote style differs per shell, and using POSIX rules everywhere made
+/// the insertion un-runnable elsewhere: cmd.exe does not treat `'…'` as a
+/// quote at all (`cd 'Program Files'` fails), and PowerShell does not treat
+/// `\` as an escape outside/inside quotes, so the POSIX splice inserted a
+/// stray backslash.
+fn quote_for_shell(s: &str, shell: Option<Shell>) -> String {
+    match shell {
+        // PowerShell escapes a quote inside a single-quoted literal by
+        // doubling it; every other character stays literal.
+        Some(Shell::Pwsh | Shell::Powershell) => format!("'{}'", s.replace('\'', "''")),
+        // xonsh strings follow Python rules, where `\'` escapes the quote.
+        Some(Shell::Xonsh) => format!("'{}'", s.replace('\'', "\\'")),
+        Some(Shell::Nu) => {
+            if s.contains('\'') {
+                // Nushell's single-quoted strings have no way to represent an
+                // embedded quote, so fall back to double quotes, where `\\`
+                // and `\"` are escapes and the backslashes of Windows paths
+                // stay intact.
+                format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+            } else {
+                format!("'{}'", s)
+            }
+        }
+        // cmd.exe only ever honors double quotes, and has no escape character
+        // for an embedded one; doubling is the closest approximation.
+        #[cfg(windows)]
+        Some(Shell::Cmd) => format!("\"{}\"", s.replace('"', "\"\"")),
+        // bash / zsh / fish: splice an embedded quote out of and back into the
+        // quoted word ('o'\''brien').
+        _ => format!("'{}'", s.replace('\'', "'\\''")),
+    }
 }
 
 /// Given an accepted suggestion and the line so far, the bytes to write into
 /// the shell so the line ends with `insert_value` (or `name`).
-fn replacement_tail(suggestion: &Suggestion, line: &str, partial: &Partial) -> Replacement {
+fn replacement_tail(
+    suggestion: &Suggestion,
+    line: &str,
+    partial: &Partial,
+    shell: Option<Shell>,
+) -> Replacement {
     let (target, cursor_left, had_marker) = match suggestion.insert_value.as_deref() {
         Some(raw) => split_cursor_marker(&strip_control_chars(raw)),
         None => {
@@ -842,7 +882,11 @@ fn replacement_tail(suggestion: &Suggestion, line: &str, partial: &Partial) -> R
                 suggestion.suggestion_type,
                 SuggestionType::File | SuggestionType::Folder
             ) && needs_quoting(&name);
-            let rendered = if quote { quote_word(&name) } else { name };
+            let rendered = if quote {
+                quote_for_shell(&name, shell)
+            } else {
+                name
+            };
             (rendered, 0, false)
         }
     };
@@ -953,10 +997,15 @@ mod tests {
     }
 
     /// Accept `s` against the whole line, deriving the partial the way the
-    /// event loop does.
+    /// event loop does. Defaults to no shell context (POSIX quoting).
     fn accept(s: &Suggestion, line: &str) -> Replacement {
+        accept_as(s, line, None)
+    }
+
+    /// Same, with an explicit shell so per-shell quoting can be exercised.
+    fn accept_as(s: &Suggestion, line: &str, shell: Option<Shell>) -> Replacement {
         let partial = current_partial(line);
-        replacement_tail(s, line, &partial)
+        replacement_tail(s, line, &partial, shell)
     }
 
     fn sug(name: &str) -> Suggestion {
@@ -1091,6 +1140,67 @@ mod tests {
         assert_eq!(accept(&s, "cat o").tail, "\x08'o'\\''brien.txt'");
     }
 
+    /// Quoting follows the shell being wrapped. POSIX single-quote rules
+    /// produce text cmd.exe cannot run at all (`'…'` are literal characters)
+    /// and that PowerShell mangles (backslash is not an escape there), so the
+    /// same suggestion must be rendered differently per shell.
+    #[test]
+    fn quoting_matches_the_wrapped_shell() {
+        let spaced = |shell| {
+            accept_as(
+                &Suggestion {
+                    name: "Program Files".into(),
+                    suggestion_type: SuggestionType::Folder,
+                    ..Default::default()
+                },
+                "cd Pro",
+                Some(shell),
+            )
+            .tail
+        };
+        let apostrophe = |shell| {
+            accept_as(
+                &Suggestion {
+                    name: "o'brien.txt".into(),
+                    suggestion_type: SuggestionType::File,
+                    ..Default::default()
+                },
+                "cat o",
+                Some(shell),
+            )
+            .tail
+        };
+
+        // POSIX shells keep the splice; fish accepts it too because a quote
+        // outside single quotes escapes there.
+        assert_eq!(spaced(Shell::Bash), "\x08\x08\x08'Program Files'");
+        assert_eq!(apostrophe(Shell::Zsh), "\x08'o'\\''brien.txt'");
+        // PowerShell: single quotes with doubled quotes.
+        assert_eq!(spaced(Shell::Pwsh), "\x08\x08\x08'Program Files'");
+        assert_eq!(apostrophe(Shell::Powershell), "\x08'o''brien.txt'");
+        // xonsh strings follow Python rules.
+        assert_eq!(apostrophe(Shell::Xonsh), "\x08'o\\'brien.txt'");
+        // Nushell quotes normally, but has no escape inside single quotes.
+        assert_eq!(spaced(Shell::Nu), "\x08\x08\x08'Program Files'");
+        assert_eq!(apostrophe(Shell::Nu), "\x08\"o'brien.txt\"");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn cmd_receives_double_quotes() {
+        let spaced = accept_as(
+            &Suggestion {
+                name: "Program Files".into(),
+                suggestion_type: SuggestionType::Folder,
+                ..Default::default()
+            },
+            "cd Pro",
+            Some(Shell::Cmd),
+        )
+        .tail;
+        assert_eq!(spaced, "\x08\x08\x08\"Program Files\"");
+    }
+
     /// Plain names stay unquoted, and `insert_value` is spec-authored shell
     /// text that must be inserted verbatim.
     #[test]
@@ -1213,6 +1323,7 @@ mod tests {
             &[],
             "",
             &bindings,
+            Shell::Bash,
             &tracker,
             &mut renderer,
             &mut out,
@@ -1247,6 +1358,7 @@ mod tests {
             &[],
             "",
             &bindings,
+            Shell::Bash,
             &tracker,
             &mut renderer,
             &mut out,
