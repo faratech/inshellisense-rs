@@ -106,23 +106,40 @@ pub fn fingerprint() -> String {
     format!("{} {:016x}", env!("CARGO_PKG_VERSION"), hash)
 }
 
-/// Every file `unpack()` is responsible for materializing.
-pub fn expected_files() -> Vec<std::path::PathBuf> {
+/// Every file `unpack()` is responsible for materializing, paired with the
+/// exact bytes this build would put in it.
+fn expected_contents() -> Vec<(std::path::PathBuf, String)> {
     let mut out = Vec::new();
     if let Some(shell_dir) = paths::shell_dir() {
-        out.extend(SHELL_SCRIPTS.iter().map(|(name, _)| shell_dir.join(name)));
+        out.extend(
+            SHELL_SCRIPTS
+                .iter()
+                .map(|(name, contents)| (shell_dir.join(name), (*contents).to_string())),
+        );
     }
     for &shell in ALL_SHELLS {
         if let Some(file) = paths::init_file(shell) {
-            out.push(file);
+            out.push((file, init_file_contents(shell)));
         }
     }
-    if let Some(dotdir) = paths::zsh_dotdir() {
-        for name in [".zshenv", ".zshrc", ".zlogin", ".zprofile"] {
-            out.push(dotdir.join(name));
-        }
+    if let Some(dotdir) = paths::zsh_dotdir()
+        && let Some(shell_dir) = paths::shell_dir()
+    {
+        // zsh_dotdir_contents interpolates the *shell* dir into the
+        // scripts; the files themselves live in the ZDOTDIR directory.
+        let shell_dir = shell_dir.display().to_string();
+        out.extend(
+            zsh_dotdir_contents(&shell_dir)
+                .into_iter()
+                .map(|(name, contents)| (dotdir.join(name), contents)),
+        );
     }
     out
+}
+
+/// Every file `unpack()` is responsible for materializing.
+pub fn expected_files() -> Vec<std::path::PathBuf> {
+    expected_contents().into_iter().map(|(p, _)| p).collect()
 }
 
 /// Expected files that are not on disk. Empty means the tree is complete.
@@ -133,8 +150,26 @@ pub fn missing_files() -> Vec<std::path::PathBuf> {
         .collect()
 }
 
-/// True when the on-disk tree matches this binary's content stamp and no
-/// expected file has gone missing.
+/// Expected files whose on-disk bytes differ from what this build would
+/// write. A truncated or hand-edited script used to be invisible: the
+/// version stamp still matched, so `unpack()` skipped the repair forever and
+/// every wrapped session sourced a broken script while `is doctor` called
+/// the tree healthy.
+pub fn mismatched_files() -> Vec<std::path::PathBuf> {
+    expected_contents()
+        .into_iter()
+        .filter(|(path, contents)| {
+            fs::read(path)
+                .map(|bytes| bytes != contents.as_bytes())
+                .unwrap_or(true)
+        })
+        .map(|(path, _)| path)
+        .collect()
+}
+
+/// True when the on-disk tree matches this binary's content stamp, no
+/// expected file has gone missing, and every expected file holds the exact
+/// bytes this build writes.
 pub fn tree_is_current() -> bool {
     let Some(version_file) = paths::version_file() else {
         return false;
@@ -142,7 +177,26 @@ pub fn tree_is_current() -> bool {
     let Ok(existing) = fs::read_to_string(&version_file) else {
         return false;
     };
-    existing.trim() == fingerprint() && missing_files().is_empty()
+    existing.trim() == fingerprint() && missing_files().is_empty() && mismatched_files().is_empty()
+}
+
+/// Write `contents` to `path` atomically: the final name only ever appears
+/// once the whole file is on disk. A plain `fs::write` truncates the
+/// destination first, so a crash or ENOSPC mid-write left a partial script
+/// behind that the version stamp still vouched for.
+fn write_atomic(path: &std::path::Path, contents: &str) -> Result<()> {
+    let dir = path.parent().unwrap_or_else(|| std::path::Path::new("."));
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "file".to_string());
+    let tmp = dir.join(format!(".{name}.{}.tmp", std::process::id()));
+    fs::write(&tmp, contents).with_context(|| format!("writing {}", tmp.display()))?;
+    if let Err(e) = fs::rename(&tmp, path) {
+        let _ = fs::remove_file(&tmp);
+        return Err(e).with_context(|| format!("replacing {}", path.display()));
+    }
+    Ok(())
 }
 
 /// Ensure `~/.inshellisense/` exists and contains the current version's
@@ -163,7 +217,7 @@ pub fn unpack() -> Result<std::path::PathBuf> {
 
     for (name, contents) in SHELL_SCRIPTS {
         let path = shell_dir.join(name);
-        fs::write(&path, contents).with_context(|| format!("writing {}", path.display()))?;
+        write_atomic(&path, contents).with_context(|| format!("writing {}", path.display()))?;
     }
 
     // Generate per-shell init files.
@@ -179,6 +233,23 @@ pub fn unpack() -> Result<std::path::PathBuf> {
         fs::write(&version_file, fingerprint())?;
     }
 
+    // Verify the pass actually produced this build's bytes. Reporting success
+    // over a tree that still fails `tree_is_current()` would leave the user
+    // with a broken install and no diagnostic.
+    let broken = missing_files();
+    let broken = if broken.is_empty() {
+        mismatched_files()
+    } else {
+        broken
+    };
+    if !broken.is_empty() {
+        let names: Vec<String> = broken.iter().map(|p| p.display().to_string()).collect();
+        anyhow::bail!(
+            "resource repair did not take effect for: {}",
+            names.join(", ")
+        );
+    }
+
     Ok(root)
 }
 
@@ -187,7 +258,7 @@ fn write_init_file(shell: Shell) -> Result<()> {
     let file = paths::init_file(shell).context("no HOME directory")?;
     fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
     let contents = init_file_contents(shell);
-    fs::write(&file, contents).with_context(|| format!("writing {}", file.display()))?;
+    write_atomic(&file, &contents).with_context(|| format!("writing {}", file.display()))?;
     Ok(())
 }
 
@@ -321,7 +392,7 @@ fn populate_zsh_dotdir() -> Result<()> {
         .unwrap_or_else(|| "$HOME/.inshellisense/shell".to_string());
 
     for (name, contents) in zsh_dotdir_contents(&shell_dir) {
-        fs::write(dir.join(name), contents)?;
+        write_atomic(&dir.join(name), &contents)?;
     }
     Ok(())
 }
@@ -459,6 +530,67 @@ mod quoting_tests {
 mod tests {
     use super::*;
 
+    /// `set_var("HOME")` mutates process-global state, so HOME-scoped tests
+    /// run under one lock rather than racing sibling tests.
+    static HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Run `check` with HOME (USERPROFILE on Windows) pointed at a fresh
+    /// temporary directory, restoring the previous value afterwards.
+    fn with_temp_home(check: impl FnOnce(&std::path::Path)) {
+        let _guard = HOME_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!(
+            "insh-rs-resources-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        #[cfg(unix)]
+        let var = "HOME";
+        #[cfg(windows)]
+        let var = "USERPROFILE";
+        let previous = std::env::var_os(var);
+        // SAFETY: serialized by HOME_LOCK, restored before returning.
+        unsafe { std::env::set_var(var, &dir) };
+        check(&dir);
+        // SAFETY: as above.
+        unsafe {
+            match previous {
+                Some(v) => std::env::set_var(var, v),
+                None => std::env::remove_var(var),
+            }
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// A truncated integration script used to keep the matching version stamp
+    /// forever: `unpack()` skipped the repair and `is doctor` called the tree
+    /// healthy, so every wrapped session sourced an empty script.
+    #[test]
+    fn truncated_script_is_detected_and_repaired() {
+        with_temp_home(|_home| {
+            unpack().expect("initial unpack");
+            assert!(tree_is_current(), "fresh tree must be current");
+
+            let script = paths::shell_dir().unwrap().join("shellIntegration.bash");
+            fs::write(&script, "").unwrap();
+            assert!(
+                !tree_is_current(),
+                "a matching stamp must not vouch for truncated content"
+            );
+            assert_eq!(mismatched_files(), vec![script.clone()]);
+
+            unpack().expect("repairing unpack");
+            assert_eq!(
+                fs::read(&script).unwrap(),
+                include_bytes!("../shell/shellIntegration.bash").as_slice()
+            );
+            assert!(tree_is_current(), "repair must restore currency");
+        });
+    }
+
     fn generated_zsh_file(name: &str) -> String {
         zsh_dotdir_contents("/tmp/is-shell")
             .into_iter()
@@ -496,5 +628,35 @@ mod tests {
         assert!(vendored_script("shellIntegration-login.zsh").contains(".zlogin"));
         assert!(vendored_script("shellIntegration-profile.zsh").contains(".zprofile"));
         assert!(vendored_script("shellIntegration.fish").contains("printf '%s'"));
+    }
+
+    /// Resource writes go through a temp file + rename so an interrupted pass
+    /// can never leave a truncated script at the final path, and no temp
+    /// file lingers afterwards.
+    #[test]
+    fn atomic_write_replaces_exactly_and_leaves_no_temp_file() {
+        let dir = std::env::temp_dir().join(format!("insh-rs-atomic-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("script.sh");
+        fs::write(&path, "stale bytes from a previous install").unwrap();
+        write_atomic(&path, "fresh\nbytes\n").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "fresh\nbytes\n");
+        let count = fs::read_dir(&dir).unwrap().count();
+        assert_eq!(count, 1, "the temp file must be gone, not lingering");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Every expected file has known content to compare against — otherwise
+    /// `mismatched_files()` would silently check nothing.
+    #[test]
+    fn expected_contents_covers_every_vendored_and_generated_file() {
+        // 10 vendored scripts + 7 init files + 4 zsh dotdir files.
+        assert_eq!(
+            expected_contents().len(),
+            SHELL_SCRIPTS.len() + ALL_SHELLS.len() + 4
+        );
+        for (_, contents) in expected_contents() {
+            assert!(!contents.is_empty());
+        }
     }
 }

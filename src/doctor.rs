@@ -53,13 +53,26 @@ pub fn run() -> Result<()> {
 }
 
 /// Suite 4 — the `~/.inshellisense/` tree must be complete and current.
-/// A hand-deleted integration script, or a tree written by a different build
-/// of the same version, otherwise goes unreported.
+/// A hand-deleted integration script, a truncated or hand-edited one, or a
+/// tree written by a different build of the same version otherwise goes
+/// unreported.
 fn check_runtime_resources() -> i32 {
     let missing = crate::resources::missing_files();
     if !missing.is_empty() {
         eprintln!("{RED_BULLET} runtime resources are missing:");
         for path in &missing {
+            eprintln!("  {RED_DASH} {}", path.display());
+        }
+        eprintln!("{YELLOW}  run \x1b[4m\x1b[36mis reinit{RESET}{YELLOW} to restore them{RESET}");
+        return 1;
+    }
+    let mismatched = crate::resources::mismatched_files();
+    if !mismatched.is_empty() {
+        // A stamp can vouch for bytes that are no longer on disk (a crash
+        // mid-repair, ENOSPC, or manual editing). The version file alone
+        // cannot see this; only comparing contents does.
+        eprintln!("{RED_BULLET} runtime resource contents do not match this build:");
+        for path in &mismatched {
             eprintln!("  {RED_DASH} {}", path.display());
         }
         eprintln!("{YELLOW}  run \x1b[4m\x1b[36mis reinit{RESET}{YELLOW} to restore them{RESET}");
