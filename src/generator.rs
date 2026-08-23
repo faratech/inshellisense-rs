@@ -7,6 +7,7 @@
 //! Phase 2 change: multiple generators per arg execute concurrently on
 //! scoped threads. One-or-zero generator still takes the fast path.
 
+use crate::shell::Shell;
 use crate::spec::model::{
     Arg, CacheSpec, Generator, PostProcess, PostProcessKind, ProjectFileReader, ScriptInput,
     Subcommand, Suggestion, SuggestionType, Template,
@@ -30,12 +31,16 @@ static CACHE: LazyLock<Mutex<HashMap<String, CacheEntry>>> =
 /// `help_subcommands` are the subcommands of the command this arg belongs to.
 /// The `help` template completes them (`git help <TAB>` → `commit`, `log`, …);
 /// 93 bundled specs use it.
+///
+/// `shell` is the shell being wrapped — not necessarily the one that spawned
+/// us. The `history` template reads the history file of THIS shell.
 pub fn suggestions_for_arg(
     arg: &Arg,
     cwd: &str,
     prefix: &str,
     include_history: bool,
     help_subcommands: &[Subcommand],
+    shell: Option<Shell>,
 ) -> Vec<Suggestion> {
     let mut out: Vec<Suggestion> = arg.suggestions.clone();
 
@@ -49,6 +54,7 @@ pub fn suggestions_for_arg(
             include_history,
             false,
             help_subcommands,
+            shell,
         ));
     }
 
@@ -63,6 +69,7 @@ pub fn suggestions_for_arg(
                 prefix,
                 include_history,
                 help_subcommands,
+                shell,
             ));
         }
         _ => {
@@ -72,7 +79,7 @@ pub fn suggestions_for_arg(
                     .iter()
                     .map(|g| {
                         scope.spawn(move || {
-                            run_generator(g, cwd, prefix, include_history, help_subcommands)
+                            run_generator(g, cwd, prefix, include_history, help_subcommands, shell)
                         })
                     })
                     .collect();
@@ -93,6 +100,7 @@ fn run_generator(
     prefix: &str,
     include_history: bool,
     help_subcommands: &[Subcommand],
+    shell: Option<Shell>,
 ) -> Vec<Suggestion> {
     match g {
         Generator::Script {
@@ -120,6 +128,7 @@ fn run_generator(
                 include_history,
                 true,
                 help_subcommands,
+                shell,
             )
         }
         Generator::Glob { pattern } => glob_paths(pattern, cwd),
@@ -372,6 +381,7 @@ fn template_suggestions(
     include_history: bool,
     from_generator: bool,
     help_subcommands: &[Subcommand],
+    shell: Option<Shell>,
 ) -> Vec<Suggestion> {
     match tpl {
         // Only the FOLDERS generator appends `..` (matches upstream `cd `);
@@ -382,7 +392,11 @@ fn template_suggestions(
         // Offline `complete` has no live session history (upstream returns
         // none here); only surface history in the interactive engine.
         Template::History if !include_history => Vec::new(),
-        Template::History => crate::history::load()
+        // Read the WRAPPED shell's history. The no-arg loader resolves the
+        // shell of the *parent* process, so `is start --shell fish` launched
+        // from bash served ssh/scp/rsync completions out of ~/.bash_history
+        // and never saw anything typed in the wrapped session.
+        Template::History => crate::history::load_for(shell.unwrap_or_else(crate::shell::detect))
             .into_iter()
             .map(|h| Suggestion {
                 name: h,
@@ -995,6 +1009,56 @@ fn json_value_to_suggestions(v: &serde_json::Value) -> Vec<Suggestion> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The `history` template must read the history file of the shell being
+    /// WRAPPED (`is start --shell fish` launched from bash), not whichever
+    /// shell `detect()` finds in our own environment. fish stores `- cmd:`
+    /// records, so loading with the wrong shell both reads the wrong file and
+    /// leaks the raw record line into the suggestions.
+    #[test]
+    fn history_template_loads_the_wrapped_shells_history() {
+        let dir = std::env::temp_dir().join(format!("insh-hist-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("history");
+        std::fs::write(&path, "- cmd: git status\n  when: 1700000000\n").unwrap();
+
+        let prev = std::env::var("HISTFILE").ok();
+        // SAFETY: no other test in this binary reads HISTFILE; restored below.
+        unsafe {
+            std::env::set_var("HISTFILE", &path);
+        }
+        // Eight bundled specs route their main argument through this template
+        // (ssh, scp, sftp, rsync, curl, mosh, awsume, preset).
+        let arg = Arg {
+            templates: vec![Template::History],
+            ..Default::default()
+        };
+        let names = |shell| -> Vec<String> {
+            suggestions_for_arg(&arg, ".", "", true, &[], Some(shell))
+                .into_iter()
+                .map(|s| s.name)
+                .collect()
+        };
+        let fish = names(Shell::Fish);
+        let bash = names(Shell::Bash);
+        match prev {
+            Some(v) => unsafe { std::env::set_var("HISTFILE", v) },
+            None => unsafe { std::env::remove_var("HISTFILE") },
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(
+            fish.iter().any(|n| n == "git status"),
+            "fish records were not parsed as commands: {fish:?}"
+        );
+        // Same bytes through the POSIX loader: the raw `- cmd:` record line
+        // leaks through as the suggestion, which is what a wrapped-shell
+        // mismatch used to surface.
+        assert!(
+            bash.iter().any(|n| n == "- cmd: git status"),
+            "expected the fish record to leak through under the bash loader: {bash:?}"
+        );
+    }
 
     #[test]
     fn shell_line_timeout_returns_empty_quickly() {

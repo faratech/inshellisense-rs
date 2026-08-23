@@ -2,9 +2,10 @@ use anyhow::{Context, Result};
 use inshellisense_rs::{
     commands, config::UiMode, env as is_env, pty, resources, shell::Shell, shell_init,
 };
+use std::ffi::OsString;
 
 pub fn main() -> Result<()> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let args = collect_args(std::env::args_os());
 
     // Parse root flags that appear before the subcommand. Subcommands parse
     // their own documented flags after dispatch so completion lines can still
@@ -228,6 +229,24 @@ pub fn main() -> Result<()> {
             std::process::exit(2);
         }
     }
+}
+
+/// Collect argv as `String`s, replacing bytes that are not valid UTF-8 with
+/// the replacement character.
+///
+/// `env::args()` panics on such an argument (`is complete "$(printf
+/// 'caf\xe9')"` exited 101 with no output at all), which broke any script
+/// consuming the JSON. Completion lines legitimately contain arbitrary shell
+/// text — filenames in latin-1 among it — so degrade lossily instead of
+/// aborting before a single argument has been parsed.
+fn collect_args<I>(argv: I) -> Vec<String>
+where
+    I: IntoIterator<Item = OsString>,
+{
+    argv.into_iter()
+        .skip(1)
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect()
 }
 
 fn parse_shell(s: &str) -> Option<Shell> {
@@ -627,4 +646,45 @@ Options:
   --shell <SHELL>      Filter to specs relevant for the given shell
   -h, --help           Print this help"
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn collect_args_skips_the_program_name() {
+        let argv = vec![
+            OsString::from("is"),
+            OsString::from("complete"),
+            OsString::from("git ch"),
+        ];
+        assert_eq!(collect_args(argv), vec!["complete", "git ch"]);
+    }
+
+    /// A filename in latin-1 or quoted shell text can carry bytes that are
+    /// not valid UTF-8. `env::args()` panicked on those (exit 101, no stdout);
+    /// the lossy conversion must keep every argument and degrade only the
+    /// invalid bytes.
+    #[test]
+    fn collect_args_survives_non_utf8_bytes() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStringExt;
+            let argv = vec![
+                OsString::from("is"),
+                OsString::from("complete"),
+                OsString::from_vec(vec![0x63, 0x61, 0x66, 0xe9]),
+            ];
+            let args = collect_args(argv);
+            assert_eq!(args.len(), 2);
+            assert_eq!(args[0], "complete");
+            assert_eq!(args[1], "caf\u{FFFD}");
+        }
+        #[cfg(not(unix))]
+        {
+            let args = collect_args(vec![OsString::from("is"), OsString::from("complete")]);
+            assert_eq!(args, vec!["complete"]);
+        }
+    }
 }
