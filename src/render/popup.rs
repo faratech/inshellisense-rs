@@ -219,8 +219,18 @@ impl PopupRenderer {
 
         // Signature hash: skip redraw when nothing visible has changed.
         // Uses a u64 hash instead of formatting a 300-byte String to
-        // avoid per-draw allocations.
-        let sig = signature_hash(visible, active_in_page, direction, &active_desc, padding);
+        // avoid per-draw allocations. Every input that decides the emitted
+        // bytes must be hashed: the swap decision and the box widths change
+        // the layout even when the visible names, active row, description
+        // and padding all stay the same (e.g. a cursor jump past the
+        // padding limit flips the description box to the other side).
+        let layout = Layout {
+            padding,
+            swap_description,
+            sug_width,
+            term_cols,
+        };
+        let sig = signature_hash(visible, active_in_page, direction, &active_desc, &layout);
         if Some(sig) == self.last_signature && self.last_direction == direction {
             return Ok(());
         }
@@ -396,12 +406,22 @@ fn render_description_box(description: &str) -> Vec<String> {
     out
 }
 
+/// The layout inputs that decide how a popup's rows are emitted, alongside
+/// the visible names and the active row.
+#[derive(Debug, Clone, Copy)]
+struct Layout {
+    padding: usize,
+    swap_description: bool,
+    sug_width: usize,
+    term_cols: u16,
+}
+
 fn signature_hash(
     visible: &[Suggestion],
     active: usize,
     direction: Direction,
     desc: &str,
-    padding: usize,
+    layout: &Layout,
 ) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     for s in visible {
@@ -410,7 +430,10 @@ fn signature_hash(
     active.hash(&mut h);
     (direction == Direction::Above).hash(&mut h);
     desc.hash(&mut h);
-    padding.hash(&mut h);
+    layout.padding.hash(&mut h);
+    layout.swap_description.hash(&mut h);
+    layout.sug_width.hash(&mut h);
+    layout.term_cols.hash(&mut h);
     h.finish()
 }
 
@@ -846,5 +869,62 @@ mod tests {
             }
         }
         rows.into_iter().filter(|r| !r.trim().is_empty()).collect()
+    }
+
+    /// A layout-relevant change must force a redraw even when the previously
+    /// hashed inputs coincide. At 80 columns with a description, drawing at
+    /// cursor column 0 and then at column 11 flips `swap_description` (the
+    /// description box belongs on the LEFT of the second draw) while the
+    /// padding saturates to 0 in both cases — the old signature hashed only
+    /// the padding, so the redraw was skipped and the boxes stayed swapped.
+    #[test]
+    fn swap_flip_forces_a_redraw() {
+        let sugs = vec![mk(
+            "checkout",
+            "Switch branches or restore working tree files",
+            SuggestionType::Subcommand,
+        )];
+        let mut r = PopupRenderer::new(5, IconSet::default());
+        let mut out: Vec<u8> = Vec::new();
+        r.draw_full(&mut out, &sugs, 0, Direction::Below, 0, 80)
+            .unwrap();
+        assert!(!out.is_empty());
+        let after_first = out.len();
+        // Same suggestions, same active row, same direction, same padding:
+        // only the swap decision changed.
+        r.draw_full(&mut out, &sugs, 0, Direction::Below, 11, 80)
+            .unwrap();
+        assert!(out.len() > after_first, "swapped layout was not redrawn");
+        // The redrawn rows must place the description box on the left.
+        let text = String::from_utf8_lossy(&out[after_first..]).to_string();
+        let rows = visible_rows(&text);
+        let first_data_row = rows.iter().find(|r| r.contains("checkout")).unwrap();
+        assert!(
+            first_data_row.find("checkout").unwrap()
+                > first_data_row.find("Switch branches").unwrap(),
+            "description box was not drawn to the left of the suggestion box"
+        );
+    }
+
+    /// `term_cols` also decides the emitted layout (box widths, wrap points),
+    /// so a resize must not be swallowed by the signature check either.
+    #[test]
+    fn terminal_resize_forces_a_redraw() {
+        let sugs = vec![mk(
+            "checkout",
+            "Switch branches",
+            SuggestionType::Subcommand,
+        )];
+        let mut r = PopupRenderer::new(5, IconSet::default());
+        let mut out: Vec<u8> = Vec::new();
+        r.draw_full(&mut out, &sugs, 0, Direction::Below, 10, 100)
+            .unwrap();
+        let after_first = out.len();
+        r.draw_full(&mut out, &sugs, 0, Direction::Below, 10, 120)
+            .unwrap();
+        assert!(
+            out.len() > after_first,
+            "a terminal resize was treated as an unchanged popup"
+        );
     }
 }
