@@ -86,7 +86,11 @@ pub fn run_wrapped(
     let mut pty = platform::WindowsPty::spawn(&shell_path, &argv, &child_env, rows, cols)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
 
-    platform::enable_raw_mode();
+    if !platform::enable_raw_mode() {
+        // Without a terminal in raw mode we can neither observe keystrokes
+        // nor keep the display coherent; refuse rather than misbehave (#61).
+        anyhow::bail!("stdin is not an interactive terminal; `is start` must run inside a shell");
+    }
     platform::install_signal_handlers();
 
     let prev_hook = std::panic::take_hook();
@@ -221,17 +225,34 @@ pub fn run_wrapped(
     loop {
         if let Some(code) = pty.try_wait() {
             child_exit_code = code;
-            // Drain remaining PTY output before shutting down.
-            // The child's final output (including console-mode-reset
-            // sequences) must reach the parent terminal.
+            // Drain remaining PTY output before shutting down. The child's
+            // final output (including console-mode-reset sequences) must
+            // reach the parent terminal — but the drain must be BOUNDED:
+            // the master only reaches EOF once every process holding the
+            // slave open has exited, so a `sleep 300 &` left running by the
+            // user used to freeze `is` (raw mode still on, keystrokes
+            // dropped) until that job died (#52). With the master fd in
+            // O_NONBLOCK mode, read_pty returns EAGAIN instead of blocking;
+            // we keep draining while data flows and stop ~500ms after it
+            // goes quiet.
+            let mut quiet_ticks: u32 = 0;
             loop {
                 let n = pty.read_pty(&mut pty_buf);
-                if n < 1 {
+                if n >= 1 {
+                    quiet_ticks = 0;
+                    let bytes = &pty_buf[..n as usize];
+                    let (clean, _) = ansi_scanner.scan(bytes);
+                    out.write_all(&clean).ok();
+                    continue;
+                }
+                quiet_ticks += 1;
+                if quiet_ticks > 25 {
                     break;
                 }
-                let bytes = &pty_buf[..n as usize];
-                let (clean, _) = ansi_scanner.scan(bytes);
-                out.write_all(&clean).ok();
+                let (pty_ready, _) = pty.poll(20);
+                if !pty_ready && quiet_ticks > 2 {
+                    break;
+                }
             }
             out.flush().ok();
             break;

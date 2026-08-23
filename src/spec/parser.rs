@@ -3,11 +3,49 @@
 //!
 //! The state machine is preserved exactly so parity tests hold. Four active
 //! states: reading-quoted, reading-quote-continued, reading-flag, reading-cmd.
-//! Long options with `=` (`--foo=bar`) split at `=`. Combined shorts stay
-//! joined. Unclosed quotes at EOL emit a token with `complete = false`.
+//! Long options with `=` (`--foo=bar`) split at `=` — but only while a flag
+//! is being read; unlike upstream parser.ts (which splits ANY word at `=`,
+//! killing completion for `VAR=value cmd` lines) we gate the split on the
+//! flag state (#53). Combined shorts stay joined. Unclosed quotes at EOL emit
+//! a token with `complete = false`.
+//!
+//! Escape and quote characters are shell-dependent (#81): POSIX shells use
+//! `\`, PowerShell uses `` ` `` (and does not treat it as a quote), cmd uses
+//! `^`. The default remains the POSIX behavior for parity tests.
 //!
 //! We take only the last segment of a compound command (split on `||`/`&&`/
 //! `;`/`|`) for suggestion purposes, matching parseCommand().
+
+/// Which family of escape/quote rules to tokenize with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ShellFlavor {
+    /// bash/zsh/fish/xonsh/nushell: `'` `"` `` ` `` quote, `\` escapes.
+    #[default]
+    Posix,
+    /// pwsh/PowerShell: `'` `"` quote, `` ` `` escapes (NOT a quote char).
+    PowerShell,
+    /// cmd.exe: `"` quotes, `^` escapes.
+    Cmd,
+}
+
+impl ShellFlavor {
+    fn esc(self) -> char {
+        match self {
+            Self::Posix => '\\',
+            Self::PowerShell => '`',
+            Self::Cmd => '^',
+        }
+    }
+
+    fn is_quote(self, ch: char) -> bool {
+        match self {
+            Self::Posix => ch == '\'' || ch == '"' || ch == '`',
+            Self::PowerShell => ch == '\'' || ch == '"',
+            // cmd.exe has no single-quote string syntax; `'…'` stays literal.
+            Self::Cmd => ch == '"',
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CommandToken {
@@ -35,9 +73,14 @@ pub struct CommandToken {
 
 /// Parse a command line into tokens for the *last* pipeline segment.
 pub fn parse_command(line: &str) -> Vec<CommandToken> {
+    parse_command_for(line, ShellFlavor::Posix)
+}
+
+/// Tokenize with a specific shell's escape/quote rules (#81).
+pub fn parse_command_for(line: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
     let last = last_segment(line).trim_start();
-    let mut tokens = lex(last);
-    sanitize(&mut tokens);
+    let mut tokens = lex_with(last, flavor);
+    sanitize_with(&mut tokens, flavor);
     mark_raw_after_dashdash(&mut tokens);
     tokens
 }
@@ -69,7 +112,7 @@ fn last_segment(line: &str) -> &str {
     &line[best_idx..]
 }
 
-fn lex(command: &str) -> Vec<CommandToken> {
+fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
     let mut tokens: Vec<CommandToken> = Vec::new();
     let chars: Vec<char> = command.chars().collect();
     let byte_pos: Vec<usize> = {
@@ -91,7 +134,7 @@ fn lex(command: &str) -> Vec<CommandToken> {
     let mut reading_idx: usize = 0;
     let mut quote_char: char = ' ';
 
-    let esc = '\\'; // bash whitespace escape char
+    let esc = flavor.esc();
 
     let slice = |start_ch: usize, end_ch: usize| -> String {
         command[byte_pos[start_ch]..byte_pos[end_ch]].to_string()
@@ -101,7 +144,7 @@ fn lex(command: &str) -> Vec<CommandToken> {
         let ch = chars[idx];
         let reading = reading_quoted || reading_quote_continued || reading_flag || reading_cmd;
 
-        if !reading && (ch == '\'' || ch == '"' || ch == '`') {
+        if !reading && flavor.is_quote(ch) {
             reading_quoted = true;
             reading_idx = idx;
             quote_char = ch;
@@ -149,10 +192,13 @@ fn lex(command: &str) -> Vec<CommandToken> {
                 token_length: idx - reading_idx,
                 ..Default::default()
             });
-        } else if (reading_flag && ch.is_whitespace()) || ch == '=' {
-            // Matches inshellisense parser.ts:100 exactly — an unguarded `=`
-            // splits the current token and marks it as an option. In the
-            // readingFlag case that's the intended `--foo=bar` semantics.
+        } else if reading_flag && (ch.is_whitespace() || ch == '=') {
+            // Upstream parser.ts:100 splits on an unguarded `=`, so any word
+            // containing one (e.g. `FOO=bar` in `env FOO=bar git ch`) is
+            // chopped into a phantom option plus an overlapping duplicate,
+            // and completion returns nothing (#53). We deliberately diverge:
+            // only a flag in progress splits at `=`, which is the intended
+            // `--foo=bar` semantics.
             reading_flag = false;
             tokens.push(CommandToken {
                 token: slice(reading_idx, idx),
@@ -221,12 +267,15 @@ fn lex(command: &str) -> Vec<CommandToken> {
     tokens
 }
 
-fn sanitize(tokens: &mut [CommandToken]) {
-    // Unescape `\ ` → ` ` in non-quoted tokens, and unwrap quote-continued
-    // tokens (strip the embedded quote chars).
+fn sanitize_with(tokens: &mut [CommandToken], flavor: ShellFlavor) {
+    // Unescape `<esc> ` → ` ` in non-quoted tokens, and unwrap quote-
+    // continued tokens (strip the embedded quote chars). The escape char is
+    // shell-dependent (#81): `\` on POSIX, `` ` `` in PowerShell, `^` in cmd.
+    let esc = flavor.esc();
+    let esc_space = format!("{esc} ");
     for t in tokens.iter_mut() {
-        if !t.is_quoted && t.token.contains("\\ ") {
-            t.token = t.token.replace("\\ ", " ");
+        if !t.is_quoted && t.token.contains(&esc_space) {
+            t.token = t.token.replace(&esc_space, " ");
         }
         if t.is_quote_continued && !t.token.is_empty() {
             let quote = t.token.chars().next().unwrap();
@@ -235,7 +284,7 @@ fn sanitize(tokens: &mut [CommandToken]) {
             let sentinel = '\u{1b}';
             let replaced = t
                 .token
-                .replace(&format!("\\{quote}"), &sentinel.to_string())
+                .replace(&format!("{esc}{quote}"), &sentinel.to_string())
                 .replace(&qs, "")
                 .replace(&sentinel.to_string(), &qs);
             t.token = replaced;
@@ -273,6 +322,42 @@ mod tests {
         // inshellisense behavior: --foo=bar → ["--foo", "bar"]
         let got = toks("cargo build --target=wasm32");
         assert_eq!(got, vec!["cargo", "build", "--target", "wasm32"]);
+    }
+
+    /// A `=` inside a plain word must NOT split it into a phantom option plus
+    /// an overlapping duplicate (#53): `env FOO=bar git ch` used to tokenize
+    /// as [env, FOO(option), FOO=bar, git, ch] and completion died.
+    #[test]
+    fn equals_in_plain_word_stays_whole() {
+        let tokens = parse_command("env FOO=bar git ch ");
+        let names: Vec<&str> = tokens.iter().map(|t| t.token.as_str()).collect();
+        assert_eq!(names, vec!["env", "FOO=bar", "git", "ch"]);
+        assert!(tokens[1].complete && !tokens[1].is_option);
+    }
+
+    /// PowerShell escapes whitespace with a backtick, not a backslash (#81).
+    #[test]
+    fn powershell_backtick_escape() {
+        let tokens = parse_command_for("Get-ChildItem my` file", ShellFlavor::PowerShell);
+        let last = tokens.last().unwrap();
+        assert_eq!(last.token, "my file");
+        assert!(!last.complete);
+        // …and the backtick is not a quote character in PowerShell.
+        let tokens = parse_command_for("echo `x", ShellFlavor::PowerShell);
+        assert_eq!(tokens.last().unwrap().token, "`x");
+    }
+
+    /// cmd.exe escapes whitespace with a caret (#81).
+    #[test]
+    fn cmd_caret_escape() {
+        let tokens = parse_command_for("dir my^ file", ShellFlavor::Cmd);
+        let last = tokens.last().unwrap();
+        assert_eq!(last.token, "my file");
+        assert!(!last.complete);
+        // Single quotes are literal characters in cmd.exe, not quotes.
+        let tokens = parse_command_for("dir 'a b'", ShellFlavor::Cmd);
+        let names: Vec<&str> = tokens.iter().map(|t| t.token.as_str()).collect();
+        assert_eq!(names, vec!["dir", "'a", "b'"]);
     }
 
     #[test]

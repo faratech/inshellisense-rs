@@ -29,7 +29,7 @@ pub fn run(line: &str, text_mode: bool, cwd: &str, shell: Option<Shell>) -> Resu
     // JSON output matching upstream's schema exactly.
     let icons = IconSet::from_config(crate::config::load().use_nerd_font);
     let blob = engine.suggest_blob(line, cwd);
-    let tokens = spec::parse_command(line);
+    let tokens = spec::parse_command_for(line, suggest::flavor_of(engine.shell()));
     // Upstream emits a null activeToken once the last token is complete
     // (i.e. the line ends in whitespace) — only an in-progress token counts.
     let active_token = tokens.last().filter(|t| !t.complete);

@@ -262,11 +262,23 @@ impl TermTracker {
             cmd.push_str(&row_text(screen, last_row, 0, cols));
         }
 
-        // Characters between the anchor and the cursor.
-        let cursor_offset = if (cursor_row as usize) == pr {
-            (cursor_col as usize).saturating_sub(pc)
+        // Characters between the anchor and the cursor. Counted in CHARS,
+        // not cells: a wide character spans two cells but is one character,
+        // and cursor_offset is compared against `cmd.chars().count()` below
+        // (#55). Mixing the units padded every CJK line with phantom
+        // characters taken from the row's blank padding.
+        let chars_between = |row: usize, start: usize, end: usize| -> usize {
+            row_char_count(screen, row, start, end.min(cols))
+        };
+        let cursor_row_us = cursor_row as usize;
+        let cursor_offset = if cursor_row_us == pr {
+            chars_between(pr, pc, cursor_col as usize)
         } else {
-            (cols - pc) + (cursor_row as usize - pr - 1) * cols + cursor_col as usize
+            chars_between(pr, pc, cols)
+                + ((pr + 1)..cursor_row_us)
+                    .map(|r| chars_between(r, 0, cols))
+                    .sum::<usize>()
+                + chars_between(cursor_row_us, 0, cursor_col as usize)
         };
 
         // The row is padded with blanks out to the last column. Trim them, but
@@ -298,11 +310,35 @@ fn logical_line_end(screen: &vt100::Screen, row: u16, rows: u16) -> u16 {
     last
 }
 
+/// Number of visible characters in `row[start_col..end_col]` — wide-char
+/// continuation cells count as zero, matching how `row_text` renders them.
+fn row_char_count(screen: &vt100::Screen, row: usize, start_col: usize, end_col: usize) -> usize {
+    let mut n = 0;
+    let max_col = end_col.min(screen.size().1 as usize);
+    for col in start_col..max_col {
+        if let Some(cell) = screen.cell(row as u16, col as u16)
+            && !cell.is_wide_continuation()
+        {
+            n += 1;
+        }
+    }
+    n
+}
+
 fn row_text(screen: &vt100::Screen, row: usize, start_col: usize, end_col: usize) -> String {
     let mut s = String::new();
     let max_col = end_col.min(screen.size().1 as usize);
     for col in start_col..max_col {
         if let Some(cell) = screen.cell(row as u16, col as u16) {
+            // A wide (double-width) character occupies its own cell plus a
+            // continuation cell whose contents are empty. Turning that
+            // continuation cell into a space (as an earlier version did via
+            // the empty check below) inserts one phantom space per wide
+            // character, corrupting the tracked CJK command line so no
+            // suggestion ever matches (#55).
+            if cell.is_wide_continuation() {
+                continue;
+            }
             let contents = cell.contents();
             if contents.is_empty() {
                 s.push(' ');
@@ -328,6 +364,21 @@ mod tests {
         tracker.feed(b"git ", &[]);
         assert_eq!(tracker.state().command, "git ");
         assert!(tracker.cursor_at_command_end());
+    }
+
+    /// A wide (double-width) character occupies two vt100 cells; the
+    /// continuation cell used to be rendered as a spurious space, corrupting
+    /// the tracked command for CJK input so no suggestion could match (#55).
+    #[test]
+    fn wide_chars_leave_no_phantom_spaces() {
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.feed(b"$ ", &[IsEvent::PromptStart, IsEvent::PromptEnd]);
+        tracker.feed("git add 你好.txt".as_bytes(), &[]);
+        assert_eq!(
+            tracker.state().command,
+            "git add 你好.txt",
+            "continuation cells must not become spaces"
+        );
     }
 
     /// Cursoring back into the middle of a line must be detected. The tracker

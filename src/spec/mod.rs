@@ -15,7 +15,7 @@ pub use model::{
     PostProcess, PostProcessKind, Repeatable, ScriptInput, Spec, Subcommand, Suggestion,
     SuggestionType, Template,
 };
-pub use parser::{CommandToken, parse_command};
+pub use parser::{CommandToken, ShellFlavor, parse_command, parse_command_for};
 pub use resolver::{ResolveResult, resolve};
 
 use std::collections::BTreeMap;

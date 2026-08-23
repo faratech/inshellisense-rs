@@ -462,13 +462,19 @@ fn find_separated_option<'a>(
         }
         for name in &opt.names {
             let prefix = format!("{name}{sep}");
+            // `get(..n)` returns None when n is not a char boundary; slicing
+            // directly panicked the whole process on any token whose bytes
+            // straddle the prefix length with a multi-byte char — e.g. an
+            // option value typed after a CJK positional (#54).
             let matched = if case_insensitive {
-                token.len() >= prefix.len() && token[..prefix.len()].eq_ignore_ascii_case(&prefix)
+                token
+                    .get(..prefix.len())
+                    .is_some_and(|head| head.eq_ignore_ascii_case(&prefix))
             } else {
                 token.starts_with(&prefix)
             };
-            if matched {
-                return Some((opt, token[prefix.len()..].to_string()));
+            if matched && let Some(rest) = token.get(prefix.len()..) {
+                return Some((opt, rest.to_string()));
             }
         }
     }
@@ -538,6 +544,27 @@ mod tests {
             names: vec![name.to_string()],
             ..Default::default()
         }
+    }
+
+    /// `find_separated_option` used to slice the token at the prefix's BYTE
+    /// length before comparing; a token whose multi-byte char straddles that
+    /// offset (e.g. `éé:x` against prefix `-I:`) panicked the process (#54).
+    #[test]
+    fn separated_option_slice_is_char_boundary_safe() {
+        let opt = Opt {
+            names: vec!["-I".to_string()],
+            requires_separator: Some(":".to_string()),
+            ..Default::default()
+        };
+        let opts = vec![&opt];
+        // Pre-fix this line panicked: byte offset 3 lands inside the second é.
+        assert!(find_separated_option(&opts, "éé:x", true).is_none());
+        // A real match still extracts its (multi-byte) value intact.
+        let hit = find_separated_option(&opts, "-I:héllo", false);
+        assert_eq!(
+            hit.map(|(o, v)| (o.names[0].clone(), v)),
+            Some(("-I".into(), "héllo".into()))
+        );
     }
 
     fn make_arg() -> Arg {

@@ -446,16 +446,19 @@ pub fn term_size() -> Option<(u16, u16)> {
     }
 }
 
-pub fn enable_raw_mode() {
+/// Enable raw mode. Returns false when stdin has no console mode (piped or
+/// missing stdin), which the caller treats as fatal (#50/#61).
+pub fn enable_raw_mode() -> bool {
     unsafe {
         // Save and modify input and output INDEPENDENTLY — in Git
         // Bash (MSYS2), stdout may be a pipe so GetConsoleMode fails
         // on it. We must still change the input mode to disable echo
         // and VT input artifacts.
+        let mut input_ok = false;
         let h_in = GetStdHandle(STD_INPUT_HANDLE);
         if GetConsoleMode(h_in, std::ptr::addr_of_mut!(ORIG_INPUT_MODE)) != 0 {
             INPUT_MODE_SAVED = true;
-            SetConsoleMode(h_in, ENABLE_WINDOW_INPUT);
+            input_ok = SetConsoleMode(h_in, ENABLE_WINDOW_INPUT) != 0;
         }
         let h_out = GetStdHandle(STD_OUTPUT_HANDLE);
         if GetConsoleMode(h_out, std::ptr::addr_of_mut!(ORIG_OUTPUT_MODE)) != 0 {
@@ -464,6 +467,7 @@ pub fn enable_raw_mode() {
             // set DISABLE_NEWLINE_AUTO_RETURN — causes flash on exit.
             SetConsoleMode(h_out, ORIG_OUTPUT_MODE | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
         }
+        input_ok
     }
 }
 

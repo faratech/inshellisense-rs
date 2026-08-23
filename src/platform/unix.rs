@@ -9,9 +9,17 @@ use super::{PtyHandle, PtyResult, RawDescriptor};
 static mut ORIG_TERMIOS: libc::termios = unsafe { std::mem::zeroed() };
 static mut ORIG_TERMIOS_SAVED: bool = false;
 
+fn errno() -> i32 {
+    std::io::Error::last_os_error().raw_os_error().unwrap_or(0)
+}
+
 pub struct UnixPty {
     master_fd: libc::c_int,
     child_pid: libc::pid_t,
+    /// Set once stdin has hit EOF/HUP/error. The event loop must then stop
+    /// polling it — poll(2) reports a closed fd as permanently ready, which
+    /// otherwise busy-spins the loop at 100% CPU with no exit path (#61).
+    stdin_dead: std::cell::Cell<bool>,
 }
 
 impl UnixPty {
@@ -55,10 +63,21 @@ impl UnixPty {
                 eprintln!("is: execvp failed: {}", std::io::Error::last_os_error());
                 unsafe { libc::_exit(127) };
             }
-            _ => Ok(Self {
-                master_fd: master,
-                child_pid: pid,
-            }),
+            _ => {
+                // Non-blocking master: the post-exit drain loop reads until
+                // EAGAIN/EOF instead of blocking forever on a slave fd some
+                // grandchild still holds open (#52). The main loop is
+                // poll-gated, so this changes nothing for it.
+                let flags = unsafe { libc::fcntl(master, libc::F_GETFL, 0) };
+                if flags >= 0 {
+                    unsafe { libc::fcntl(master, libc::F_SETFL, flags | libc::O_NONBLOCK) };
+                }
+                Ok(Self {
+                    master_fd: master,
+                    child_pid: pid,
+                    stdin_dead: std::cell::Cell::new(false),
+                })
+            }
         }
     }
 }
@@ -125,13 +144,19 @@ impl PtyHandle for UnixPty {
                 revents: 0,
             },
         ];
-        let n = unsafe { libc::poll(fds.as_mut_ptr(), 2, timeout_ms) };
+        let nfds = if self.stdin_dead.get() { 1 } else { 2 };
+        let n = unsafe { libc::poll(fds.as_mut_ptr(), nfds, timeout_ms) };
         if n <= 0 {
             return (false, false);
         }
+        // HUP/ERR/NVAL on stdin mean it will never deliver more input; stop
+        // polling it or poll(2) reports it ready every cycle (#61).
+        if nfds == 2 && fds[1].revents & (libc::POLLHUP | libc::POLLERR | libc::POLLNVAL) != 0 {
+            self.stdin_dead.set(true);
+        }
         (
-            fds[0].revents & libc::POLLIN != 0,
-            fds[1].revents & libc::POLLIN != 0,
+            fds[0].revents & (libc::POLLIN | libc::POLLHUP | libc::POLLERR) != 0,
+            !self.stdin_dead.get() && fds[1].revents & libc::POLLIN != 0,
         )
     }
 
@@ -146,13 +171,18 @@ impl PtyHandle for UnixPty {
     }
 
     fn read_stdin(&self, buf: &mut [u8]) -> isize {
-        unsafe {
+        let n = unsafe {
             libc::read(
                 libc::STDIN_FILENO,
                 buf.as_mut_ptr() as *mut libc::c_void,
                 buf.len(),
             )
+        };
+        if n == 0 || (n < 0 && !matches!(errno(), libc::EINTR | libc::EAGAIN)) {
+            // EOF or unrecoverable error: never poll this fd again (#61).
+            self.stdin_dead.set(true);
         }
+        n
     }
 
     fn close(&mut self) {
@@ -174,15 +204,19 @@ pub fn term_size() -> Option<(u16, u16)> {
     }
 }
 
-pub fn enable_raw_mode() {
+/// Enable raw mode on stdin. Returns false when stdin is not a terminal —
+/// the caller treats that as fatal, since without raw mode the tool cannot
+/// observe keystrokes (and cooked-mode echo corrupts the display) (#61).
+pub fn enable_raw_mode() -> bool {
     unsafe {
         let p = std::ptr::addr_of_mut!(ORIG_TERMIOS);
-        if libc::tcgetattr(libc::STDIN_FILENO, p) == 0 {
-            ORIG_TERMIOS_SAVED = true;
-            let mut raw = *p;
-            libc::cfmakeraw(&mut raw);
-            libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, &raw);
+        if libc::tcgetattr(libc::STDIN_FILENO, p) != 0 {
+            return false;
         }
+        ORIG_TERMIOS_SAVED = true;
+        let mut raw = *p;
+        libc::cfmakeraw(&mut raw);
+        libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, &raw) == 0
     }
 }
 

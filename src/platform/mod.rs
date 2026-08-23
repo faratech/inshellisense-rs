@@ -75,12 +75,17 @@ pub fn term_size() -> Option<(u16, u16)> {
     }
 }
 
-/// Enable raw mode on stdin. Returns a guard that restores on drop.
-pub fn enable_raw_mode() {
+/// Enable raw mode on stdin. Returns false when stdin is not a usable
+/// terminal (no tty / no console handle); the caller treats that as fatal.
+pub fn enable_raw_mode() -> bool {
     #[cfg(unix)]
-    unix::enable_raw_mode();
+    {
+        unix::enable_raw_mode()
+    }
     #[cfg(windows)]
-    windows::enable_raw_mode();
+    {
+        windows::enable_raw_mode()
+    }
 }
 
 /// Restore original terminal mode.

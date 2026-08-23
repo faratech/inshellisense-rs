@@ -75,6 +75,11 @@ impl Engine {
         self.shell = Some(shell);
     }
 
+    /// The wrapped shell this engine was configured for, if any.
+    pub fn shell(&self) -> Option<Shell> {
+        self.shell
+    }
+
     /// Ghost-text tail: the portion of the top suggestion after the current
     /// partial token.
     pub fn suggest(&self, line: &str, cwd: &str) -> Option<String> {
@@ -82,7 +87,10 @@ impl Engine {
             return None;
         }
         let blob = self.suggest_blob(line, cwd);
-        let partial = current_partial(line);
+        // Some(partial) = a token is in progress (possibly empty, after a
+        // trailing space); None = the last token is complete, so there is
+        // nothing of a suggestion left to type for it (#67).
+        let partial = current_partial(line, self.shell)?;
         if let Some(top) = blob.first()
             && top.name.len() > partial.len()
             && top.name.starts_with(&partial)
@@ -140,7 +148,7 @@ impl Engine {
         // command segment is an alias, suggestions should reflect the expanded
         // command (upstream: runtime.ts:110).
         let expanded = crate::alias::expand_active_segment(line, &self.aliases);
-        let tokens = spec::parse_command(&expanded);
+        let tokens = spec::parse_command_for(&expanded, flavor_of(self.shell));
         if tokens.is_empty() {
             return Vec::new();
         }
@@ -613,15 +621,32 @@ fn dedup_by_name(mut v: Vec<Suggestion>) -> Vec<Suggestion> {
     v
 }
 
-fn current_partial(line: &str) -> String {
+/// The in-progress partial token the ghost tail must complete past.
+///
+/// Returns `Some(text)` when a token is being typed — empty text after a
+/// trailing space — and `None` when the line ends with a complete token, in
+/// which case no name-based tail applies. The text comes from the same
+/// tokenizer `suggest_blob` uses, so quoted/escaped partials line up with
+/// what the resolver matched: `git commit -m "hello wor` yields `hello wor`
+/// (not the whitespace-split `wor` that garbled ghost text, #67).
+fn current_partial(line: &str, shell: Option<Shell>) -> Option<String> {
     if line.ends_with(char::is_whitespace) {
-        return String::new();
+        return Some(String::new());
     }
-    // Best-effort: last whitespace-split chunk.
-    line.rsplit(char::is_whitespace)
-        .next()
-        .unwrap_or("")
-        .to_string()
+    match spec::parse_command_for(line, flavor_of(shell)).last() {
+        Some(t) if !t.complete => Some(t.token.clone()),
+        _ => None,
+    }
+}
+
+/// Map a wrapped shell to the tokenizer rule set its command lines follow.
+pub(crate) fn flavor_of(shell: Option<Shell>) -> spec::ShellFlavor {
+    match shell {
+        Some(Shell::Pwsh | Shell::Powershell) => spec::ShellFlavor::PowerShell,
+        #[cfg(windows)]
+        Some(Shell::Cmd) => spec::ShellFlavor::Cmd,
+        _ => spec::ShellFlavor::Posix,
+    }
 }
 
 // Keep the old tokenize function path alive for any callers that still use it.
@@ -662,5 +687,49 @@ mod pick_primary_tests {
     fn subcommand_partial_stays_case_insensitive() {
         let names = vec!["Checkout".to_string()];
         assert_eq!(pick_primary(&names, "ch").as_deref(), Some("Checkout"));
+    }
+}
+
+#[cfg(test)]
+mod partial_tests {
+    use super::current_partial;
+    use crate::shell::Shell;
+
+    /// #67: whitespace splitting returned `wor`; the tokenizer yields the
+    /// full in-progress quoted token content, so the ghost tail lines up
+    /// with what the resolver matched.
+    #[test]
+    fn quoted_partial_uses_tokenizer_not_whitespace_split() {
+        assert_eq!(
+            current_partial("git commit -m \"hello wor", Some(Shell::Bash)).as_deref(),
+            Some("hello wor")
+        );
+    }
+
+    #[test]
+    fn trailing_space_is_empty_partial() {
+        assert_eq!(
+            current_partial("git ", Some(Shell::Bash)),
+            Some(String::new())
+        );
+    }
+
+    /// A just-closed quoted word stays an active partial (the tokenizer
+    /// marks it incomplete so more text can be appended), and its content
+    /// excludes the quotes — exactly what name matching needs.
+    #[test]
+    fn closed_quote_stays_completable_without_quotes() {
+        assert_eq!(
+            current_partial("ls \"a b\"", Some(Shell::Bash)).as_deref(),
+            Some("a b")
+        );
+    }
+
+    #[test]
+    fn escaped_space_stays_one_partial() {
+        assert_eq!(
+            current_partial("ls my\\ file", Some(Shell::Bash)).as_deref(),
+            Some("my file")
+        );
     }
 }

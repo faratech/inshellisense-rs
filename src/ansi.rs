@@ -106,7 +106,7 @@ impl Scanner {
                     end += 1;
                 }
                 if end >= input.len() {
-                    self.keep_pending(&input[i..]);
+                    self.keep_pending(&input[i..], &mut out);
                     break;
                 }
                 let payload = &input[start..end];
@@ -119,7 +119,7 @@ impl Scanner {
             if is_partial_prefix(&input[i..], needle)
                 || is_partial_prefix(&input[i..], WIN32_INPUT_MODE)
             {
-                self.keep_pending(&input[i..]);
+                self.keep_pending(&input[i..], &mut out);
                 break;
             }
             out.push(input[i]);
@@ -128,11 +128,18 @@ impl Scanner {
         (out, events)
     }
 
-    fn keep_pending(&mut self, bytes: &[u8]) {
-        if bytes.len() <= MAX_PENDING {
-            self.pending.extend_from_slice(bytes);
-        } else {
-            self.pending.clear();
+    /// Buffer a partial sequence for the next chunk. If the buffer would
+    /// exceed MAX_PENDING, this cannot be a real marker any more (markers
+    /// are a few dozen bytes), so forward the oldest overflow to the terminal
+    /// instead of discarding it — silently dropping PTY output corrupted the
+    /// display whenever a program emitted `\x1b]6973;` without a terminator,
+    /// or a burst arrived while a marker straddled many chunks (#56).
+    fn keep_pending(&mut self, bytes: &[u8], out: &mut Vec<u8>) {
+        self.pending.extend_from_slice(bytes);
+        if self.pending.len() > MAX_PENDING {
+            let flush = self.pending.len() - MAX_PENDING;
+            out.extend_from_slice(&self.pending[..flush]);
+            self.pending.drain(..flush);
         }
     }
 }
@@ -274,5 +281,34 @@ mod tests {
             IsEvent::Cwd(s) => assert_eq!(s, "/tmp"),
             _ => panic!("expected Cwd"),
         }
+    }
+
+    /// An unterminated OSC whose buffered tail outgrew MAX_PENDING used to be
+    /// cleared wholesale — that output never reached the terminal (#56). The
+    /// overflow must instead be forwarded, keeping only the newest bytes
+    /// buffered.
+    #[test]
+    fn pending_overflow_is_forwarded_not_dropped() {
+        let mut scanner = Scanner::new();
+        // Open an OSC and stream far more than MAX_PENDING without a terminator.
+        let (mut out, events) = scanner.scan(b"\x1b]6973;CWD;/tmp");
+        assert!(events.is_empty());
+        let chunk = vec![b'x'; 4096];
+        for _ in 0..4 {
+            let (o, e) = scanner.scan(&chunk);
+            out.extend(o);
+            assert!(e.is_empty());
+        }
+        // 3 * 8192 + 14 bytes of payload: everything but the retained tail
+        // must have been forwarded, not silently discarded.
+        assert!(
+            out.len() >= 2 * MAX_PENDING,
+            "overflow must reach the terminal (got {} bytes)",
+            out.len()
+        );
+        // The scanner stays usable afterwards: a complete marker resolves.
+        let (out2, events2) = scanner.scan(b"tail\x1b]6973;PS\x07done");
+        assert!(out2.starts_with(b"tail"));
+        assert_eq!(events2.len(), 1);
     }
 }
