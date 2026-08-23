@@ -234,7 +234,19 @@ impl Registry {
                     continue;
                 };
                 if let Ok(rel) = path.strip_prefix(root) {
-                    let key = rel.with_extension("").to_string_lossy().into_owned();
+                    // Registry keys always join nested levels with `/`,
+                    // matching the forward-slash names in LoadSpec::SpecPath
+                    // stubs and the bundled corpus (`aws/ec2`) — never the
+                    // platform separator. Rendering the raw relative path
+                    // produced `aws\ec2` on Windows: the guard missed, each
+                    // nested spec was hoisted to the top level under its file
+                    // basename, and its stub could no longer reach it.
+                    let key = rel
+                        .with_extension("")
+                        .components()
+                        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                        .collect::<Vec<_>>()
+                        .join("/");
                     if key.contains('/') {
                         reg.inner_mut().specs.insert(key, Box::new(spec));
                         continue;
@@ -453,5 +465,74 @@ mod tests {
         reg.insert_lazy("broken", "{ this is not json");
         assert!(reg.get("broken").is_none());
         assert!(reg.get("broken").is_none());
+    }
+
+    fn unique_tmp_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "inshellisense-rs-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// A Fig-style spec tree on disk: `aws/ec2.json` holds the real body,
+    /// reachable only through the nested registry key, while a stub elsewhere
+    /// references it by forward-slash name (`loadSpec: aws/ec2`). The key must
+    /// be joined with `/` on every platform — with the raw path separator it
+    /// became `aws\ec2` on Windows, hoisting each nested file to the top
+    /// level under its basename while leaving its stub unresolvable.
+    #[test]
+    fn nested_disk_specs_are_keyed_with_forward_slashes() {
+        use crate::spec::model::LoadSpec;
+
+        let root = unique_tmp_dir("walk-disk");
+        let nested = root.join("aws");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(
+            nested.join("ec2.json"),
+            r#"{"name":"ec2","description":"elastic compute"}"#,
+        )
+        .unwrap();
+        // A top-level file keeps registering normally.
+        std::fs::write(root.join("top.json"), r#"{"name":"top"}"#).unwrap();
+
+        let mut reg = Registry::default();
+        reg.load_spec_dir(&root);
+
+        // Reachable via the canonical nested key…
+        let ec2 = reg.get("aws/ec2").expect("nested key must be registered");
+        assert_eq!(ec2.description.as_deref(), Some("elastic compute"));
+
+        // …and NOT hoisted into the top-level namespace under its basename.
+        assert!(
+            reg.get("ec2").is_none(),
+            "nested spec leaked out as a first-word command"
+        );
+        assert_eq!(reg.get("top").expect("top-level spec").name(), "top");
+
+        // The stub form resolves too: a subcommand carrying
+        // LoadSpec::SpecPath { name: "aws/ec2" } loads the disk spec.
+        let mut stub = Subcommand::new("ec2");
+        stub.load_spec = Some(LoadSpec::SpecPath {
+            name: "aws/ec2".into(),
+        });
+        let mut aws = Subcommand::new("aws");
+        aws.subcommands.push(stub);
+        reg.insert(aws);
+
+        let tokens = crate::spec::parse_command("aws ec2 ");
+        let resolved =
+            crate::spec::resolver::resolve_with_registry(&reg, reg.get("aws").unwrap(), &tokens);
+        assert_eq!(
+            resolved.subcommand.description.as_deref(),
+            Some("elastic compute")
+        );
+
+        std::fs::remove_dir_all(&root).ok();
     }
 }
