@@ -126,7 +126,8 @@ pub fn run_wrapped(
         let use_aliases = cfg.use_aliases;
         thread::spawn(move || {
             let registry = Registry::new_with_defaults();
-            let hist = history::load();
+            // Seed the snapshot from the WRAPPED shell, not the parent's.
+            let hist = history::load_for(alias_shell);
             let mut built = Engine::new(registry, hist);
             built.set_shell(alias_shell);
             if use_aliases {
