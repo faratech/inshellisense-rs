@@ -286,6 +286,9 @@ impl Engine {
                     .parent_subcommand
                     .map(|p| p.subcommands.as_slice())
                     .unwrap_or(&result.subcommand.subcommands),
+                // The `history` template must read the wrapped shell's history
+                // file, not the one belonging to whatever spawned us.
+                self.shell,
             ));
 
             // An `isCommand` arg names another command (`sudo gi<TAB>`). The
