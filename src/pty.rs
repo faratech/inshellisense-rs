@@ -238,15 +238,14 @@ pub fn run_wrapped(
         }
 
         // SIGWINCH — one ioctl per wakeup.
-        if let Some((new_cols, new_rows)) = platform::term_size() {
-            if new_cols > 0
-                && new_rows > 0
-                && (new_rows != tracker.rows() || new_cols != tracker.cols())
-            {
-                tracker.resize(new_rows, new_cols);
-                pty.resize(new_rows, new_cols);
-                renderer.clear(&mut out).ok();
-            }
+        if let Some((new_cols, new_rows)) = platform::term_size()
+            && new_cols > 0
+            && new_rows > 0
+            && (new_rows != tracker.rows() || new_cols != tracker.cols())
+        {
+            tracker.resize(new_rows, new_cols);
+            pty.resize(new_rows, new_cols);
+            renderer.clear(&mut out).ok();
         }
 
         // Block until data arrives on PTY or stdin (0% CPU idle).
@@ -300,10 +299,10 @@ pub fn run_wrapped(
                     // `try_write`, never `write`: the suggestion worker may be
                     // holding the read lock across a slow generator, and this
                     // refresh is best-effort.
-                    if let Ok(mut guard) = engine.try_write() {
-                        if let Some(engine) = guard.as_mut() {
-                            engine.refresh_history();
-                        }
+                    if let Ok(mut guard) = engine.try_write()
+                        && let Some(engine) = guard.as_mut()
+                    {
+                        engine.refresh_history();
                     }
                 }
                 tracker.feed(&clean, &osc_events);
@@ -564,82 +563,81 @@ fn handle_stdin(
     // Ghost-accept (right / End / Ctrl-E).
     if has_ghost {
         let ghost_accept: &[&[u8]] = &[b"\x1b[C", b"\x1b[F", b"\x05"];
-        if ghost_accept.contains(&bytes) {
-            if let Some(tail) = pending_tail.take() {
-                renderer.clear(out).ok();
-                pty.pty_write(tail.as_bytes());
-                *popup_mode = PopupMode::Hidden;
-                return false;
-            }
+        if ghost_accept.contains(&bytes)
+            && let Some(tail) = pending_tail.take()
+        {
+            renderer.clear(out).ok();
+            pty.pty_write(tail.as_bytes());
+            *popup_mode = PopupMode::Hidden;
+            return false;
         }
     }
     // Popup key interception.
-    if has_popup {
-        if let PopupMode::Visible { cursor } = *popup_mode {
-            if !ranked.is_empty() {
-                if bindings.next_suggestion.matches(bytes) {
-                    *popup_mode = PopupMode::Visible {
-                        cursor: (cursor + 1).min(ranked.len() - 1),
-                    };
-                    return false;
-                }
-                if bindings.previous_suggestion.matches(bytes) {
-                    *popup_mode = PopupMode::Visible {
-                        cursor: cursor.saturating_sub(1),
-                    };
-                    return false;
-                }
-                if bindings.accept_suggestion.matches(bytes) {
-                    let typed = tracker.command_before_cursor();
-                    // Never accept a suggestion computed for different text —
-                    // its replacement span would not match the current line.
-                    if typed != ranked_typed {
-                        renderer.clear(out).ok();
-                        *popup_mode = PopupMode::Hidden;
-                        pty.pty_write(bytes);
-                        return false;
-                    }
-                    let selected = &ranked[cursor.min(ranked.len() - 1)];
-                    let partial = current_partial(&typed);
-                    let repl = replacement_tail(selected, &typed, &partial);
-                    renderer.clear(out).ok();
-                    if !repl.tail.is_empty() {
-                        pty.pty_write(repl.tail.as_bytes());
-                    }
-                    // A `{cursor}` suggestion places the caret inside the
-                    // inserted text, so no separating space belongs after it.
-                    let wants_space = !repl.had_marker
-                        && !matches!(selected.suggestion_type, SuggestionType::Folder);
-                    if wants_space {
-                        pty.pty_write(b" ");
-                    }
-                    let caret = repl.caret_move();
-                    if !caret.is_empty() {
-                        pty.pty_write(&caret);
-                    }
-                    *popup_mode = PopupMode::Hidden;
-                    *pending_tail = None;
-                    return false;
-                }
-                if bindings.dismiss_suggestions.matches(bytes) {
-                    renderer.clear(out).ok();
-                    *popup_mode = PopupMode::Dismissed;
-                    // Don't return — forward the key to the shell
-                    // (upstream returns false here).
-                }
-                // Return/Ctrl-C: clear and forward (upstream:
-                // suggestionManager.ts:203-205).
-                else if bytes.iter().any(|&b| b == b'\r' || b == 0x03) {
-                    renderer.clear(out).ok();
-                    *popup_mode = PopupMode::Hidden;
-                    // Fall through to forward path.
-                }
-                // Anything else: close popup, fall through.
-                else {
-                    renderer.clear(out).ok();
-                    *popup_mode = PopupMode::Hidden;
-                }
+    if has_popup
+        && let PopupMode::Visible { cursor } = *popup_mode
+        && !ranked.is_empty()
+    {
+        if bindings.next_suggestion.matches(bytes) {
+            *popup_mode = PopupMode::Visible {
+                cursor: (cursor + 1).min(ranked.len() - 1),
+            };
+            return false;
+        }
+        if bindings.previous_suggestion.matches(bytes) {
+            *popup_mode = PopupMode::Visible {
+                cursor: cursor.saturating_sub(1),
+            };
+            return false;
+        }
+        if bindings.accept_suggestion.matches(bytes) {
+            let typed = tracker.command_before_cursor();
+            // Never accept a suggestion computed for different text —
+            // its replacement span would not match the current line.
+            if typed != ranked_typed {
+                renderer.clear(out).ok();
+                *popup_mode = PopupMode::Hidden;
+                pty.pty_write(bytes);
+                return false;
             }
+            let selected = &ranked[cursor.min(ranked.len() - 1)];
+            let partial = current_partial(&typed);
+            let repl = replacement_tail(selected, &typed, &partial);
+            renderer.clear(out).ok();
+            if !repl.tail.is_empty() {
+                pty.pty_write(repl.tail.as_bytes());
+            }
+            // A `{cursor}` suggestion places the caret inside the
+            // inserted text, so no separating space belongs after it.
+            let wants_space =
+                !repl.had_marker && !matches!(selected.suggestion_type, SuggestionType::Folder);
+            if wants_space {
+                pty.pty_write(b" ");
+            }
+            let caret = repl.caret_move();
+            if !caret.is_empty() {
+                pty.pty_write(&caret);
+            }
+            *popup_mode = PopupMode::Hidden;
+            *pending_tail = None;
+            return false;
+        }
+        if bindings.dismiss_suggestions.matches(bytes) {
+            renderer.clear(out).ok();
+            *popup_mode = PopupMode::Dismissed;
+            // Don't return — forward the key to the shell
+            // (upstream returns false here).
+        }
+        // Return/Ctrl-C: clear and forward (upstream:
+        // suggestionManager.ts:203-205).
+        else if bytes.iter().any(|&b| b == b'\r' || b == 0x03) {
+            renderer.clear(out).ok();
+            *popup_mode = PopupMode::Hidden;
+            // Fall through to forward path.
+        }
+        // Anything else: close popup, fall through.
+        else {
+            renderer.clear(out).ok();
+            *popup_mode = PopupMode::Hidden;
         }
     }
     // Default forward path.

@@ -76,12 +76,12 @@ fn probe() -> Option<Coreutils> {
 /// `is complete` invocation would spawn a subprocess before answering.
 fn list_utils(binary: &Path) -> Option<Vec<String>> {
     let cache = cache_dir(binary).map(|d| d.join("list.txt"));
-    if let Some(path) = &cache {
-        if let Ok(text) = std::fs::read_to_string(path) {
-            let utils = parse_list(&text);
-            if !utils.is_empty() {
-                return Some(utils);
-            }
+    if let Some(path) = &cache
+        && let Ok(text) = std::fs::read_to_string(path)
+    {
+        let utils = parse_list(&text);
+        if !utils.is_empty() {
+            return Some(utils);
         }
     }
 
@@ -213,14 +213,12 @@ impl Coreutils {
             return false;
         };
         let cache = cache_dir(&self.binary).map(|d| d.join("owned").join(sanitize(util)));
-        if let Some(path) = &cache {
-            if let Ok(text) = std::fs::read_to_string(path) {
-                if let Some((cached_path, flag)) = text.split_once('\n') {
-                    if cached_path == resolved {
-                        return flag.trim() == "1";
-                    }
-                }
-            }
+        if let Some(path) = &cache
+            && let Ok(text) = std::fs::read_to_string(path)
+            && let Some((cached_path, flag)) = text.split_once('\n')
+            && cached_path == resolved
+        {
+            return flag.trim() == "1";
         }
 
         let owned = self.same_implementation(Path::new(&resolved), util);
@@ -272,12 +270,11 @@ impl Coreutils {
             return None;
         }
         let cache = cache_dir(&self.binary).map(|d| d.join(format!("{}.json", sanitize(util))));
-        if let Some(path) = &cache {
-            if let Ok(bytes) = std::fs::read(path) {
-                if let Ok(spec) = serde_json::from_slice::<Subcommand>(&bytes) {
-                    return Some(spec);
-                }
-            }
+        if let Some(path) = &cache
+            && let Ok(bytes) = std::fs::read(path)
+            && let Ok(spec) = serde_json::from_slice::<Subcommand>(&bytes)
+        {
+            return Some(spec);
         }
 
         // Go through the multi-call binary rather than the per-utility

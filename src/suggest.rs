@@ -83,10 +83,11 @@ impl Engine {
         }
         let blob = self.suggest_blob(line, cwd);
         let partial = current_partial(line);
-        if let Some(top) = blob.first() {
-            if top.name.len() > partial.len() && top.name.starts_with(&partial) {
-                return Some(top.name[partial.len()..].to_string());
-            }
+        if let Some(top) = blob.first()
+            && top.name.len() > partial.len()
+            && top.name.starts_with(&partial)
+        {
+            return Some(top.name[partial.len()..].to_string());
         }
         // Fallback to history.
         if !self.offline
@@ -390,10 +391,10 @@ impl Engine {
 }
 
 fn active_filter_strategy(r: &ResolveResult<'_>) -> FilterStrategy {
-    if let Some(arg) = r.active_arg {
-        if arg.filter_strategy != FilterStrategy::Default {
-            return arg.filter_strategy;
-        }
+    if let Some(arg) = r.active_arg
+        && arg.filter_strategy != FilterStrategy::Default
+    {
+        return arg.filter_strategy;
     }
     r.subcommand.filter_strategy
 }

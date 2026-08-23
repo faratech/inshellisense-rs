@@ -71,10 +71,8 @@ fn parse_posix(contents: &str) -> Vec<String> {
             }
             None => pending = Some(piece.trim().to_string()),
         }
-        if !continues {
-            if let Some(entry) = pending.take() {
-                out.push(entry);
-            }
+        if !continues && let Some(entry) = pending.take() {
+            out.push(entry);
         }
     }
     // An unterminated continuation is still a command.
@@ -110,10 +108,10 @@ fn parse_fish(contents: &str) -> Vec<String> {
 
 fn candidates(shell: Shell) -> Vec<PathBuf> {
     let mut v = Vec::new();
-    if let Ok(hf) = std::env::var("HISTFILE") {
-        if !hf.is_empty() {
-            v.push(PathBuf::from(hf));
-        }
+    if let Ok(hf) = std::env::var("HISTFILE")
+        && !hf.is_empty()
+    {
+        v.push(PathBuf::from(hf));
     }
     let Some(home) = crate::paths::home() else {
         return v;

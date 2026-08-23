@@ -438,10 +438,10 @@ fn parse_optional_shell_flag(args: &[String], flag: &str) -> Result<Option<Shell
         if let Some(val) = a.strip_prefix(&format!("{}=", flag)) {
             return Ok(Some(parse_shell_value(val)?));
         }
-        if let Some(val) = a.strip_prefix("-s") {
-            if !val.is_empty() {
-                return Ok(Some(parse_shell_value(val)?));
-            }
+        if let Some(val) = a.strip_prefix("-s")
+            && !val.is_empty()
+        {
+            return Ok(Some(parse_shell_value(val)?));
         }
     }
     Ok(None)

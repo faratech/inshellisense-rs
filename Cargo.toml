@@ -2,7 +2,7 @@
 name = "inshellisense-rs"
 version = "0.0.4"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Rust port of inshellisense: IDE-style autocomplete as ghost text for your shell"
 license = "MIT"
 authors = ["Fara Technologies LLC"]
@@ -23,7 +23,7 @@ serde_json = { version = "1", features = ["raw_value"] }
 toml = "1"
 libc = "0.2"
 unicode-width = "0.2"
-ruzstd = "0.8"
+ruzstd = "0.9"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [

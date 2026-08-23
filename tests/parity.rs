@@ -431,14 +431,14 @@ fn run_case(case: &CorpusCase) -> Result<(), String> {
             }
         }
 
-        if let Some(min) = case.expect_blob_min {
-            if blob.len() < min {
-                return Err(format!(
-                    "expect_blob_min={min} got blob len {} for line={:?}",
-                    blob.len(),
-                    case.line
-                ));
-            }
+        if let Some(min) = case.expect_blob_min
+            && blob.len() < min
+        {
+            return Err(format!(
+                "expect_blob_min={min} got blob len {} for line={:?}",
+                blob.len(),
+                case.line
+            ));
         }
     }
 

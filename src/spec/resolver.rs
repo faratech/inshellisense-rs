@@ -120,10 +120,10 @@ struct Ctx<'a> {
 /// If `sub` has a `load_spec: SpecPath`, resolve it against the registry and
 /// return the loaded spec; otherwise return `sub` unchanged.
 fn maybe_substitute<'a>(sub: &'a Subcommand, ctx: &Ctx<'a>) -> &'a Subcommand {
-    if let (Some(LoadSpec::SpecPath { name }), Some(reg)) = (&sub.load_spec, ctx.registry) {
-        if let Some(loaded) = reg.get(name) {
-            return loaded;
-        }
+    if let (Some(LoadSpec::SpecPath { name }), Some(reg)) = (&sub.load_spec, ctx.registry)
+        && let Some(loaded) = reg.get(name)
+    {
+        return loaded;
     }
     sub
 }
@@ -209,10 +209,10 @@ fn run_subcommand<'a>(
                 new_ctx.accepted_options.push(opt.names[0].clone());
             }
             // If the final flag takes an argument, the next token feeds it.
-            if let Some(last) = cluster.last() {
-                if !last.args.is_empty() {
-                    return run_arg(&tokens[1..], &last.args, sub, new_ctx, true, false);
-                }
+            if let Some(last) = cluster.last()
+                && !last.args.is_empty()
+            {
+                return run_arg(&tokens[1..], &last.args, sub, new_ctx, true, false);
             }
             return run_subcommand(&tokens[1..], sub, new_ctx, false, false);
         }
@@ -364,21 +364,21 @@ fn run_arg<'a>(
                 positional_args_consumed: ctx.positional_args_consumed,
             };
         }
-        if !active.is_raw {
-            if let Some(next) = find_subcommand(sub, &active.token, ctx.case_insensitive) {
-                // Inherit this level's persistent options, exactly as
-                // `run_subcommand` does. Omitting it meant `cmd --optWithOptionalArg
-                // subcmd` dropped every parent `isPersistent` option.
-                let mut new_ctx = ctx.clone();
-                for opt in &sub.options {
-                    if opt.is_persistent && !new_ctx.persistent.iter().any(|o| opts_eq(o, opt)) {
-                        new_ctx.persistent.push(opt);
-                    }
+        if !active.is_raw
+            && let Some(next) = find_subcommand(sub, &active.token, ctx.case_insensitive)
+        {
+            // Inherit this level's persistent options, exactly as
+            // `run_subcommand` does. Omitting it meant `cmd --optWithOptionalArg
+            // subcmd` dropped every parent `isPersistent` option.
+            let mut new_ctx = ctx.clone();
+            for opt in &sub.options {
+                if opt.is_persistent && !new_ctx.persistent.iter().any(|o| opts_eq(o, opt)) {
+                    new_ctx.persistent.push(opt);
                 }
-                new_ctx.parent = Some(sub);
-                let resolved = maybe_substitute(next, &new_ctx);
-                return run_subcommand(&tokens[1..], resolved, new_ctx, false, false);
             }
+            new_ctx.parent = Some(sub);
+            let resolved = maybe_substitute(next, &new_ctx);
+            return run_subcommand(&tokens[1..], resolved, new_ctx, false, false);
         }
     }
 
@@ -388,21 +388,21 @@ fn run_arg<'a>(
     // `time ls`, `env ls`, `strace ls`). Load that command's spec from the
     // registry and resolve the remaining tokens against it, in a fresh
     // context. Mirrors the `load_spec` substitution path above.
-    if active_arg.is_command && !active.is_raw {
-        if let Some(reg) = ctx.registry {
-            if let Some(loaded) = reg.get(&active.token) {
-                let nested = Ctx {
-                    persistent: Vec::new(),
-                    accepted_options: Vec::new(),
-                    positional_args_consumed: false,
-                    registry: ctx.registry,
-                    end_of_options: false,
-                    case_insensitive: ctx.case_insensitive,
-                    parent: None,
-                };
-                return run_subcommand(&tokens[1..], loaded, nested, false, false);
-            }
-        }
+    if active_arg.is_command
+        && !active.is_raw
+        && let Some(reg) = ctx.registry
+        && let Some(loaded) = reg.get(&active.token)
+    {
+        let nested = Ctx {
+            persistent: Vec::new(),
+            accepted_options: Vec::new(),
+            positional_args_consumed: false,
+            registry: ctx.registry,
+            end_of_options: false,
+            case_insensitive: ctx.case_insensitive,
+            parent: None,
+        };
+        return run_subcommand(&tokens[1..], loaded, nested, false, false);
     }
 
     if active_arg.is_variadic {

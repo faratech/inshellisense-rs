@@ -87,7 +87,7 @@ by the binary's size and mtime, so the steady-state cost is zero subprocesses.
 does the same in-process (the parity scanner and its tests use it, so results
 never depend on what is installed on the host).
 
-## Dependencies (29 crates on Linux/macOS)
+## Dependencies (28 crates on Linux/macOS)
 
 Direct: `vt100-ctt` (headless terminal), `anyhow` (errors), `serde` + `serde_json` (spec JSON), `toml` (config), `libc` (POSIX syscalls), `unicode-width` (popup column math), `ruzstd` (zstd decompression). Windows adds `windows-sys` (target-gated).
 

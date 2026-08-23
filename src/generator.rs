@@ -617,10 +617,10 @@ fn run_shell_line(
 
     {
         let c = CACHE.lock().unwrap();
-        if let Some(entry) = c.get(&key) {
-            if entry.at.elapsed() < entry.ttl {
-                return entry.values.iter().map(|s| s.name.clone()).collect();
-            }
+        if let Some(entry) = c.get(&key)
+            && entry.at.elapsed() < entry.ttl
+        {
+            return entry.values.iter().map(|s| s.name.clone()).collect();
         }
     }
 

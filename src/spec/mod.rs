@@ -301,10 +301,10 @@ impl Registry {
                         // accepts. The bundled corpus is BSD-flavored and would
                         // otherwise describe a different program than the one
                         // that runs.
-                        if let Some(cu) = inner.coreutils {
-                            if cu.owns(&key) {
-                                cu.augment(&mut spec);
-                            }
+                        if let Some(cu) = inner.coreutils
+                            && cu.owns(&key)
+                        {
+                            cu.augment(&mut spec);
                         }
                         if key != name {
                             inner.specs.insert(key, Box::new(spec.clone()));

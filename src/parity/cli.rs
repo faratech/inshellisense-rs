@@ -186,13 +186,12 @@ fn extract_subcommands(s: &str) -> BTreeSet<String> {
             in_commands = false;
             continue;
         }
-        if let Some(name) = line.split_whitespace().next() {
-            if name
+        if let Some(name) = line.split_whitespace().next()
+            && name
                 .chars()
                 .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-            {
-                out.insert(name.to_string());
-            }
+        {
+            out.insert(name.to_string());
         }
     }
     out

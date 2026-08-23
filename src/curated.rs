@@ -214,15 +214,15 @@ fn patch_npm(spec: &mut Subcommand) {
 /// Append `..` (priority 50, so it sorts after listed paths) to a spec's
 /// first argument — for commands whose path arg includes the parent dir.
 fn add_parent_suggestion(spec: &mut Subcommand) {
-    if let Some(arg) = spec.args.first_mut() {
-        if !arg.suggestions.iter().any(|s| s.name == "..") {
-            arg.suggestions.push(Suggestion {
-                name: "..".to_string(),
-                suggestion_type: SuggestionType::Folder,
-                priority: Some(50),
-                ..Default::default()
-            });
-        }
+    if let Some(arg) = spec.args.first_mut()
+        && !arg.suggestions.iter().any(|s| s.name == "..")
+    {
+        arg.suggestions.push(Suggestion {
+            name: "..".to_string(),
+            suggestion_type: SuggestionType::Folder,
+            priority: Some(50),
+            ..Default::default()
+        });
     }
 }
 
@@ -422,10 +422,10 @@ fn patch_asciinema(spec: &mut Subcommand) {
 fn patch_cd(spec: &mut Subcommand) {
     if let Some(arg) = spec.args.first_mut() {
         for g in &mut arg.generators {
-            if let Generator::Template { template } = g {
-                if *template == Template::Filepaths {
-                    *template = Template::Folders;
-                }
+            if let Generator::Template { template } = g
+                && *template == Template::Filepaths
+            {
+                *template = Template::Folders;
             }
         }
         arg.templates.retain(|t| *t != Template::Filepaths);

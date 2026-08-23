@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Resolves the remediation plan tracked in GitHub issues #2 through #8.
 
+### Changed
+- **Toolchain and dependencies (2026-08-22).** Raised the declared MSRV from
+  1.85 to 1.88 so MSRV-aware resolution stops holding packages back, bumped
+  `ruzstd` 0.8 → 0.9, and refreshed `Cargo.lock` (19 packages; `syn` moves to
+  3.x transitively via `serde_derive`). Collapsed 26 nested-`if` sites for the
+  `collapsible_if` lint enabled by rustc 1.98's clippy. CI already tracks
+  `dtolnay/rust-toolchain@stable` and needed no change.
+
 ### Fixed
 - **Shell-aware completions on Windows.** PowerShell aliases such as `ls`, `dir`,
   and `gci` now resolve to PowerShell-shaped options, while `cmd.exe dir`

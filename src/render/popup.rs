@@ -441,10 +441,10 @@ pub fn icon_for(s: &Suggestion, icons: IconSet) -> &'static str {
     // non-ASCII Unicode glyph (i.e. an actual emoji) and passes it
     // through. We don't store that in the extracted specs, so we fall
     // back to the suggestion type mapping.
-    if let Some(icon) = s.icon.as_deref() {
-        if let Some(mapped) = icon_from_fig_uri(icon, icons) {
-            return mapped;
-        }
+    if let Some(icon) = s.icon.as_deref()
+        && let Some(mapped) = icon_from_fig_uri(icon, icons)
+    {
+        return mapped;
     }
     icon_for_type(s.suggestion_type, icons)
 }
