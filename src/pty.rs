@@ -130,11 +130,19 @@ pub fn run_wrapped(
             let hist = history::load_for(alias_shell);
             let mut built = Engine::new(registry, hist);
             built.set_shell(alias_shell);
-            if use_aliases {
-                built.set_aliases(crate::alias::load(alias_shell));
-            }
+            // Publish first, then decorate with aliases: loading them spawns
+            // an interactive shell that sources the user's rc files, and a
+            // slow or blocking rc file must not leave `is start` without any
+            // suggestions at all. Commands complete right away; shortcut
+            // aliases arrive shortly after.
             if let Ok(mut slot) = engine.write() {
                 *slot = Some(built);
+            }
+            if use_aliases
+                && let Ok(mut guard) = engine.write()
+                && let Some(published) = guard.as_mut()
+            {
+                published.set_aliases(crate::alias::load(alias_shell));
             }
         });
     }
