@@ -19,7 +19,7 @@ init. The checked-in parity corpus passes 117/117 cases; `cargo test` runs 231
 tests. 1470 specs are bundled (zstd-compressed), lazy-loaded on demand, and
 extracted statically; offline gaps that would need live process state or opaque
 JS closures are handled with Rust-native generators or documented as runtime
-boundaries. Pure Rust — no JS runtime, no Node.js. 29 crates. Supports bash,
+boundaries. Pure Rust — no JS runtime, no Node.js. 28 crates. Supports bash,
 zsh, fish, pwsh, powershell, xonsh, nushell, and cmd.exe (Windows).
 
 If an installed [coreutils](#coreutils) build is on `PATH` — Microsoft's

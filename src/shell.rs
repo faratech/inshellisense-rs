@@ -252,7 +252,7 @@ pub fn detect() -> Shell {
         if crate::platform::find_on_path("powershell").is_some() {
             return Shell::Powershell;
         }
-        return Shell::Cmd;
+        Shell::Cmd
     }
     #[cfg(not(windows))]
     Shell::Bash

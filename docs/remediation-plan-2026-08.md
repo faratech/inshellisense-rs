@@ -1,5 +1,9 @@
 # Remediation plan — August 2026 audit
 
+> **Status: COMPLETE (2026-08-22).** All 37 findings were fixed and shipped
+> in v0.0.5 the same day. This document is retained as the record of the
+> workstreams and their rationale; per-issue detail lives in #48–#84.
+
 Findings from the 2026-08-22 multi-agent bug hunt (8 dimension reviewers over
 disjoint file slices → cross-dimension dedup → adversarial verification per
 slice → completeness critic; 37 raw findings, 34 confirmed by independent

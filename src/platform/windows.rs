@@ -181,7 +181,7 @@ impl WindowsPty {
                 flags,
                 env_block.as_ptr() as *const _,
                 ptr::null(),
-                &si.StartupInfo as *const _ as *const STARTUPINFOW,
+                &si.StartupInfo as *const _,
                 &mut pi,
             );
 

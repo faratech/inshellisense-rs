@@ -70,7 +70,7 @@ pub fn home() -> Option<PathBuf> {
 pub fn config_dir() -> Option<PathBuf> {
     #[cfg(windows)]
     {
-        return absolute_dir_var("APPDATA");
+        absolute_dir_var("APPDATA")
     }
     #[cfg(unix)]
     {

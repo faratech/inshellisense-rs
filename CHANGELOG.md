@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.5] - 2026-08-22
 
-Resolves the remediation plan tracked in GitHub issues #2 through #8.
+Resolves the remediation plans tracked in GitHub issues #2 through #8
+(prior audit) and #48 through #84 (August 2026 audit).
 
 ### Changed
 - **Toolchain and dependencies (2026-08-22).** Raised the declared MSRV from
@@ -17,7 +18,64 @@ Resolves the remediation plan tracked in GitHub issues #2 through #8.
   `collapsible_if` lint enabled by rustc 1.98's clippy. CI already tracks
   `dtolnay/rust-toolchain@stable` and needed no change.
 
-### Fixed
+### Fixed (August audit — issues #48–#84)
+Found by a multi-agent audit (37 verified findings) and fixed the same day;
+details per issue in the tracker, plan in `docs/remediation-plan-2026-08.md`.
+
+- **Tracked command line.** Wide-char continuation cells no longer become
+  phantom spaces (cursor offsets now counted in chars, not cells); a byte
+  slice in separated-option matching that could panic inside a multi-byte
+  char is boundary-safe; the tokenizer no longer splits plain words at `=`
+  (`env FOO=bar git ch` completes again — deliberate upstream divergence);
+  ghost-tail partials come from the tokenizer, so quoted/escaped tokens line
+  up with resolution. (#53–#55, #67)
+- **PTY event loop.** The post-exit drain is bounded (~500 ms quiet period,
+  non-blocking master fd): a background job left running by the user no
+  longer freezes `is start` on exit. stdin EOF/HUP/error is dropped from the
+  poll set instead of busy-spinning at 100% CPU, and raw-mode failure is
+  fatal rather than silently ignored. (#52, #61)
+- **Windows console input.** stdin is classified at spawn: consoles read
+  KEY_EVENTs as before; pipes (mintty, CI, redirections) get a verbatim
+  byte relay instead of silent total keystroke loss. Synthetic VT-input
+  records are filtered only when they carry neither key nor character, so
+  pastes/IME text survive; Alt acts as xterm Meta (ESC prefix); the process
+  thread attribute list is deleted on every spawn path; env inheritance uses
+  `vars_os` instead of panicking on non-Unicode variables. (#50, #51, #62,
+  #75, #76)
+- **History, aliases, generators.** One non-UTF-8 byte no longer discards
+  the whole history file; alias parsing accepts only real alias definitions
+  from a bounded subprocess; history templates read the wrapped shell's
+  history, not the parent's; first-word ordering has a deterministic
+  tiebreaker. (#48, #68, #72, #83)
+- **Spec loading.** Raw camelCase Fig specs deserialize via field aliases
+  instead of silently defaulting every flag; everything after a bare `--`
+  is positional-only; nested disk specs register under `/`-joined keys;
+  escape/quote characters follow the active shell (PowerShell backtick,
+  cmd caret); `--help` synthesis requires real option-line shape.
+  (#80–#82, #66, #81, #57)
+- **Install & init robustness.** Resource trees are content-verified before
+  being stamped current (truncated scripts are repaired, doctor detects
+  mismatches); fish init commands quote their paths; generated rc blocks
+  fall back to the plain shell when `is` fails instead of killing it;
+  doctor respects NO_COLOR/TTY; `-Login` is only passed to pwsh 7+.
+  (#64, #65, #78, #71, #79)
+- **PATH & coreutils hygiene.** `find_on_path` requires an executable
+  regular file and skips empty PATH elements (a directory named like a
+  shell or coreutils no longer shadows the real one); coreutils cache
+  files are written atomically; transient probe timeouts are not cached
+  forever. (#60, #69, #70)
+- **Parity tooling truthfulness.** The complete category parses the real
+  JSON schema (73/73 → pass where every comparison failed); unparseable or
+  empty `specs list` output fails loudly instead of passing vacuously;
+  scanner children get scrubbed, deterministic environments; forkpty
+  failures record as failures, not blank-screen passes; CLI tests run
+  hermetic against operator env. (#49, #59, #58, #74, #84)
+- **Misc.** Non-UTF-8 argv degrades lossily instead of panicking (exit 101);
+  File/Folder suggestions quote per active shell (POSIX splice, PowerShell
+  doubling, cmd double quotes); popup redraw signature includes description
+  swap and terminal width. (#73, #63, #77)
+
+### Fixed (prior audit)
 - **Shell-aware completions on Windows.** PowerShell aliases such as `ls`, `dir`,
   and `gci` now resolve to PowerShell-shaped options, while `cmd.exe dir`
   surfaces slash-style options instead of Unix `ls` flags. (#2)

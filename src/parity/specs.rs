@@ -256,7 +256,9 @@ fn list_specs_upstream(
     Ok(arr.into_iter().collect())
 }
 
-#[cfg(test)]
+// The stub-binary harness below shells out through `sh`; it is meaningless
+// off Unix, so the whole module is unix-gated.
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
