@@ -356,6 +356,68 @@ pub fn vkey_char(vk: u16, shift: bool) -> Option<char> {
     }
 }
 
+// GetFileType results (mirrored locally like the VK_* constants above so the
+// classification below stays testable off-Windows).
+pub const FILE_TYPE_UNKNOWN: u32 = 0x0000;
+pub const FILE_TYPE_DISK: u32 = 0x0001;
+pub const FILE_TYPE_CHAR: u32 = 0x0002;
+pub const FILE_TYPE_PIPE: u32 = 0x0003;
+
+/// What kind of handle stdin is, which decides how it may be read.
+///
+/// `ReadConsoleInputW` only works on a real console input buffer. When `is`
+/// is launched from mintty/Git Bash (native children get pipe stdio), from a
+/// CI job, or with `< file`, every keystroke read through the console API
+/// failed silently — output kept rendering while all typing vanished, or a
+/// permanently-signaled file handle spun the event loop. Those handles take a
+/// plain byte relay instead (#50).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum StdinKind {
+    /// Console input buffer: `ReadConsoleInputW` decodes KEY_EVENTs.
+    Console,
+    /// Pipe: `PeekNamedPipe` gates the `ReadFile` relay so the reader never
+    /// blocks on keystrokes that have not arrived yet.
+    Pipe,
+    /// Disk file or non-console character device: `ReadFile` returns
+    /// immediately, and EOF ends its usefulness.
+    Stream,
+    /// No usable stdin handle (NULL / INVALID_HANDLE_VALUE).
+    None,
+}
+
+impl StdinKind {
+    /// Classify from probe results; pure so the decision table runs in tests.
+    ///
+    /// `is_console` is the `GetConsoleMode` probe (a console input buffer is
+    /// the only handle kind it succeeds on), `handle_valid` rejects NULL and
+    /// INVALID_HANDLE_VALUE, and `file_type` is the `GetFileType` result.
+    pub fn from_parts(is_console: bool, handle_valid: bool, file_type: u32) -> Self {
+        if is_console {
+            return Self::Console;
+        }
+        if !handle_valid {
+            return Self::None;
+        }
+        match file_type {
+            FILE_TYPE_PIPE => Self::Pipe,
+            _ => Self::Stream,
+        }
+    }
+
+    /// Whether poll() should wait on stdin at all. A spent stream must leave
+    /// the wait set: file and device handles stay signaled forever, so keeping
+    /// them in reported readiness nothing could consume, ~100% CPU (#50). A
+    /// missing handle makes WaitForMultipleObjects fail outright, which starved
+    /// PTY reads until the screen froze.
+    pub fn pollable(self, eof: bool) -> bool {
+        match self {
+            Self::None => false,
+            Self::Stream => !eof,
+            Self::Console | Self::Pipe => true,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -625,5 +687,34 @@ mod tests {
         assert_eq!(decode(key(VK_SPACE, 0x20, LEFT_CTRL)), Some(vec![0]));
         assert_eq!(decode(key(VK_SPACE, 0x20, 0)), Some(b" ".to_vec()));
         assert_eq!(decode(key(b'B' as u16, 0, SHIFT)), Some(b"B".to_vec()));
+    }
+
+    /// stdin classification (#50): a console buffer keeps the event reader;
+    /// pipes and files take the byte relay; a missing handle is unusable.
+    #[test]
+    fn stdin_kinds_follow_the_probe_results() {
+        use StdinKind as K;
+        // A console input buffer is whatever GetConsoleMode accepts.
+        assert_eq!(K::from_parts(true, true, FILE_TYPE_CHAR), K::Console);
+        // mintty / Git Bash / CI: a pipe.
+        assert_eq!(K::from_parts(false, true, FILE_TYPE_PIPE), K::Pipe);
+        // `is start < file` or NUL.
+        assert_eq!(K::from_parts(false, true, FILE_TYPE_DISK), K::Stream);
+        assert_eq!(K::from_parts(false, true, FILE_TYPE_CHAR), K::Stream);
+        // No stdin at all.
+        assert_eq!(K::from_parts(false, false, FILE_TYPE_UNKNOWN), K::None);
+    }
+
+    /// A spent stream must leave the poll set — it stays signaled forever,
+    /// which is what spun one core at 100% — while consoles and pipes stay in.
+    #[test]
+    fn only_spent_streams_leave_the_poll_set() {
+        use StdinKind as K;
+        assert!(K::Console.pollable(false));
+        assert!(K::Console.pollable(true)); // events are consumed, never EOF
+        assert!(K::Pipe.pollable(false));
+        assert!(!K::Stream.pollable(true));
+        assert!(K::Stream.pollable(false));
+        assert!(!K::None.pollable(false));
     }
 }
