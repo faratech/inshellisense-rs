@@ -78,44 +78,27 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
             .iter()
             .map(|scenario| {
                 s.spawn(|| {
-                    let ours_bytes = run_scenario(&cfg.ours, scenario, &home);
-                    let upstream_bytes = run_scenario(&cfg.upstream, scenario, &home);
+                    let ours = run_scenario(&cfg.ours, scenario, &home);
+                    let upstream = run_scenario(&cfg.upstream, scenario, &home);
 
-                    let ours_path = cfg
-                        .raw_dir
-                        .join(format!("render-{}-ours.bin", scenario.name));
-                    let upstream_path = cfg
-                        .raw_dir
-                        .join(format!("render-{}-upstream.bin", scenario.name));
-                    let _ = fs::write(&ours_path, &ours_bytes);
-                    let _ = fs::write(&upstream_path, &upstream_bytes);
-
-                    let ours_screen = replay(&ours_bytes);
-                    let up_screen = replay(&upstream_bytes);
-
-                    let diff = diff_screens(&up_screen, &ours_screen);
-                    if diff.is_empty() {
-                        Case {
-                            name: scenario.name.clone(),
-                            result: CaseResult::Pass,
-                            impact: 0,
-                        }
-                    } else {
-                        let impact = if diff.len() > 50 { 80 } else { 60 };
-                        Case {
-                            name: scenario.name.clone(),
-                            result: CaseResult::Fail {
-                                reason: format!(
-                                    "{} cells differ (bytes: ours={}, upstream={})",
-                                    diff.len(),
-                                    ours_bytes.len(),
-                                    upstream_bytes.len()
-                                ),
-                                details: diff.into_iter().take(10).collect(),
-                            },
-                            impact,
-                        }
+                    // Raw captures are written even for failed runs so a
+                    // broken scenario can be replayed by hand.
+                    if let Ok(bytes) = &ours {
+                        let _ = fs::write(
+                            cfg.raw_dir
+                                .join(format!("render-{}-ours.bin", scenario.name)),
+                            bytes,
+                        );
                     }
+                    if let Ok(bytes) = &upstream {
+                        let _ = fs::write(
+                            cfg.raw_dir
+                                .join(format!("render-{}-upstream.bin", scenario.name)),
+                            bytes,
+                        );
+                    }
+
+                    evaluate_capture(scenario.name.clone(), ours, upstream)
                 })
             })
             .collect();
@@ -129,6 +112,77 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
         report.cases.len()
     );
     report
+}
+
+/// Turn two PTY captures into a case result.
+///
+/// A failed capture used to be recorded as an empty byte stream, which
+/// replayed to a blank screen on BOTH sides — the diff found nothing and a
+/// PTY-broken environment (forkpty failures, an exec that never happened)
+/// scored 100% render parity. Failures are reported as failures now, and so
+/// is the "nothing at all reached the terminal" case, which cannot be a
+/// real capture of a TUI.
+fn evaluate_capture(
+    name: String,
+    ours: Result<Vec<u8>, String>,
+    upstream: Result<Vec<u8>, String>,
+) -> Case {
+    let (ours_bytes, upstream_bytes) = match (ours, upstream) {
+        (Ok(o), Ok(u)) => (o, u),
+        (ours, upstream) => {
+            let mut reasons = Vec::new();
+            for (side, result) in [("ours", ours), ("upstream", upstream)] {
+                if let Err(e) = result {
+                    reasons.push(format!("{side}: {e}"));
+                }
+            }
+            return Case {
+                name,
+                result: CaseResult::Fail {
+                    reason: format!("capture failed — {}", reasons.join("; ")),
+                    details: reasons,
+                },
+                impact: 90,
+            };
+        }
+    };
+    if ours_bytes.is_empty() && upstream_bytes.is_empty() {
+        return Case {
+            name,
+            result: CaseResult::Fail {
+                reason: "both captures are empty — nothing reached the terminal".to_string(),
+                details: Vec::new(),
+            },
+            impact: 90,
+        };
+    }
+
+    let ours_screen = replay(&ours_bytes);
+    let up_screen = replay(&upstream_bytes);
+
+    let diff = diff_screens(&up_screen, &ours_screen);
+    if diff.is_empty() {
+        Case {
+            name,
+            result: CaseResult::Pass,
+            impact: 0,
+        }
+    } else {
+        let impact = if diff.len() > 50 { 80 } else { 60 };
+        Case {
+            name,
+            result: CaseResult::Fail {
+                reason: format!(
+                    "{} cells differ (bytes: ours={}, upstream={})",
+                    diff.len(),
+                    ours_bytes.len(),
+                    upstream_bytes.len()
+                ),
+                details: diff.into_iter().take(10).collect(),
+            },
+            impact,
+        }
+    }
 }
 
 /// A malformed JSONL line is a corpus regression, not a line to skip.
@@ -153,7 +207,37 @@ fn load_corpus(path: &Path) -> std::io::Result<Vec<Scenario>> {
     Ok(out)
 }
 
-fn run_scenario(bin: &Path, scenario: &Scenario, home: &Path) -> Vec<u8> {
+/// Capture one scenario through a PTY, or `Err` when the capture is
+/// unusable. Returning an empty byte stream on failure used to replay to a
+/// blank screen — which diffed equal to another blank screen and scored
+/// perfect parity for a broken PTY environment.
+fn run_scenario(bin: &Path, scenario: &Scenario, home: &Path) -> Result<Vec<u8>, String> {
+    // Build everything the child needs BEFORE forking. Scenarios run on
+    // parallel scope threads, so at the fork instant sibling threads may
+    // hold allocator or environment locks; the child therefore does nothing
+    // but async-signal-safe calls (chdir/execve/_exit). Allocating or
+    // calling `std::env` post-fork could deadlock it before exec — another
+    // way to produce an empty, vacuously-passing capture.
+    let c_bin = std::ffi::CString::new(bin.as_os_str().as_encoded_bytes())
+        .map_err(|_| format!("binary path {} contains a NUL byte", bin.display()))?;
+    let c_home = std::ffi::CString::new(home.as_os_str().as_encoded_bytes())
+        .map_err(|_| format!("home path {} contains a NUL byte", home.display()))?;
+    let args = ["start", "--ui", "popup"];
+    let c_args: Vec<std::ffi::CString> = std::iter::once(c_bin.clone())
+        .chain(args.iter().map(|a| std::ffi::CString::new(*a).unwrap()))
+        .collect();
+    let argv: Vec<*const libc::c_char> = c_args
+        .iter()
+        .map(|a| a.as_ptr())
+        .chain(std::iter::once(std::ptr::null()))
+        .collect();
+    let envp_cstrings = child_envp(home);
+    let envp: Vec<*const libc::c_char> = envp_cstrings
+        .iter()
+        .map(|a| a.as_ptr())
+        .chain(std::iter::once(std::ptr::null()))
+        .collect();
+
     let mut master: libc::c_int = 0;
     let ws = libc::winsize {
         ws_row: PTY_ROWS,
@@ -164,41 +248,18 @@ fn run_scenario(bin: &Path, scenario: &Scenario, home: &Path) -> Vec<u8> {
     let pid =
         unsafe { libc::forkpty(&mut master, std::ptr::null_mut(), std::ptr::null_mut(), &ws) };
     match pid {
-        -1 => return Vec::new(),
-        0 => {
-            // Child: exec the binary under test. Single-threaded post-fork,
-            // pre-exec context, so mutating the environment is sound.
-            //
-            // Same contract as super::deterministic(): the operator's spec
-            // sources (INSH_RS_SPECS_DIR, config, user TOML specs) must not
-            // configure our side, and a host coreutils install must not add
-            // specs to our popup only. Without this the render category
-            // reported host-dependent suggestion rows as divergences.
-            for key in super::machine_specific_env_keys() {
-                unsafe { std::env::remove_var(&key) };
-            }
-            unsafe {
-                std::env::set_var("TERM", "xterm-256color");
-                std::env::remove_var("COLORTERM");
-                std::env::set_var("PS1", "$ ");
-                std::env::set_var("HOME", home);
-                std::env::set_var("XDG_CONFIG_HOME", home.join(".config"));
-                std::env::set_var("INSH_RS_NO_COREUTILS", "1");
-            }
-            let _ = std::env::set_current_dir(home);
-            let c_bin = std::ffi::CString::new(bin.to_str().unwrap_or("")).unwrap();
-            let args = ["start", "--ui", "popup"];
-            let c_args: Vec<std::ffi::CString> = std::iter::once(c_bin.clone())
-                .chain(args.iter().map(|a| std::ffi::CString::new(*a).unwrap()))
-                .collect();
-            let c_ptrs: Vec<*const libc::c_char> = c_args
-                .iter()
-                .map(|a| a.as_ptr())
-                .chain(std::iter::once(std::ptr::null()))
-                .collect();
-            unsafe { libc::execvp(c_bin.as_ptr(), c_ptrs.as_ptr()) };
-            unsafe { libc::_exit(127) };
+        -1 => {
+            return Err(format!(
+                "forkpty failed: {}",
+                std::io::Error::last_os_error()
+            ));
         }
+        0 => unsafe {
+            // Child of a multithreaded parent: async-signal-safe calls only.
+            libc::chdir(c_home.as_ptr());
+            libc::execve(c_bin.as_ptr(), argv.as_ptr(), envp.as_ptr());
+            libc::_exit(127);
+        },
         _ => {}
     }
 
@@ -260,7 +321,65 @@ fn run_scenario(bin: &Path, scenario: &Scenario, home: &Path) -> Vec<u8> {
         libc::close(fd);
     }
 
-    captured
+    Ok(captured)
+}
+
+/// The child's environment, built in the parent before forking.
+///
+/// Same contract as [`super::deterministic`]: machine-specific inputs
+/// (INSH_RS*, ISTERM*, ZDOTDIR — so no operator spec sources and no host
+/// coreutils probe on our side only) and COLORTERM are dropped; TERM, PS1,
+/// HOME, and XDG_CONFIG_HOME are pinned.
+fn child_envp(home: &Path) -> Vec<std::ffi::CString> {
+    child_envp_from(std::env::vars_os(), home)
+}
+
+/// Same, from an explicit base environment so tests need not touch the
+/// process-global one.
+fn child_envp_from<I>(base: I, home: &Path) -> Vec<std::ffi::CString>
+where
+    I: IntoIterator<Item = (std::ffi::OsString, std::ffi::OsString)>,
+{
+    fn push(out: &mut Vec<std::ffi::CString>, key: &std::ffi::OsStr, value: &std::ffi::OsStr) {
+        let mut joined = key.as_encoded_bytes().to_vec();
+        joined.push(b'=');
+        joined.extend_from_slice(value.as_encoded_bytes());
+        if let Ok(c) = std::ffi::CString::new(joined) {
+            out.push(c);
+        }
+    }
+
+    let mut out = Vec::new();
+    for (k, v) in base {
+        if super::is_machine_specific(&k.to_string_lossy())
+            || k == *std::ffi::OsStr::new("COLORTERM")
+        {
+            continue;
+        }
+        push(&mut out, &k, &v);
+    }
+    push(
+        &mut out,
+        std::ffi::OsStr::new("TERM"),
+        std::ffi::OsStr::new("xterm-256color"),
+    );
+    push(
+        &mut out,
+        std::ffi::OsStr::new("PS1"),
+        std::ffi::OsStr::new("$ "),
+    );
+    push(&mut out, std::ffi::OsStr::new("HOME"), home.as_os_str());
+    push(
+        &mut out,
+        std::ffi::OsStr::new("XDG_CONFIG_HOME"),
+        home.join(".config").as_os_str(),
+    );
+    push(
+        &mut out,
+        std::ffi::OsStr::new("INSH_RS_NO_COREUTILS"),
+        std::ffi::OsStr::new("1"),
+    );
+    out
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -404,4 +523,108 @@ fn diff_screens(upstream: &Screen, ours: &Screen) -> Vec<String> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn capture(bytes: &[u8]) -> Result<Vec<u8>, String> {
+        Ok(bytes.to_vec())
+    }
+
+    /// A PTY-broken environment used to record perfect parity: forkpty
+    /// failures became empty captures, which replayed to identical blank
+    /// screens on both sides.
+    #[test]
+    fn forkpty_failure_fails_the_case() {
+        let case = evaluate_capture(
+            "single-c".to_string(),
+            Err("forkpty failed: Too many open files".to_string()),
+            Err("forkpty failed: Too many open files".to_string()),
+        );
+        let CaseResult::Fail { reason, .. } = case.result else {
+            panic!("expected a failure, got {:?}", case.result);
+        };
+        assert!(reason.contains("capture failed"), "{reason}");
+        assert!(reason.contains("ours"), "{reason}");
+        assert!(reason.contains("upstream"), "{reason}");
+        assert!(case.impact >= 90);
+    }
+
+    /// One-sided failure is a divergence too — it used to diff as
+    /// "blank vs content" noise instead of naming the broken side.
+    #[test]
+    fn one_sided_failure_names_the_side() {
+        let case = evaluate_capture(
+            "single-c".to_string(),
+            capture(b"$ prompt"),
+            Err("forkpty failed: no ptmx".to_string()),
+        );
+        assert!(!case.result.is_pass());
+        if let CaseResult::Fail { reason, details } = case.result {
+            assert!(!reason.contains("ours"), "{reason}");
+            assert!(reason.contains("upstream"), "{reason}");
+            assert!(details.iter().any(|d| d.contains("forkpty")), "{details:?}");
+        }
+    }
+
+    /// Two empty captures are not parity; a real TUI always draws something.
+    #[test]
+    fn two_empty_captures_fail() {
+        let case = evaluate_capture("single-c".to_string(), capture(b""), capture(b""));
+        assert!(!case.result.is_pass());
+        if let CaseResult::Fail { reason, .. } = case.result {
+            assert!(reason.contains("empty"), "{reason}");
+        }
+    }
+
+    #[test]
+    fn identical_captures_pass() {
+        let screen = b"$ git ch".to_vec();
+        let case = evaluate_capture("single-c".to_string(), Ok(screen.clone()), Ok(screen));
+        assert!(case.result.is_pass(), "{:?}", case.result);
+    }
+
+    #[test]
+    fn differing_captures_fail_with_cell_count() {
+        let case = evaluate_capture(
+            "single-c".to_string(),
+            capture(b"$ hello"),
+            capture(b"$ goodbye"),
+        );
+        assert!(!case.result.is_pass());
+    }
+
+    /// The child environment carries the same contract as
+    /// `super::deterministic`: machine-specific inputs stripped,
+    /// INSH_RS_NO_COREUTILS pinned.
+    #[test]
+    fn child_envp_strips_machine_specific_vars_and_pins_home() {
+        let base: Vec<(std::ffi::OsString, std::ffi::OsString)> = vec![
+            ("PATH".into(), "/usr/bin".into()),
+            ("INSH_RS_SPECS_DIR".into(), "/tmp/operator-specs".into()),
+            ("ISTERM".into(), "1".into()),
+            ("COLORTERM".into(), "truecolor".into()),
+        ];
+        let home = std::env::temp_dir();
+        let text: Vec<String> = child_envp_from(base, &home)
+            .iter()
+            .map(|c| c.to_string_lossy().into_owned())
+            .collect();
+        assert!(
+            !text.iter().any(|v| v.starts_with("INSH_RS_SPECS_DIR")),
+            "{text:?}"
+        );
+        assert!(!text.iter().any(|v| v.starts_with("ISTERM=")), "{text:?}");
+        assert!(!text.iter().any(|v| v == "COLORTERM=truecolor"), "{text:?}");
+        assert!(
+            text.iter()
+                .any(|v| *v == format!("HOME={}", home.display())),
+            "{text:?}"
+        );
+        assert!(text.iter().any(|v| v == "PATH=/usr/bin"), "{text:?}");
+        assert!(text.iter().any(|v| v == "INSH_RS_NO_COREUTILS=1"));
+        assert!(text.iter().any(|v| v == "TERM=xterm-256color"), "{text:?}");
+    }
 }

@@ -230,7 +230,9 @@ const MACHINE_SPECIFIC_VARS: &[&str] = &[
     "ZDOTDIR",
 ];
 
-fn is_machine_specific(name: &str) -> bool {
+/// Does this variable name change what a spawned binary does on this
+/// machine? See [`MACHINE_SPECIFIC_VARS`].
+pub fn is_machine_specific(name: &str) -> bool {
     // Our own namespace carries spec sources and feature toggles, so strip
     // every `INSH_RS*` export, not just the ones known today.
     name.starts_with("INSH_RS") || name.starts_with("ISTERM") || name == "ZDOTDIR"
