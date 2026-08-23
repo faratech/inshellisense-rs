@@ -25,9 +25,14 @@ pub fn load_for(shell: Shell) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
     for path in candidates(shell) {
-        let Ok(contents) = fs::read_to_string(&path) else {
+        // Read bytes and decode lossily: a single non-UTF-8 byte (binary
+        // noise, a foreign-encoding import) made read_to_string fail and
+        // silently discarded the ENTIRE history (#48). Only the corrupted
+        // byte becomes U+FFFD now.
+        let Ok(bytes) = fs::read(&path) else {
             continue;
         };
+        let contents = String::from_utf8_lossy(&bytes);
         let entries = match shell {
             Shell::Zsh => parse_zsh(&contents),
             Shell::Fish => parse_fish(&contents),

@@ -140,6 +140,10 @@ impl Engine {
                     .cmp(&a.priority.unwrap_or(50))
                     .then_with(|| (b.name == *cmd).cmp(&(a.name == *cmd)))
                     .then_with(|| a.name.len().cmp(&b.name.len()))
+                    // Alias candidates arrive in HashMap iteration order;
+                    // without a content-derived tiebreaker the final order
+                    // differed between runs (#83).
+                    .then_with(|| a.name.cmp(&b.name))
             });
             return dedup_by_name(results);
         }
@@ -341,15 +345,18 @@ impl Engine {
         // Both `-L` and `-l` still appear (case-insensitive filter, like
         // upstream), but typing `-l` ranks `-l` above even a higher-priority
         // `-L` so the exact case the user typed is the active/ghost selection
-        // (GH issue #2). Within a tier we otherwise preserve insertion order
-        // (spec-authored order for subcommands/options, alphabetical for
-        // filepaths).
+        // (GH issue #2). Ties after the priority tiers fall back to name
+        // order: insertion order is NOT a stable tiebreaker here because
+        // alias candidates come out of a HashMap, so equal-ranked entries
+        // could swap positions between runs (#83).
         candidates.sort_by(|a, b| {
             let pa = a.priority.unwrap_or(50);
             let pb = b.priority.unwrap_or(50);
             let ea = a.name.starts_with(&partial);
             let eb = b.name.starts_with(&partial);
-            eb.cmp(&ea).then_with(|| pb.cmp(&pa))
+            eb.cmp(&ea)
+                .then_with(|| pb.cmp(&pa))
+                .then_with(|| a.name.cmp(&b.name))
         });
 
         dedup_by_name(candidates)
