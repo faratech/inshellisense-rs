@@ -17,6 +17,23 @@ pub enum Shell {
     Cmd,
 }
 
+/// The `source` command fish runs from `--init-command`.
+///
+/// fish parses that text as fish code, so the path must arrive as a quoted
+/// string: an unquoted path breaks on any whitespace (`/Users/Foo Bar`), and
+/// on Windows fish treats `\` as an escape outside quotes, mangling
+/// `C:\Users\me\...` even without spaces. Mixed separators (`C:/Users/...`,
+/// what upstream gets out of `cygpath -m`) keep Windows paths intact, and the
+/// single-quoted string survives apostrophes via `resources::quote_fish`.
+fn fish_source_command(script: &std::path::Path) -> String {
+    let text = if cfg!(windows) {
+        script.display().to_string().replace('\\', "/")
+    } else {
+        script.display().to_string()
+    };
+    format!("source '{}'", crate::resources::quote_fish(&text))
+}
+
 /// Complete spawn descriptor for `pty::run_wrapped_shell`. Computed from
 /// a `Shell` value via `Shell::spawn_target`. Port of
 /// upstream inshellisense's `src/isterm/pty.ts:377-429` (`convertToPtyTarget`).
@@ -84,7 +101,9 @@ impl Shell {
             }
             Shell::Fish => {
                 args.push("--init-command".into());
-                args.push(format!("source {}", path_of("shellIntegration.fish")));
+                args.push(fish_source_command(
+                    &shell_dir.join("shellIntegration.fish"),
+                ));
             }
             Shell::Pwsh | Shell::Powershell => {
                 args.push("-NoExit".into());
@@ -297,5 +316,47 @@ mod tests {
             true,
         );
         assert_eq!(target.args.first().map(String::as_str), Some("--login"));
+    }
+
+    /// fish parses `--init-command` as fish code. An unquoted path broke on
+    /// any whitespace in `$HOME` (fish then sourced `/tmp/is`, printing
+    /// "No such file or directory" and loading no OSC 6973 hooks at all).
+    #[test]
+    fn fish_source_command_quotes_the_path() {
+        let cmd = fish_source_command(std::path::Path::new(
+            "/tmp/is home/.inshellisense/shell/shellIntegration.fish",
+        ));
+        assert_eq!(
+            cmd,
+            "source '/tmp/is home/.inshellisense/shell/shellIntegration.fish'"
+        );
+    }
+
+    /// A single quote in `$HOME` must not close the quoted string and leave
+    /// the rest of the path as fish code.
+    #[test]
+    fn fish_source_command_escapes_apostrophes() {
+        let cmd = fish_source_command(std::path::Path::new(
+            "/home/o'brien/.inshellisense/shell/shellIntegration.fish",
+        ));
+        assert_eq!(
+            cmd,
+            "source '/home/o\\'brien/.inshellisense/shell/shellIntegration.fish'"
+        );
+    }
+
+    /// The spawn target itself carries the quoting, not just the helper.
+    #[test]
+    fn fish_spawn_target_quotes_the_init_path() {
+        let target = Shell::Fish.spawn_target(
+            std::path::Path::new("/tmp/is home/shell"),
+            std::path::Path::new("/tmp/zdot"),
+            false,
+        );
+        assert_eq!(target.args[0], "--init-command");
+        assert_eq!(
+            target.args[1],
+            "source '/tmp/is home/shell/shellIntegration.fish'"
+        );
     }
 }

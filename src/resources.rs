@@ -269,7 +269,7 @@ fn quote_posix(path: &str) -> String {
 }
 
 /// fish honors `\` and `\'` inside single quotes.
-fn quote_fish(path: &str) -> String {
+pub(crate) fn quote_fish(path: &str) -> String {
     path.replace('\\', "\\\\").replace('\'', "\\'")
 }
 
