@@ -5,8 +5,7 @@
 
 #![cfg(windows)]
 
-use super::keys::{Modifiers, decode_utf16_unit, vkey_sequence};
-use super::keys::{VK_BACK, VK_ESCAPE, VK_RETURN, VK_TAB};
+use super::keys::{KeyEvent, decode_key_event};
 use super::{PtyHandle, PtyResult, RawDescriptor};
 use std::mem;
 use std::ptr;
@@ -364,45 +363,26 @@ impl PtyHandle for WindowsPty {
                     continue;
                 }
                 let key = rec.Event.KeyEvent;
-                if key.bKeyDown == 0 {
-                    continue;
-                }
-                // Skip synthetic VT sequence chars injected by
-                // ENABLE_VIRTUAL_TERMINAL_INPUT (Windows Terminal's
-                // default). These have vk=0 and are terminal-generated
-                // noise, not real user keystrokes.
-                if key.wVirtualKeyCode == 0 {
-                    continue;
-                }
-
-                let mods = Modifiers::from_control_key_state(key.dwControlKeyState);
-                let ch = key.uChar.UnicodeChar;
-
-                // Keys like Backspace, Tab, Return have a non-zero
-                // UnicodeChar (0x08, 0x09, 0x0D) but need specific byte
-                // values, so resolve them by virtual key first.
-                let handled_by_vkey = matches!(
-                    key.wVirtualKeyCode,
-                    VK_BACK | VK_TAB | VK_RETURN | VK_ESCAPE
-                );
 
                 // Windows collapses auto-repeat into one record. Emitting the
                 // key once dropped every repeat but the first.
                 let repeat = key.wRepeatCount.max(1) as usize;
 
+                // Decoding lives in keys::decode_key_event so it stays
+                // unit-testable off-Windows; in particular a vk=0 record that
+                // carries a character is real text (paste / IME / unmapped
+                // characters), not synthetic noise.
+                let event = KeyEvent {
+                    key_down: key.bKeyDown,
+                    repeat_count: key.wRepeatCount,
+                    virtual_key_code: key.wVirtualKeyCode,
+                    control_key_state: key.dwControlKeyState,
+                    unicode_char: key.uChar.UnicodeChar,
+                };
                 let mut scratch = [0u8; 8];
-                let mut utf8 = [0u8; 4];
-                let bytes: &[u8] = if ch != 0 && !handled_by_vkey {
-                    let Some(scalar) = decode_utf16_unit(&self.pending_surrogate, ch) else {
-                        continue;
-                    };
-                    let len = scalar.encode_utf8(&mut utf8).len();
-                    &utf8[..len]
-                } else {
-                    match vkey_sequence(key.wVirtualKeyCode, mods, &mut scratch) {
-                        Some(seq) => seq,
-                        None => continue,
-                    }
+                let Some(bytes) = decode_key_event(&self.pending_surrogate, event, &mut scratch)
+                else {
+                    continue;
                 };
 
                 for _ in 0..repeat {

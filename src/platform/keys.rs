@@ -74,7 +74,7 @@ impl Modifiers {
 }
 
 /// `CSI 1;<mod><final>` — the xterm encoding for a modified cursor key.
-fn write_csi_modified(scratch: &mut [u8; 8], param: u8, final_byte: u8) -> usize {
+fn write_csi_modified(scratch: &mut [u8], param: u8, final_byte: u8) -> usize {
     let digits = param.to_string();
     let mut n = 0;
     for b in b"\x1b[1;" {
@@ -90,7 +90,7 @@ fn write_csi_modified(scratch: &mut [u8; 8], param: u8, final_byte: u8) -> usize
 }
 
 /// `CSI <code>~` or `CSI <code>;<mod>~` — the VT encoding for editing keys.
-fn write_csi_tilde(scratch: &mut [u8; 8], code: u8, param: Option<u8>) -> usize {
+fn write_csi_tilde(scratch: &mut [u8], code: u8, param: Option<u8>) -> usize {
     let mut n = 0;
     for b in b"\x1b[" {
         scratch[n] = *b;
@@ -113,17 +113,34 @@ fn write_csi_tilde(scratch: &mut [u8; 8], code: u8, param: Option<u8>) -> usize 
 }
 
 /// Bytes for a virtual key, honoring modifiers.
-pub fn vkey_sequence(vk: u16, mods: Modifiers, scratch: &mut [u8; 8]) -> Option<&[u8]> {
+///
+/// Every arm writes into `scratch` and returns a subslice of it, so callers
+/// can re-encode or extend the result uniformly.
+pub fn vkey_sequence(vk: u16, mods: Modifiers, scratch: &mut [u8]) -> Option<&[u8]> {
     match vk {
-        VK_BACK => Some(b"\x7f"),
+        VK_BACK => {
+            scratch[0] = 0x7f;
+            Some(&scratch[..1])
+        }
         // Shift+Tab is backtab; Ctrl+Tab has no standard sequence.
-        VK_TAB => Some(if mods.shift && !mods.ctrl {
-            &b"\x1b[Z"[..]
-        } else {
-            &b"\t"[..]
-        }),
-        VK_RETURN => Some(b"\r"),
-        VK_ESCAPE => Some(b"\x1b"),
+        VK_TAB => {
+            let n = if mods.shift && !mods.ctrl {
+                scratch[..3].copy_from_slice(b"\x1b[Z");
+                3
+            } else {
+                scratch[0] = b'\t';
+                1
+            };
+            Some(&scratch[..n])
+        }
+        VK_RETURN => {
+            scratch[0] = b'\r';
+            Some(&scratch[..1])
+        }
+        VK_ESCAPE => {
+            scratch[0] = 0x1b;
+            Some(&scratch[..1])
+        }
         VK_UP | VK_DOWN | VK_RIGHT | VK_LEFT | VK_HOME | VK_END => {
             let final_byte = match vk {
                 VK_UP => b'A',
@@ -154,18 +171,54 @@ pub fn vkey_sequence(vk: u16, mods: Modifiers, scratch: &mut [u8; 8]) -> Option<
             let n = write_csi_tilde(scratch, code, param);
             Some(&scratch[..n])
         }
-        VK_F1 => Some(b"\x1bOP"),
-        VK_F2 => Some(b"\x1bOQ"),
-        VK_F3 => Some(b"\x1bOR"),
-        VK_F4 => Some(b"\x1bOS"),
-        VK_F5 => Some(b"\x1b[15~"),
-        VK_F6 => Some(b"\x1b[17~"),
-        VK_F7 => Some(b"\x1b[18~"),
-        VK_F8 => Some(b"\x1b[19~"),
-        VK_F9 => Some(b"\x1b[20~"),
-        VK_F10 => Some(b"\x1b[21~"),
-        VK_F11 => Some(b"\x1b[23~"),
-        VK_F12 => Some(b"\x1b[24~"),
+        VK_F1 => {
+            scratch[..3].copy_from_slice(b"\x1bOP");
+            Some(&scratch[..3])
+        }
+        VK_F2 => {
+            scratch[..3].copy_from_slice(b"\x1bOQ");
+            Some(&scratch[..3])
+        }
+        VK_F3 => {
+            scratch[..3].copy_from_slice(b"\x1bOR");
+            Some(&scratch[..3])
+        }
+        VK_F4 => {
+            scratch[..3].copy_from_slice(b"\x1bOS");
+            Some(&scratch[..3])
+        }
+        VK_F5 => {
+            scratch[..6].copy_from_slice(b"\x1b[15~");
+            Some(&scratch[..6])
+        }
+        VK_F6 => {
+            scratch[..6].copy_from_slice(b"\x1b[17~");
+            Some(&scratch[..6])
+        }
+        VK_F7 => {
+            scratch[..6].copy_from_slice(b"\x1b[18~");
+            Some(&scratch[..6])
+        }
+        VK_F8 => {
+            scratch[..6].copy_from_slice(b"\x1b[19~");
+            Some(&scratch[..6])
+        }
+        VK_F9 => {
+            scratch[..6].copy_from_slice(b"\x1b[20~");
+            Some(&scratch[..6])
+        }
+        VK_F10 => {
+            scratch[..6].copy_from_slice(b"\x1b[21~");
+            Some(&scratch[..6])
+        }
+        VK_F11 => {
+            scratch[..6].copy_from_slice(b"\x1b[23~");
+            Some(&scratch[..6])
+        }
+        VK_F12 => {
+            scratch[..6].copy_from_slice(b"\x1b[24~");
+            Some(&scratch[..6])
+        }
         _ => None,
     }
 }
@@ -189,6 +242,74 @@ pub fn decode_utf16_unit(pending: &std::cell::Cell<u16>, unit: u16) -> Option<ch
         return char::from_u32(cp);
     }
     char::from_u32(unit as u32)
+}
+
+/// Plain-field mirror of Win32's `KEY_EVENT_RECORD`, so the decoding below
+/// stays unit-testable off-Windows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct KeyEvent {
+    /// `bKeyDown` — non-zero on the down stroke.
+    pub key_down: i32,
+    /// `wRepeatCount`.
+    pub repeat_count: u16,
+    /// `wVirtualKeyCode`.
+    pub virtual_key_code: u16,
+    /// `dwControlKeyState`.
+    pub control_key_state: u32,
+    /// `uChar.UnicodeChar`.
+    pub unicode_char: u16,
+}
+
+/// Decode one console `KEY_EVENT` into the VT bytes to forward.
+///
+/// Returns `None` when the record produces no input. Bytes are written into
+/// `scratch` and returned as a subslice of it.
+///
+/// The rules this encodes:
+/// - Only key-down strokes produce bytes; key-up records mirror them and
+///   forwarding both doubled every keystroke.
+/// - A record carrying neither a virtual key nor a character is synthetic
+///   terminal noise (the `ENABLE_VIRTUAL_TERMINAL_INPUT` case) and is
+///   dropped (#24).
+/// - Any record that DOES carry a character emits it, including vk=0 ones:
+///   conhost synthesizes vk=0 records precisely for characters with no
+///   mapping on the active keyboard layout — pastes, IME commits, emoji —
+///   so filtering on vk==0 alone silently discarded real user text (#51).
+/// - Named keys (Backspace/Tab/Return/Escape) resolve by virtual key even
+///   when they carry a character, because they need their exact VT byte.
+pub fn decode_key_event<'a>(
+    pending_surrogate: &std::cell::Cell<u16>,
+    ev: KeyEvent,
+    scratch: &'a mut [u8; 8],
+) -> Option<&'a [u8]> {
+    if ev.key_down == 0 {
+        return None;
+    }
+    let mods = Modifiers::from_control_key_state(ev.control_key_state);
+
+    // Synthetic VT-input records carry neither key nor character.
+    if ev.virtual_key_code == 0 && ev.unicode_char == 0 {
+        return None;
+    }
+
+    let named = matches!(
+        ev.virtual_key_code,
+        VK_BACK | VK_TAB | VK_RETURN | VK_ESCAPE
+    );
+    let len = if ev.unicode_char != 0 && !named {
+        // scratch[0] stays reserved for an ESC prefix added by callers that
+        // handle modifier chords.
+        let scalar = decode_utf16_unit(pending_surrogate, ev.unicode_char)?;
+        scalar.encode_utf8(&mut scratch[1..]).len()
+    } else {
+        // The borrow ends at the `?`: only the length is taken here because
+        // the bytes were already written into `scratch`.
+        //
+        // `None` means a virtual key with no VT sequence (a letter, say):
+        // nothing this layer can emit for it yet.
+        vkey_sequence(ev.virtual_key_code, mods, &mut scratch[1..]).map(|seq| seq.len())?
+    };
+    Some(&scratch[1..1 + len])
 }
 
 #[cfg(test)]
@@ -315,5 +436,84 @@ mod tests {
         assert!(plain_down.matches(&seq(VK_DOWN, 0)));
         // ...but not by the modified one.
         assert!(!plain_down.matches(&seq(VK_DOWN, LEFT_CTRL)));
+    }
+
+    fn decode(ev: KeyEvent) -> Option<Vec<u8>> {
+        let pending = Cell::new(0u16);
+        let mut scratch = [0u8; 8];
+        decode_key_event(&pending, ev, &mut scratch).map(<[u8]>::to_vec)
+    }
+
+    fn key(vk: u16, ch: u16, state: u32) -> KeyEvent {
+        KeyEvent {
+            key_down: 1,
+            virtual_key_code: vk,
+            control_key_state: state,
+            unicode_char: ch,
+            ..KeyEvent::default()
+        }
+    }
+
+    /// Characters with no mapping on the active keyboard layout — pastes,
+    /// IME commits, CJK text — arrive from conhost as vk=0 records carrying
+    /// the character. The old unconditional vk==0 filter dropped them, so a
+    /// pasted `修复bug` reached the shell as `bug` (#51).
+    #[test]
+    fn vk0_records_carrying_text_are_emitted() {
+        // U+4FEE 修 = e4 bf ae
+        assert_eq!(decode(key(0, 0x4FEE, 0)), Some(vec![0xE4, 0xBF, 0xAE]));
+        // ASCII paste survives too (it also rides vk=0 synthesis).
+        assert_eq!(decode(key(0, b'a' as u16, 0)), Some(b"a".to_vec()));
+    }
+
+    /// A record with neither a virtual key nor a character is the synthetic
+    /// ENABLE_VIRTUAL_TERMINAL_INPUT noise the #24 fix was written for.
+    #[test]
+    fn synthetic_records_without_character_are_dropped() {
+        assert_eq!(decode(key(0, 0, 0)), None);
+    }
+
+    /// Non-BMP paste arrives as two vk=0 records; both must survive.
+    #[test]
+    fn vk0_surrogate_pairs_are_emitted() {
+        let pending = Cell::new(0u16);
+        let mut scratch = [0u8; 8];
+        assert_eq!(
+            decode_key_event(&pending, key(0, 0xD83D, 0), &mut scratch),
+            None
+        );
+        assert_eq!(
+            decode_key_event(&pending, key(0, 0xDE00, 0), &mut scratch),
+            Some("😀".as_bytes())
+        );
+    }
+
+    /// Key-up strokes and unmapped virtual keys still produce nothing.
+    #[test]
+    fn silent_records_stay_silent() {
+        let mut up = key(VK_RETURN, b'\r' as u16, 0);
+        up.key_down = 0;
+        assert_eq!(decode(up), None);
+        // A virtual key this layer has no sequence for (numpad digits) and no
+        // character is not inventable input.
+        const VK_NUMPAD0: u16 = 0x60;
+        assert_eq!(decode(key(VK_NUMPAD0, 0, 0)), None);
+    }
+
+    /// Printable keys keep emitting their character, and named keys resolve by
+    /// virtual key rather than by their console character.
+    #[test]
+    fn char_and_named_key_paths_are_preserved() {
+        assert_eq!(
+            decode(key(b'B' as u16, b'b' as u16, 0)),
+            Some(b"b".to_vec())
+        );
+        // Backspace carries 0x08 but readline needs DEL.
+        assert_eq!(decode(key(VK_BACK, 0x08, 0)), Some(vec![0x7f]));
+        assert_eq!(
+            decode(key(VK_RETURN, b'\r' as u16, 0)),
+            Some(b"\r".to_vec())
+        );
+        assert_eq!(decode(key(VK_UP, 0, 0)), Some(b"\x1b[A".to_vec()));
     }
 }
