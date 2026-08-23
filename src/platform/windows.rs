@@ -141,27 +141,7 @@ impl WindowsPty {
                 cmd_line.encode_utf16().chain(std::iter::once(0)).collect();
 
             // Build environment block (null-separated, double-null terminated).
-            // Windows uses the FIRST occurrence of a duplicate key, so
-            // overrides must come before inherited vars. We use a BTreeMap
-            // with uppercased keys (Windows env vars are case-insensitive)
-            // to deduplicate, and the sorted output satisfies Windows'
-            // expectation of a sorted environment block.
-            let mut env_map = std::collections::BTreeMap::<String, (String, String)>::new();
-            // Overrides first — these must win.
-            for (k, v) in env {
-                env_map.insert(k.to_uppercase(), (k.clone(), v.clone()));
-            }
-            // Inherit parent vars only if not already overridden.
-            for (k, v) in std::env::vars() {
-                env_map.entry(k.to_uppercase()).or_insert((k, v));
-            }
-            let mut env_block: Vec<u16> = Vec::new();
-            for (_upper, (k, v)) in &env_map {
-                let entry = format!("{}={}", k, v);
-                env_block.extend(entry.encode_utf16());
-                env_block.push(0);
-            }
-            env_block.push(0); // double-null terminator
+            let env_block = build_env_block(env);
 
             let mut si: STARTUPINFOEXW = mem::zeroed();
             si.StartupInfo.cb = mem::size_of::<STARTUPINFOEXW>() as u32;
@@ -206,6 +186,39 @@ impl WindowsPty {
             })
         }
     }
+}
+
+/// Build the child's environment block (null-separated, double-null
+/// terminated).
+///
+/// Windows uses the FIRST occurrence of a duplicate key, so overrides come
+/// before inherited vars. Keys are uppercased (Windows env vars are
+/// case-insensitive) to deduplicate, and the sorted output satisfies
+/// Windows' expectation of a sorted environment block.
+///
+/// Inherited variables go through `vars_os` with lossy conversion: `vars()`
+/// panics the whole process when any variable is not valid Unicode, and one
+/// stray variable in the environment must not take the wrapper down (#76).
+fn build_env_block(overrides: &[(String, String)]) -> Vec<u16> {
+    let mut env_map = std::collections::BTreeMap::<String, String>::new();
+    // Overrides first — these must win.
+    for (k, v) in overrides {
+        env_map.insert(k.to_uppercase(), v.clone());
+    }
+    // Inherit parent vars only if not already overridden.
+    for (k, v) in std::env::vars_os() {
+        let k = k.to_string_lossy().into_owned();
+        let v = v.to_string_lossy().into_owned();
+        env_map.entry(k.to_uppercase()).or_insert(v);
+    }
+    let mut env_block: Vec<u16> = Vec::new();
+    for (k, v) in &env_map {
+        let entry = format!("{}={}", k, v);
+        env_block.extend(entry.encode_utf16());
+        env_block.push(0);
+    }
+    env_block.push(0); // double-null terminator
+    env_block
 }
 
 impl PtyHandle for WindowsPty {
@@ -546,4 +559,45 @@ pub fn find_git_bash() -> Option<String> {
         }
     }
     None
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+
+    fn entries(block: &[u16]) -> Vec<String> {
+        String::from_utf16_lossy(block)
+            .split('\0')
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// Overrides must win over inherited variables even though Windows
+    /// matches keys case-insensitively, and the emitted block must stay
+    /// sorted (CreateProcessW requires it).
+    #[test]
+    fn overrides_win_over_inherited_vars() {
+        // PATH exists in every Windows environment.
+        let block = build_env_block(&[("pAtH".into(), r"C:\override".into())]);
+        let all = entries(&block);
+        let path_entries: Vec<_> = all.iter().filter(|e| e.starts_with("PATH=")).collect();
+        assert_eq!(path_entries, [r"PATH=C:\override"]);
+
+        let keys: Vec<String> = all
+            .iter()
+            .map(|e| e.split('=').next().unwrap_or_default().to_uppercase())
+            .collect();
+        let mut sorted = keys.clone();
+        sorted.sort();
+        assert_eq!(keys, sorted);
+    }
+
+    /// The block is double-null terminated as CreateProcessW requires.
+    #[test]
+    fn block_is_double_null_terminated() {
+        let block = build_env_block(&[]);
+        assert_eq!(&block[block.len() - 2..], &[0, 0]);
+        assert!(!entries(&block).is_empty());
+    }
 }
