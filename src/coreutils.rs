@@ -85,7 +85,9 @@ fn list_utils(binary: &Path) -> Option<Vec<String>> {
         }
     }
 
-    let text = run_capture(binary, &["--list"])?;
+    let Probe::Output(text) = run_capture(binary, &["--list"]) else {
+        return None;
+    };
     let utils = parse_list(&text);
     if utils.is_empty() {
         // Not a uutils multi-call binary.
@@ -139,6 +141,26 @@ fn persist(path: &Path, bytes: &[u8]) {
     }
 }
 
+/// Answer `owns()` for a probe verdict, remembering it under `cache` only when
+/// the verdict was actually measured.
+///
+/// A probe that came up empty — a timeout above all, which is exactly what a
+/// cold start on a machine with an antivirus produces — says nothing about
+/// which implementation the binary on PATH is. Caching that as
+/// "not ours" would disable option augmentation for every following
+/// invocation until the coreutils binary's fingerprint changed.
+fn remember(cache: Option<&Path>, resolved: &str, verdict: Option<bool>) -> bool {
+    match verdict {
+        Some(owned) => {
+            if let Some(path) = cache {
+                persist(path, format!("{resolved}\n{}", u8::from(owned)).as_bytes());
+            }
+            owned
+        }
+        None => false,
+    }
+}
+
 /// `~/.inshellisense/coreutils/<fingerprint>/`, keyed by the binary's identity
 /// so an upgraded coreutils re-probes instead of serving a stale utility list.
 fn cache_dir(binary: &Path) -> Option<PathBuf> {
@@ -167,32 +189,56 @@ fn cache_dir(binary: &Path) -> Option<PathBuf> {
     )
 }
 
-/// Run `binary <args>` and capture stdout, bounded by `PROBE_TIMEOUT`.
-fn run_capture(binary: &Path, args: &[&str]) -> Option<String> {
-    let mut child = Command::new(binary)
+/// Run `binary <args>` and capture stdout, bounded by [`PROBE_TIMEOUT`].
+fn run_capture(binary: &Path, args: &[&str]) -> Probe {
+    run_capture_within(binary, args, PROBE_TIMEOUT)
+}
+
+/// The outcome of one probe.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Probe {
+    /// Complete stdout from a child that finished within the budget.
+    Output(String),
+    /// The child outlived the budget and was killed. Whatever that says about
+    /// the binary, it is transient — a cold cache, a scanning antivirus — and
+    /// must not be remembered as an answer about the implementation.
+    Timeout,
+    /// The child could not be spawned or its output could not be read.
+    Failed,
+}
+
+fn run_capture_within(binary: &Path, args: &[&str], timeout: Duration) -> Probe {
+    let mut child = match Command::new(binary)
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .ok()?;
-    let mut stdout = child.stdout.take()?;
+    {
+        Ok(child) => child,
+        Err(_) => return Probe::Failed,
+    };
+    let Some(mut stdout) = child.stdout.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Probe::Failed;
+    };
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let mut buf = Vec::new();
         let _ = std::io::Read::read_to_end(&mut stdout, &mut buf);
         let _ = tx.send(buf);
     });
-    let bytes = match rx.recv_timeout(PROBE_TIMEOUT) {
+    let bytes = match rx.recv_timeout(timeout) {
         Ok(bytes) => bytes,
         Err(_) => {
             let _ = child.kill();
             let _ = child.wait();
-            return None;
+            return Probe::Timeout;
         }
     };
     let _ = child.wait();
-    Some(String::from_utf8_lossy(&bytes).into_owned())
+    Probe::Output(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 impl Coreutils {
@@ -248,23 +294,25 @@ impl Coreutils {
             return flag.trim() == "1";
         }
 
-        let owned = self.same_implementation(Path::new(&resolved), util);
-        if let Some(path) = &cache {
-            persist(path, format!("{resolved}\n{}", u8::from(owned)).as_bytes());
-        }
-        owned
+        remember(
+            cache.as_deref(),
+            &resolved,
+            self.same_implementation(Path::new(&resolved), util),
+        )
     }
 
-    fn same_implementation(&self, resolved: &Path, util: &str) -> bool {
-        let on_path = run_capture(resolved, &["--version"]);
-        let ours = run_capture(&self.binary, &[util, "--version"]);
-        match (on_path, ours) {
-            (Some(a), Some(b)) => {
-                let a = first_line(&a);
-                !a.is_empty() && a == first_line(&b)
-            }
-            _ => false,
-        }
+    /// Did the binary on PATH print the same version banner as this build for
+    /// `util`? `None` when either probe produced no output — a timed-out or
+    /// failed probe is not evidence that the implementations differ.
+    fn same_implementation(&self, resolved: &Path, util: &str) -> Option<bool> {
+        let Probe::Output(on_path) = run_capture(resolved, &["--version"]) else {
+            return None;
+        };
+        let Probe::Output(ours) = run_capture(&self.binary, &[util, "--version"]) else {
+            return None;
+        };
+        let banner = first_line(&on_path);
+        Some(!banner.is_empty() && banner == first_line(&ours))
     }
 
     /// Add every option the installed binary accepts that `spec` does not
@@ -302,8 +350,15 @@ impl Coreutils {
         }
 
         // Go through the multi-call binary rather than the per-utility
-        // hardlink: the hardlinks may not be on PATH.
-        let help = run_capture(&self.binary, &[util, "--help"])?;
+        // hardlink: the hardlinks may not be on PATH. Nothing captured — a
+        // timeout, or an empty banner — yields no spec and caches nothing,
+        // so the next invocation probes afresh instead of serving a stub.
+        let Probe::Output(help) = run_capture(&self.binary, &[util, "--help"]) else {
+            return None;
+        };
+        if help.trim().is_empty() {
+            return None;
+        }
         let spec = parse_help(util, &help);
         if let Some(path) = &cache
             && let Ok(json) = serde_json::to_vec(&spec)
@@ -1008,6 +1063,67 @@ Options:
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "ls\ncat\n");
         let leftovers = std::fs::read_dir(path.parent().unwrap()).unwrap().count();
         assert_eq!(leftovers, 1, "temp file left behind");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A verdict that was not measured must not be cached: a probe that timed
+    /// out would otherwise be remembered forever as owns() == false, disabling
+    /// option augmentation until the coreutils binary changed (#70).
+    #[test]
+    fn an_unmeasured_verdict_is_not_cached() {
+        let dir = std::env::temp_dir().join(format!("insh-owns-{}", std::process::id()));
+        let path = dir.join("owned").join("ls");
+        persist(&path, b"/usr/bin/ls\n1");
+
+        // No verdict: the previous measurement stays on disk and is untouched.
+        assert!(!remember(Some(&path), "/usr/bin/ls", None));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "/usr/bin/ls\n1");
+
+        // A real measurement, in either direction, is recorded.
+        assert!(!remember(Some(&path), "/usr/bin/ls", Some(false)));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "/usr/bin/ls\n0");
+        assert!(remember(Some(&path), "/usr/bin/ls", Some(true)));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "/usr/bin/ls\n1");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Probes that cannot spawn yield no verdict at all.
+    #[test]
+    fn a_failed_probe_yields_no_verdict() {
+        let cu = Coreutils {
+            binary: PathBuf::from("/nonexistent/coreutils"),
+            utils: vec!["ls".into()],
+        };
+        assert_eq!(
+            cu.same_implementation(Path::new("/nonexistent/ls"), "ls"),
+            None
+        );
+    }
+
+    /// The timeout is distinguishable from a completed probe — that
+    /// distinction is what keeps it out of the cache.
+    #[cfg(unix)]
+    #[test]
+    fn a_slow_probe_reports_a_timeout() {
+        let dir = std::env::temp_dir().join(format!("insh-probe-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let script = dir.join("slow");
+        std::fs::write(
+            &script,
+            "#!/bin/sh\nif [ \"$1\" = fast ]; then echo banner; else sleep 5; fi\n",
+        )
+        .unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        assert_eq!(
+            run_capture_within(&script, &["slow"], Duration::from_millis(100)),
+            Probe::Timeout
+        );
+        assert_eq!(
+            run_capture_within(&script, &["fast"], Duration::from_millis(5000)),
+            Probe::Output("banner\n".into())
+        );
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
