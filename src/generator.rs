@@ -94,7 +94,6 @@ pub fn suggestions_for_arg(
     out
 }
 
-#[allow(clippy::too_many_arguments)]
 fn run_generator(
     g: &Generator,
     cwd: &str,
