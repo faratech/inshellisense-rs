@@ -12,6 +12,7 @@
 pub const VK_BACK: u16 = 0x08;
 pub const VK_TAB: u16 = 0x09;
 pub const VK_RETURN: u16 = 0x0D;
+pub const VK_SPACE: u16 = 0x20;
 pub const VK_ESCAPE: u16 = 0x1B;
 pub const VK_PRIOR: u16 = 0x21; // Page Up
 pub const VK_NEXT: u16 = 0x22; // Page Down
@@ -277,6 +278,9 @@ pub struct KeyEvent {
 ///   so filtering on vk==0 alone silently discarded real user text (#51).
 /// - Named keys (Backspace/Tab/Return/Escape) resolve by virtual key even
 ///   when they carry a character, because they need their exact VT byte.
+/// - An Alt-held chord is prefixed with ESC — xterm's Meta encoding — whether
+///   it arrives as a character record or as a bare virtual-key record
+///   (win32-input-mode), so readline bindings like Alt+B / Alt+F work (#62).
 pub fn decode_key_event<'a>(
     pending_surrogate: &std::cell::Cell<u16>,
     ev: KeyEvent,
@@ -297,19 +301,59 @@ pub fn decode_key_event<'a>(
         VK_BACK | VK_TAB | VK_RETURN | VK_ESCAPE
     );
     let len = if ev.unicode_char != 0 && !named {
-        // scratch[0] stays reserved for an ESC prefix added by callers that
-        // handle modifier chords.
-        let scalar = decode_utf16_unit(pending_surrogate, ev.unicode_char)?;
-        scalar.encode_utf8(&mut scratch[1..]).len()
+        if mods.ctrl && !mods.alt && !mods.shift && ev.unicode_char == u16::from(b' ') {
+            // Ctrl+Space arrives as a plain space with only LEFT_CTRL set;
+            // readline expects NUL.
+            scratch[1] = 0;
+            1
+        } else {
+            // scratch[0] stays reserved for the ESC Meta prefix below.
+            let scalar = decode_utf16_unit(pending_surrogate, ev.unicode_char)?;
+            scalar.encode_utf8(&mut scratch[1..]).len()
+        }
+    } else if let Some(seq) = vkey_sequence(ev.virtual_key_code, mods, &mut scratch[1..]) {
+        // Only the length is kept: the bytes were already written into
+        // `scratch`, which frees it for the ESC prefix below.
+        seq.len()
     } else {
-        // The borrow ends at the `?`: only the length is taken here because
-        // the bytes were already written into `scratch`.
-        //
-        // `None` means a virtual key with no VT sequence (a letter, say):
-        // nothing this layer can emit for it yet.
-        vkey_sequence(ev.virtual_key_code, mods, &mut scratch[1..]).map(|seq| seq.len())?
+        // No VT sequence for this virtual key (a letter or digit) and no
+        // character either — win32-input-mode key-downs look exactly like
+        // this. Recover the key's character so the chord still types (#62).
+        let ch = vkey_char(ev.virtual_key_code, mods.shift)?;
+        ch.encode_utf8(&mut scratch[1..]).len()
     };
-    Some(&scratch[1..1 + len])
+
+    // Alt is Meta: xterm sends ESC before the key's bytes. Sequences that
+    // already begin with ESC (modified arrows/editing keys) carry their own
+    // modifier parameter and must not be doubled.
+    if mods.alt && scratch[1] != 0x1b {
+        scratch[0] = 0x1b;
+        Some(&scratch[..1 + len])
+    } else {
+        Some(&scratch[1..1 + len])
+    }
+}
+
+/// Character for layout-stable virtual keys.
+///
+/// Only keys whose mapping does not depend on the active keyboard layout are
+/// covered: letters (shift-aware), digits and space. Shifted punctuation and
+/// everything OEM varies per layout, so those yield None — dropping the
+/// record beats inventing the wrong character.
+pub fn vkey_char(vk: u16, shift: bool) -> Option<char> {
+    match vk {
+        VK_SPACE => Some(' '),
+        0x30..=0x39 => Some((b'0' + (vk as u8 - 0x30)) as char),
+        0x41..=0x5A => {
+            let letter = (b'a' + (vk as u8 - 0x41)) as char;
+            Some(if shift {
+                letter.to_ascii_uppercase()
+            } else {
+                letter
+            })
+        }
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -515,5 +559,71 @@ mod tests {
             Some(b"\r".to_vec())
         );
         assert_eq!(decode(key(VK_UP, 0, 0)), Some(b"\x1b[A".to_vec()));
+    }
+
+    const RIGHT_ALT: u32 = 0x0001;
+
+    /// Alt chords must reach readline as Meta (`ESC <key>`), not vanish or
+    /// arrive bare. Under win32-input-mode Alt+B arrives as a bare virtual
+    /// key with no character; without it, as a character record with the ALT
+    /// bit set. Both encodings now produce `\x1bb` (#62).
+    #[test]
+    fn alt_chords_get_the_esc_prefix() {
+        // win32-input-mode shape: vk only.
+        assert_eq!(
+            decode(key(b'B' as u16, 0, LEFT_ALT)),
+            Some(b"\x1bb".to_vec())
+        );
+        // character-record shape: char plus ALT.
+        assert_eq!(
+            decode(key(b'B' as u16, b'b' as u16, LEFT_ALT)),
+            Some(b"\x1bb".to_vec())
+        );
+        assert_eq!(
+            decode(key(b'1' as u16, 0, LEFT_ALT)),
+            Some(b"\x1b1".to_vec())
+        );
+        assert_eq!(
+            decode(key(0, b'x' as u16, RIGHT_ALT)),
+            Some(b"\x1bx".to_vec())
+        );
+    }
+
+    /// Alt over keys that already have VT sequences prefixes those bytes
+    /// instead of dropping the modifier.
+    #[test]
+    fn alt_over_named_keys_is_prefixed() {
+        assert_eq!(
+            decode(key(VK_BACK, 0x08, LEFT_ALT)),
+            Some(b"\x1b\x7f".to_vec())
+        );
+        assert_eq!(
+            decode(key(VK_RETURN, b'\r' as u16, LEFT_ALT)),
+            Some(b"\x1b\r".to_vec())
+        );
+        assert_eq!(decode(key(VK_TAB, 0, LEFT_ALT)), Some(b"\x1b\t".to_vec()));
+    }
+
+    /// Modified cursor keys already encode Alt in their CSI parameter; they
+    /// must not gain a second ESC.
+    #[test]
+    fn alt_cursor_keys_keep_their_parameter() {
+        assert_eq!(
+            decode(key(VK_LEFT, 0, LEFT_ALT)),
+            Some(b"\x1b[1;3D".to_vec())
+        );
+        assert_eq!(
+            decode(key(VK_RIGHT, 0, LEFT_ALT | SHIFT)),
+            Some(b"\x1b[1;4C".to_vec())
+        );
+    }
+
+    /// Ctrl+Space is NUL in readline, not a literal space; plain space and
+    /// shifted letters are untouched.
+    #[test]
+    fn ctrl_space_collapses_to_nul() {
+        assert_eq!(decode(key(VK_SPACE, 0x20, LEFT_CTRL)), Some(vec![0]));
+        assert_eq!(decode(key(VK_SPACE, 0x20, 0)), Some(b" ".to_vec()));
+        assert_eq!(decode(key(b'B' as u16, 0, SHIFT)), Some(b"B".to_vec()));
     }
 }
