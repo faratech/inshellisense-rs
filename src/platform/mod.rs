@@ -100,21 +100,171 @@ pub fn install_signal_handlers() {
 }
 
 /// Find a binary on PATH (platform-aware separator + .exe suffix).
+///
+/// Only a file the OS would actually run counts as a match: a directory or a
+/// non-executable file earlier on PATH must not shadow the real binary further
+/// down (it would be handed to execvp and fail with EACCES). Empty PATH
+/// elements are skipped rather than resolved against the current directory.
 pub fn find_on_path(binary: &str) -> Option<String> {
     let path = std::env::var("PATH").unwrap_or_default();
+    find_on_path_in(&path, binary)
+}
+
+/// `find_on_path` against an explicit PATH string, so it can be tested
+/// without touching the process environment.
+fn find_on_path_in(path_var: &str, binary: &str) -> Option<String> {
     let sep = if cfg!(windows) { ';' } else { ':' };
-    let suffixes: &[&str] = if cfg!(windows) {
-        &["", ".exe", ".cmd", ".bat"]
-    } else {
-        &[""]
-    };
-    for dir in path.split(sep) {
-        for suffix in suffixes {
-            let candidate = std::path::Path::new(dir).join(format!("{}{}", binary, suffix));
-            if candidate.exists() {
+    for dir in path_var.split(sep).filter(|dir| !dir.is_empty()) {
+        for suffix in exe_suffixes() {
+            let candidate = std::path::Path::new(dir).join(format!("{binary}{suffix}"));
+            if is_executable_file(&candidate) {
                 return Some(candidate.to_string_lossy().into_owned());
             }
         }
     }
     None
+}
+
+/// Executable-name suffixes to try, most specific first. On Windows the bare
+/// name comes last so an unrelated extensionless file cannot shadow `foo.exe`
+/// (`CreateProcess` would not run it anyway); Unix names carry no suffix.
+fn exe_suffixes() -> &'static [&'static str] {
+    if cfg!(windows) {
+        &[".exe", ".cmd", ".bat", ""]
+    } else {
+        &[""]
+    }
+}
+
+/// Is `path` a regular file the OS would execute? Symlinks are followed, so a
+/// `/usr/bin/python3 -> python3.12` chain still matches.
+#[cfg(unix)]
+fn is_executable_file(path: &std::path::Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::metadata(path)
+        .map(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
+}
+
+/// Windows has no execute bit; spawnability is decided by the file extension,
+/// which [`exe_suffixes`] already constrains.
+#[cfg(windows)]
+fn is_executable_file(path: &std::path::Path) -> bool {
+    path.is_file()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+
+    /// A throwaway directory of PATH candidates, removed on drop.
+    struct Sandbox(PathBuf);
+    impl Sandbox {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!("insh-path-{tag}-{}", std::process::id()));
+            let _ = fs::remove_dir_all(&dir);
+            fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+        fn write_executable(&self, name: &str) {
+            let path = self.0.join(name);
+            fs::write(&path, b"#!/bin/sh\n").unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+            }
+        }
+    }
+    impl Drop for Sandbox {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[cfg(unix)]
+    fn make_non_executable(path: &std::path::Path) {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o644)).unwrap();
+    }
+
+    /// Join directories into a PATH string with the platform's separator.
+    fn path_var(dirs: &[&std::path::Path]) -> String {
+        let sep = if cfg!(windows) { ';' } else { ':' };
+        dirs.iter()
+            .map(|dir| dir.to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+            .join(&sep.to_string())
+    }
+
+    /// A directory or a non-executable file earlier on PATH must not shadow
+    /// the real binary further down (issue #60).
+    #[test]
+    fn only_an_executable_regular_file_is_a_match() {
+        let dir = Sandbox::new("shadow");
+        let real = Sandbox::new("real");
+        real.write_executable("prog");
+
+        // A directory named like the binary.
+        fs::create_dir_all(dir.0.join("prog")).unwrap();
+        assert_eq!(
+            find_on_path_in(&path_var(&[&dir.0, &real.0]), "prog"),
+            Some(real.0.join("prog").to_string_lossy().into_owned())
+        );
+
+        // A non-executable regular file named like the binary (Unix only:
+        // Windows has no execute bit to check).
+        #[cfg(unix)]
+        {
+            let plain_dir = Sandbox::new("plain");
+            let plain = plain_dir.0.join("prog");
+            fs::write(&plain, b"not a program").unwrap();
+            make_non_executable(&plain);
+            assert_eq!(
+                find_on_path_in(&path_var(&[&plain_dir.0, &real.0]), "prog"),
+                Some(real.0.join("prog").to_string_lossy().into_owned())
+            );
+        }
+
+        // The executable candidate itself is still found.
+        assert_eq!(
+            find_on_path_in(&path_var(&[&real.0]), "prog"),
+            Some(real.0.join("prog").to_string_lossy().into_owned())
+        );
+    }
+
+    /// An empty PATH element means "the current directory" in POSIX — exactly
+    /// the resolution an autocomplete wrapper must not perform.
+    #[test]
+    fn empty_path_elements_are_skipped() {
+        let dir = Sandbox::new("empty");
+        dir.write_executable("prog");
+        // Leading empty element: nothing may be resolved relative to the CWD,
+        // so only the absolute entry is consulted.
+        let path = path_var(&[std::path::Path::new(""), &dir.0]);
+        assert_eq!(
+            find_on_path_in(&path, "prog"),
+            Some(dir.0.join("prog").to_string_lossy().into_owned())
+        );
+        // Nothing but empty elements: no match, never a relative path.
+        assert_eq!(
+            find_on_path_in(&path_var(&[Path::new(""), Path::new("")]), "prog"),
+            None
+        );
+        assert_eq!(find_on_path_in("", "prog"), None);
+    }
+
+    /// On Windows an extensionless file must be tried after `foo.exe`, or a
+    /// stray download named `coreutils` disables coreutils detection.
+    #[test]
+    fn the_bare_name_is_the_last_windows_suffix() {
+        let suffixes = exe_suffixes();
+        if cfg!(windows) {
+            assert_eq!(suffixes, [".exe", ".cmd", ".bat", ""]);
+        } else {
+            assert_eq!(suffixes, [""]);
+        }
+    }
 }
