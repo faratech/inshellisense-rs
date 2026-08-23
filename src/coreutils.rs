@@ -85,17 +85,16 @@ fn list_utils(binary: &Path) -> Option<Vec<String>> {
         }
     }
 
-    let text = run_capture(binary, &["--list"])?;
+    let Probe::Output(text) = run_capture(binary, &["--list"]) else {
+        return None;
+    };
     let utils = parse_list(&text);
     if utils.is_empty() {
         // Not a uutils multi-call binary.
         return None;
     }
     if let Some(path) = &cache {
-        if let Some(parent) = path.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        let _ = std::fs::write(path, &text);
+        persist(path, text.as_bytes());
     }
     Some(utils)
 }
@@ -110,6 +109,56 @@ fn parse_list(text: &str) -> Vec<String> {
     utils.sort();
     utils.dedup();
     utils
+}
+
+/// Persist `bytes` to `path`, creating parent directories as needed.
+///
+/// The cache is written while a completion is already running, so a plain
+/// truncate-and-write could leave torn content behind if the process is killed
+/// or the disk fills mid-write — and readers would then serve that fragment as
+/// authoritative until the binary's fingerprint changed. Write to a sibling
+/// temp file and rename instead: a reader sees either the previous content or
+/// the complete new one. Best-effort; the cache can always be rebuilt.
+fn persist(path: &Path, bytes: &[u8]) {
+    let Some(parent) = path.parent() else {
+        return;
+    };
+    let Some(name) = path.file_name() else {
+        return;
+    };
+    if std::fs::create_dir_all(parent).is_err() {
+        return;
+    }
+    // The pid keeps two concurrent `is` processes from writing the same temp
+    // file at once.
+    let tmp = parent.join(format!(
+        "{}.{}.tmp",
+        name.to_string_lossy(),
+        std::process::id()
+    ));
+    if std::fs::write(&tmp, bytes).is_ok() && std::fs::rename(&tmp, path).is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+}
+
+/// Answer `owns()` for a probe verdict, remembering it under `cache` only when
+/// the verdict was actually measured.
+///
+/// A probe that came up empty — a timeout above all, which is exactly what a
+/// cold start on a machine with an antivirus produces — says nothing about
+/// which implementation the binary on PATH is. Caching that as
+/// "not ours" would disable option augmentation for every following
+/// invocation until the coreutils binary's fingerprint changed.
+fn remember(cache: Option<&Path>, resolved: &str, verdict: Option<bool>) -> bool {
+    match verdict {
+        Some(owned) => {
+            if let Some(path) = cache {
+                persist(path, format!("{resolved}\n{}", u8::from(owned)).as_bytes());
+            }
+            owned
+        }
+        None => false,
+    }
 }
 
 /// `~/.inshellisense/coreutils/<fingerprint>/`, keyed by the binary's identity
@@ -140,32 +189,56 @@ fn cache_dir(binary: &Path) -> Option<PathBuf> {
     )
 }
 
-/// Run `binary <args>` and capture stdout, bounded by `PROBE_TIMEOUT`.
-fn run_capture(binary: &Path, args: &[&str]) -> Option<String> {
-    let mut child = Command::new(binary)
+/// Run `binary <args>` and capture stdout, bounded by [`PROBE_TIMEOUT`].
+fn run_capture(binary: &Path, args: &[&str]) -> Probe {
+    run_capture_within(binary, args, PROBE_TIMEOUT)
+}
+
+/// The outcome of one probe.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Probe {
+    /// Complete stdout from a child that finished within the budget.
+    Output(String),
+    /// The child outlived the budget and was killed. Whatever that says about
+    /// the binary, it is transient — a cold cache, a scanning antivirus — and
+    /// must not be remembered as an answer about the implementation.
+    Timeout,
+    /// The child could not be spawned or its output could not be read.
+    Failed,
+}
+
+fn run_capture_within(binary: &Path, args: &[&str], timeout: Duration) -> Probe {
+    let mut child = match Command::new(binary)
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .ok()?;
-    let mut stdout = child.stdout.take()?;
+    {
+        Ok(child) => child,
+        Err(_) => return Probe::Failed,
+    };
+    let Some(mut stdout) = child.stdout.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Probe::Failed;
+    };
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let mut buf = Vec::new();
         let _ = std::io::Read::read_to_end(&mut stdout, &mut buf);
         let _ = tx.send(buf);
     });
-    let bytes = match rx.recv_timeout(PROBE_TIMEOUT) {
+    let bytes = match rx.recv_timeout(timeout) {
         Ok(bytes) => bytes,
         Err(_) => {
             let _ = child.kill();
             let _ = child.wait();
-            return None;
+            return Probe::Timeout;
         }
     };
     let _ = child.wait();
-    Some(String::from_utf8_lossy(&bytes).into_owned())
+    Probe::Output(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 impl Coreutils {
@@ -221,26 +294,25 @@ impl Coreutils {
             return flag.trim() == "1";
         }
 
-        let owned = self.same_implementation(Path::new(&resolved), util);
-        if let Some(path) = &cache {
-            if let Some(parent) = path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let _ = std::fs::write(path, format!("{resolved}\n{}", u8::from(owned)));
-        }
-        owned
+        remember(
+            cache.as_deref(),
+            &resolved,
+            self.same_implementation(Path::new(&resolved), util),
+        )
     }
 
-    fn same_implementation(&self, resolved: &Path, util: &str) -> bool {
-        let on_path = run_capture(resolved, &["--version"]);
-        let ours = run_capture(&self.binary, &[util, "--version"]);
-        match (on_path, ours) {
-            (Some(a), Some(b)) => {
-                let a = first_line(&a);
-                !a.is_empty() && a == first_line(&b)
-            }
-            _ => false,
-        }
+    /// Did the binary on PATH print the same version banner as this build for
+    /// `util`? `None` when either probe produced no output — a timed-out or
+    /// failed probe is not evidence that the implementations differ.
+    fn same_implementation(&self, resolved: &Path, util: &str) -> Option<bool> {
+        let Probe::Output(on_path) = run_capture(resolved, &["--version"]) else {
+            return None;
+        };
+        let Probe::Output(ours) = run_capture(&self.binary, &[util, "--version"]) else {
+            return None;
+        };
+        let banner = first_line(&on_path);
+        Some(!banner.is_empty() && banner == first_line(&ours))
     }
 
     /// Add every option the installed binary accepts that `spec` does not
@@ -278,16 +350,20 @@ impl Coreutils {
         }
 
         // Go through the multi-call binary rather than the per-utility
-        // hardlink: the hardlinks may not be on PATH.
-        let help = run_capture(&self.binary, &[util, "--help"])?;
+        // hardlink: the hardlinks may not be on PATH. Nothing captured — a
+        // timeout, or an empty banner — yields no spec and caches nothing,
+        // so the next invocation probes afresh instead of serving a stub.
+        let Probe::Output(help) = run_capture(&self.binary, &[util, "--help"]) else {
+            return None;
+        };
+        if help.trim().is_empty() {
+            return None;
+        }
         let spec = parse_help(util, &help);
-        if let Some(path) = &cache {
-            if let Some(parent) = path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            if let Ok(json) = serde_json::to_vec(&spec) {
-                let _ = std::fs::write(path, json);
-            }
+        if let Some(path) = &cache
+            && let Ok(json) = serde_json::to_vec(&spec)
+        {
+            persist(path, &json);
         }
         Some(spec)
     }
@@ -360,6 +436,7 @@ pub fn parse_help(name: &str, help: &str) -> Subcommand {
     let mut section = Section::Preamble;
     let mut options: Vec<Opt> = Vec::new();
     let mut usage = String::new();
+    let mut option_indent: Option<usize> = None;
 
     for line in help.lines() {
         let trimmed = line.trim();
@@ -397,7 +474,11 @@ pub fn parse_help(name: &str, help: &str) -> Subcommand {
                     section = Section::Other;
                     continue;
                 }
-                if trimmed.starts_with('-') {
+                if starts_option_line(line, option_indent) {
+                    let indent = indent_of(line);
+                    if option_indent.is_none_or(|seen| indent < seen) {
+                        option_indent = Some(indent);
+                    }
                     if let Some(opt) = parse_option_line(trimmed) {
                         options.push(opt);
                     }
@@ -421,6 +502,65 @@ enum Section {
     Other,
 }
 
+/// Does `line` begin a new option rather than continue the previous one?
+///
+/// Wrapped descriptions routinely start with a dash — uutils `cp` continues
+/// `--remove-destination` with "`--force). On Windows, …`" and `pr` continues
+/// `--sep-string` with "`-J and \`<space>\``" — so "starts with -" is not
+/// enough. A real option line leads with a token shaped like a flag and sits
+/// at (or near) the column the section's other option lines use: prose hangs
+/// deeper, under the description column.
+fn starts_option_line(line: &str, option_indent: Option<usize>) -> bool {
+    // `-c, --check` leads with `-c,`; the comma belongs to the flag.
+    let token = line
+        .split([',', ' ', '\t'])
+        .find(|t| !t.is_empty())
+        .unwrap_or("");
+    is_flag_spec(token)
+        && option_indent.is_none_or(|seen| indent_of(line) <= seen + OPTION_INDENT_SLACK)
+}
+
+/// How much deeper than the shallowest option line an option may still start:
+/// GNU/clap pad long-only flags to `  -x, ` width (2 → 6).
+const OPTION_INDENT_SLACK: usize = 4;
+
+fn indent_of(line: &str) -> usize {
+    line.len() - line.trim_start().len()
+}
+
+/// Is `token` shaped like a flag (`-x`, `--long`, `--multi-word`), possibly
+/// with a value part attached? Prose fragments (`--force).`) are not.
+fn is_flag_spec(token: &str) -> bool {
+    let Some(body) = token.strip_prefix("--").or_else(|| token.strip_prefix('-')) else {
+        return false;
+    };
+    // The flag name ends at a value delimiter; what follows is the value
+    // (`=<SIZE>`, `[=<WHEN>]`) and is judged by `is_value_placeholder`.
+    let name = body.split(['=', '[', '<', ' ']).next().unwrap_or("");
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(first) if first.is_ascii_alphanumeric() => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+/// Is `value` a placeholder naming the option's argument (`<file>`,
+/// `[=<when>]`, `SIZE`) rather than the start of a sentence that happens to
+/// follow the flag ("On Windows", "and `<space>`")?
+fn is_value_placeholder(value: &str) -> bool {
+    let value = value.trim().trim_start_matches('=');
+    if value.starts_with('<') || value.starts_with('[') {
+        return true;
+    }
+    // GNU style writes bare all-caps placeholders: `-S STRING`, `-i LO-HI`.
+    let word = value.split_whitespace().next().unwrap_or("");
+    !word.is_empty()
+        && word
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || c == '_' || c == '-' || c.is_ascii_digit())
+}
+
 /// `-l, --length <length>  digest length in bits` → names, value, description.
 fn parse_option_line(line: &str) -> Option<Opt> {
     // The description begins at the first run of two or more spaces.
@@ -438,11 +578,13 @@ fn parse_option_line(line: &str) -> Option<Opt> {
         }
         // `--length <length>`, `--block-size=<SIZE>`, `--hyperlink[=<WHEN>]`
         let (flag, value) = split_flag(token);
-        if !flag.starts_with('-') {
+        if !is_flag_spec(flag) {
             continue;
         }
         names.push(flag.to_string());
-        if let Some(value) = value {
+        if let Some(value) = value
+            && is_value_placeholder(value)
+        {
             // A bracketed value is optional (`--color[=<when>]`). Getting this
             // wrong would make the resolver eat the following filename as the
             // option's value.
@@ -779,5 +921,209 @@ Options:
     fn cache_filenames_are_sanitized() {
         assert_eq!(sanitize("["), "_");
         assert_eq!(sanitize("sha256sum"), "sha256sum");
+    }
+
+    /// Real uutils 0.10 `cp --help` output: the `--remove-destination`
+    /// description wraps onto a line starting with "`--force).`", which used
+    /// to be parsed as an option named `--force).` requiring the value "On
+    /// Windows" — and persisted into the cache.
+    const CP: &str = "\
+Usage: cp [OPTION]... [-T] SOURCE DEST
+
+Options:
+  -t, --target-directory <target-directory>
+          copy all SOURCE arguments into target-directory
+  -f, --force
+          if an existing destination file cannot be opened, remove it and try again (this option is
+          ignored when the -n option is also used). Currently not implemented for Windows.
+      --remove-destination
+          remove each existing destination file before attempting to open it (contrast with
+          --force). On Windows, currently only works for writeable files.
+      --backup[=<CONTROL>]
+          make a backup of each existing destination file
+";
+
+    /// Real uutils 0.10 `pr --help` output: the `--sep-string` description
+    /// wraps onto "`-J and \`<space>\``", which used to manufacture a second,
+    /// value-taking `-J` that shadowed the real one.
+    const PR: &str = r#"Options:
+  -S, --sep-string [<string>]           separate columns by STRING,
+                                                        without -S: Default separator `<TAB>` with
+                                                        -J and `<space>`
+                                                        otherwise (same as -S" "), no effect on
+                                                        column options
+  -J                                    merge full lines, turns off -W line truncation, no column
+                                                        alignment, --sep-string[=STRING] sets
+                                                        separators
+      --help                            Print help information
+"#;
+
+    /// A wrapped description that begins with a dash is not an option (#57).
+    #[test]
+    fn wrapped_prose_starting_with_a_dash_is_not_an_option() {
+        let spec = parse_help("cp", CP);
+        let names: Vec<&str> = spec
+            .options
+            .iter()
+            .flat_map(|o| o.names.iter().map(String::as_str))
+            .collect();
+        assert!(
+            names.iter().all(|name| !name.contains([')', '.'])),
+            "manufactured option from wrapped prose: {names:?}"
+        );
+        // The prose stays where it belongs — in the description it continues.
+        let remove = spec
+            .options
+            .iter()
+            .find(|o| o.names.contains(&"--remove-destination".to_string()))
+            .unwrap();
+        assert!(
+            remove
+                .description
+                .as_deref()
+                .unwrap_or_default()
+                .ends_with("--force). On Windows, currently only works for writeable files.")
+        );
+    }
+
+    #[test]
+    fn cp_options_keep_their_values_and_defaults() {
+        let spec = parse_help("cp", CP);
+        let force = spec
+            .options
+            .iter()
+            .find(|o| o.names.contains(&"--force".to_string()))
+            .unwrap();
+        assert!(force.args.is_empty(), "--force takes no value");
+
+        let backup = spec
+            .options
+            .iter()
+            .find(|o| o.names.contains(&"--backup".to_string()))
+            .unwrap();
+        assert_eq!(backup.args[0].name.as_deref(), Some("CONTROL"));
+        assert!(backup.args[0].is_optional);
+    }
+
+    #[test]
+    fn a_mid_sentence_flag_mention_does_not_shadow_the_real_option() {
+        let spec = parse_help("pr", PR);
+        let js: Vec<&Opt> = spec
+            .options
+            .iter()
+            .filter(|o| o.names.contains(&"-J".to_string()))
+            .collect();
+        assert_eq!(js.len(), 1, "one -J, not the sentence fragment");
+        assert!(js[0].args.is_empty(), "-J takes no value");
+        assert_eq!(
+            js[0].description.as_deref(),
+            Some(
+                "merge full lines, turns off -W line truncation, no column alignment, --sep-string[=STRING] sets separators"
+            )
+        );
+    }
+
+    /// GNU-style bare uppercase placeholders still mark a value-taking option.
+    #[test]
+    fn bare_uppercase_placeholders_take_a_value() {
+        assert!(is_value_placeholder("<FILE>"));
+        assert!(is_value_placeholder("[=<WHEN>]"));
+        assert!(is_value_placeholder("=<SIZE>"));
+        assert!(is_value_placeholder("SIZE"));
+        assert!(!is_value_placeholder("and `<space>`"));
+        assert!(!is_value_placeholder("On Windows"));
+    }
+
+    #[test]
+    fn flag_shapes_are_distinguished_from_prose() {
+        assert!(is_flag_spec("-c"));
+        assert!(is_flag_spec("-J"));
+        assert!(is_flag_spec("--all"));
+        assert!(is_flag_spec("--sep-string"));
+        assert!(is_flag_spec("--hyperlink[=<WHEN>]"));
+        assert!(is_flag_spec("--block-size=<SIZE>"));
+        assert!(!is_flag_spec("--force)."));
+        assert!(!is_flag_spec("--"));
+        assert!(!is_flag_spec("-S\""));
+        assert!(!is_flag_spec("hyperlink"));
+    }
+
+    /// A crash mid-write must never leave torn content behind that a reader
+    /// would take as authoritative: the payload lands via temp file + rename
+    /// (#69).
+    #[test]
+    fn cached_files_are_written_atomically() {
+        let dir = std::env::temp_dir().join(format!("insh-cache-{}", std::process::id()));
+        let path = dir.join("fp").join("list.txt");
+        persist(&path, b"ls\n");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "ls\n");
+
+        // Replacing existing content works, and no temp file survives.
+        persist(&path, b"ls\ncat\n");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "ls\ncat\n");
+        let leftovers = std::fs::read_dir(path.parent().unwrap()).unwrap().count();
+        assert_eq!(leftovers, 1, "temp file left behind");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A verdict that was not measured must not be cached: a probe that timed
+    /// out would otherwise be remembered forever as owns() == false, disabling
+    /// option augmentation until the coreutils binary changed (#70).
+    #[test]
+    fn an_unmeasured_verdict_is_not_cached() {
+        let dir = std::env::temp_dir().join(format!("insh-owns-{}", std::process::id()));
+        let path = dir.join("owned").join("ls");
+        persist(&path, b"/usr/bin/ls\n1");
+
+        // No verdict: the previous measurement stays on disk and is untouched.
+        assert!(!remember(Some(&path), "/usr/bin/ls", None));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "/usr/bin/ls\n1");
+
+        // A real measurement, in either direction, is recorded.
+        assert!(!remember(Some(&path), "/usr/bin/ls", Some(false)));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "/usr/bin/ls\n0");
+        assert!(remember(Some(&path), "/usr/bin/ls", Some(true)));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "/usr/bin/ls\n1");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Probes that cannot spawn yield no verdict at all.
+    #[test]
+    fn a_failed_probe_yields_no_verdict() {
+        let cu = Coreutils {
+            binary: PathBuf::from("/nonexistent/coreutils"),
+            utils: vec!["ls".into()],
+        };
+        assert_eq!(
+            cu.same_implementation(Path::new("/nonexistent/ls"), "ls"),
+            None
+        );
+    }
+
+    /// The timeout is distinguishable from a completed probe — that
+    /// distinction is what keeps it out of the cache.
+    #[cfg(unix)]
+    #[test]
+    fn a_slow_probe_reports_a_timeout() {
+        let dir = std::env::temp_dir().join(format!("insh-probe-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let script = dir.join("slow");
+        std::fs::write(
+            &script,
+            "#!/bin/sh\nif [ \"$1\" = fast ]; then echo banner; else sleep 5; fi\n",
+        )
+        .unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        assert_eq!(
+            run_capture_within(&script, &["slow"], Duration::from_millis(100)),
+            Probe::Timeout
+        );
+        assert_eq!(
+            run_capture_within(&script, &["fast"], Duration::from_millis(5000)),
+            Probe::Output("banner\n".into())
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
