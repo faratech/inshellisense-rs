@@ -92,10 +92,7 @@ fn list_utils(binary: &Path) -> Option<Vec<String>> {
         return None;
     }
     if let Some(path) = &cache {
-        if let Some(parent) = path.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        let _ = std::fs::write(path, &text);
+        persist(path, text.as_bytes());
     }
     Some(utils)
 }
@@ -110,6 +107,36 @@ fn parse_list(text: &str) -> Vec<String> {
     utils.sort();
     utils.dedup();
     utils
+}
+
+/// Persist `bytes` to `path`, creating parent directories as needed.
+///
+/// The cache is written while a completion is already running, so a plain
+/// truncate-and-write could leave torn content behind if the process is killed
+/// or the disk fills mid-write — and readers would then serve that fragment as
+/// authoritative until the binary's fingerprint changed. Write to a sibling
+/// temp file and rename instead: a reader sees either the previous content or
+/// the complete new one. Best-effort; the cache can always be rebuilt.
+fn persist(path: &Path, bytes: &[u8]) {
+    let Some(parent) = path.parent() else {
+        return;
+    };
+    let Some(name) = path.file_name() else {
+        return;
+    };
+    if std::fs::create_dir_all(parent).is_err() {
+        return;
+    }
+    // The pid keeps two concurrent `is` processes from writing the same temp
+    // file at once.
+    let tmp = parent.join(format!(
+        "{}.{}.tmp",
+        name.to_string_lossy(),
+        std::process::id()
+    ));
+    if std::fs::write(&tmp, bytes).is_ok() && std::fs::rename(&tmp, path).is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
 }
 
 /// `~/.inshellisense/coreutils/<fingerprint>/`, keyed by the binary's identity
@@ -223,10 +250,7 @@ impl Coreutils {
 
         let owned = self.same_implementation(Path::new(&resolved), util);
         if let Some(path) = &cache {
-            if let Some(parent) = path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let _ = std::fs::write(path, format!("{resolved}\n{}", u8::from(owned)));
+            persist(path, format!("{resolved}\n{}", u8::from(owned)).as_bytes());
         }
         owned
     }
@@ -281,13 +305,10 @@ impl Coreutils {
         // hardlink: the hardlinks may not be on PATH.
         let help = run_capture(&self.binary, &[util, "--help"])?;
         let spec = parse_help(util, &help);
-        if let Some(path) = &cache {
-            if let Some(parent) = path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            if let Ok(json) = serde_json::to_vec(&spec) {
-                let _ = std::fs::write(path, json);
-            }
+        if let Some(path) = &cache
+            && let Ok(json) = serde_json::to_vec(&spec)
+        {
+            persist(path, &json);
         }
         Some(spec)
     }
@@ -970,5 +991,23 @@ Options:
         assert!(!is_flag_spec("--"));
         assert!(!is_flag_spec("-S\""));
         assert!(!is_flag_spec("hyperlink"));
+    }
+
+    /// A crash mid-write must never leave torn content behind that a reader
+    /// would take as authoritative: the payload lands via temp file + rename
+    /// (#69).
+    #[test]
+    fn cached_files_are_written_atomically() {
+        let dir = std::env::temp_dir().join(format!("insh-cache-{}", std::process::id()));
+        let path = dir.join("fp").join("list.txt");
+        persist(&path, b"ls\n");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "ls\n");
+
+        // Replacing existing content works, and no temp file survives.
+        persist(&path, b"ls\ncat\n");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "ls\ncat\n");
+        let leftovers = std::fs::read_dir(path.parent().unwrap()).unwrap().count();
+        assert_eq!(leftovers, 1, "temp file left behind");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
