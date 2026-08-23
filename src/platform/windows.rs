@@ -5,8 +5,7 @@
 
 #![cfg(windows)]
 
-use super::keys::{Modifiers, decode_utf16_unit, vkey_sequence};
-use super::keys::{VK_BACK, VK_ESCAPE, VK_RETURN, VK_TAB};
+use super::keys::{KeyEvent, StdinKind, decode_key_event};
 use super::{PtyHandle, PtyResult, RawDescriptor};
 use std::mem;
 use std::ptr;
@@ -18,6 +17,41 @@ use windows_sys::Win32::System::Threading::*;
 
 const PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE: usize = 0x00020016;
 
+/// Probe what stdin is. A console input buffer is the only handle kind
+/// `GetConsoleMode` succeeds on, which is exactly the kind
+/// `ReadConsoleInputW` needs; everything else is classified for the byte
+/// relay (#50).
+fn classify_stdin(handle: HANDLE) -> StdinKind {
+    unsafe {
+        let valid = !handle.is_null() && handle != INVALID_HANDLE_VALUE;
+        let mut mode: u32 = 0;
+        let is_console = valid && GetConsoleMode(handle, &mut mode) != 0;
+        let file_type = if valid {
+            GetFileType(handle)
+        } else {
+            FILE_TYPE_UNKNOWN
+        };
+        StdinKind::from_parts(is_console, valid, file_type)
+    }
+}
+
+/// Releases a process thread attribute list on drop.
+///
+/// `InitializeProcThreadAttributeList` allocates internal structures that
+/// MSDN requires be released with `DeleteProcThreadAttributeList` before the
+/// backing memory is freed. Nothing called it, so every spawn leaked — on the
+/// success path and on both failure paths after initialization succeeded
+/// (#75).
+struct AttrListGuard {
+    list: LPPROC_THREAD_ATTRIBUTE_LIST,
+}
+
+impl Drop for AttrListGuard {
+    fn drop(&mut self) {
+        unsafe { DeleteProcThreadAttributeList(self.list) };
+    }
+}
+
 pub struct WindowsPty {
     hpc: HPCON,
     child_process: HANDLE,
@@ -25,6 +59,10 @@ pub struct WindowsPty {
     pty_input_write: HANDLE,
     pty_output_read: HANDLE,
     stdin_handle: HANDLE,
+    /// How stdin must be read — console events, a byte relay, or nothing (#50).
+    stdin_kind: StdinKind,
+    /// Set once the byte relay hits EOF/error so poll stops signaling it.
+    stdin_eof: std::cell::Cell<bool>,
     /// High half of a UTF-16 surrogate pair, awaiting its low half.
     pending_surrogate: std::cell::Cell<u16>,
 }
@@ -77,7 +115,7 @@ impl WindowsPty {
             let mut attr_size: usize = 0;
             InitializeProcThreadAttributeList(ptr::null_mut(), 1, 0, &mut attr_size);
             let attr_buf = vec![0u8; attr_size];
-            let attr_list = attr_buf.as_ptr() as *mut LPPROC_THREAD_ATTRIBUTE_LIST;
+            let attr_list: LPPROC_THREAD_ATTRIBUTE_LIST = attr_buf.as_ptr() as _;
 
             if InitializeProcThreadAttributeList(attr_list as _, 1, 0, &mut attr_size) == 0 {
                 ClosePseudoConsole(hpc);
@@ -85,6 +123,11 @@ impl WindowsPty {
                 CloseHandle(pty_output_read);
                 return Err("InitializeProcThreadAttributeList failed".into());
             }
+
+            // Initialized: the internals must be deleted before `attr_buf`
+            // drops. Declared after it, so the guard drops first on every
+            // path out of this scope (both error returns and success).
+            let _attr_guard = AttrListGuard { list: attr_list };
 
             if UpdateProcThreadAttribute(
                 attr_list as _,
@@ -119,27 +162,7 @@ impl WindowsPty {
                 cmd_line.encode_utf16().chain(std::iter::once(0)).collect();
 
             // Build environment block (null-separated, double-null terminated).
-            // Windows uses the FIRST occurrence of a duplicate key, so
-            // overrides must come before inherited vars. We use a BTreeMap
-            // with uppercased keys (Windows env vars are case-insensitive)
-            // to deduplicate, and the sorted output satisfies Windows'
-            // expectation of a sorted environment block.
-            let mut env_map = std::collections::BTreeMap::<String, (String, String)>::new();
-            // Overrides first — these must win.
-            for (k, v) in env {
-                env_map.insert(k.to_uppercase(), (k.clone(), v.clone()));
-            }
-            // Inherit parent vars only if not already overridden.
-            for (k, v) in std::env::vars() {
-                env_map.entry(k.to_uppercase()).or_insert((k, v));
-            }
-            let mut env_block: Vec<u16> = Vec::new();
-            for (_upper, (k, v)) in &env_map {
-                let entry = format!("{}={}", k, v);
-                env_block.extend(entry.encode_utf16());
-                env_block.push(0);
-            }
-            env_block.push(0); // double-null terminator
+            let env_block = build_env_block(env);
 
             let mut si: STARTUPINFOEXW = mem::zeroed();
             si.StartupInfo.cb = mem::size_of::<STARTUPINFOEXW>() as u32;
@@ -172,6 +195,7 @@ impl WindowsPty {
             }
 
             let stdin_handle = GetStdHandle(STD_INPUT_HANDLE);
+            let stdin_kind = classify_stdin(stdin_handle);
 
             Ok(Self {
                 hpc,
@@ -180,10 +204,160 @@ impl WindowsPty {
                 pty_input_write,
                 pty_output_read,
                 stdin_handle,
+                stdin_kind,
+                stdin_eof: std::cell::Cell::new(false),
                 pending_surrogate: std::cell::Cell::new(0),
             })
         }
     }
+
+    /// Byte relay for stdin that is not a console input buffer: a pipe
+    /// (mintty / standalone Git Bash), a redirected file, or a device. Bytes
+    /// are forwarded verbatim into the PTY, which is exactly what those
+    /// sources carry — already-encoded keys, not console events (#50).
+    fn read_stdin_bytes(&self, buf: &mut [u8]) -> isize {
+        unsafe {
+            if self.stdin_eof.get() {
+                return -1;
+            }
+            if self.stdin_kind == StdinKind::Pipe {
+                // Pipes signal readiness even without data, so a plain
+                // blocking ReadFile could stall the whole event loop waiting
+                // for keystrokes that have not arrived yet.
+                let mut avail: u32 = 0;
+                if PeekNamedPipe(
+                    self.stdin_handle,
+                    ptr::null_mut(),
+                    0,
+                    ptr::null_mut(),
+                    &mut avail,
+                    ptr::null_mut(),
+                ) == 0
+                {
+                    // Broken pipe — nothing more will ever arrive.
+                    self.stdin_eof.set(true);
+                    return -1;
+                }
+                if avail == 0 {
+                    return 0;
+                }
+            }
+            let mut read: u32 = 0;
+            let ok = ReadFile(
+                self.stdin_handle,
+                buf.as_mut_ptr(),
+                buf.len() as u32,
+                &mut read,
+                ptr::null_mut(),
+            );
+            if ok == 0 || read == 0 {
+                // Error or EOF: latch it so poll() drops stdin from its wait
+                // set instead of reporting readiness nothing can consume.
+                self.stdin_eof.set(true);
+                return -1;
+            }
+            read as isize
+        }
+    }
+
+    /// The console-input-buffer path: KEY_EVENT records to VT bytes.
+    fn read_console_events(&self, buf: &mut [u8]) -> isize {
+        unsafe {
+            // Read console input events directly — no relay thread/pipe.
+            // ReadConsoleInputW returns individual INPUT_RECORD events
+            // regardless of console mode, so it never blocks on line
+            // input. Non-key events are consumed and discarded.
+            let mut total: usize = 0;
+            loop {
+                // Stop if we'd overflow the buffer.
+                if total + 16 > buf.len() {
+                    break;
+                }
+                // Check for pending events before reading.
+                let mut pending: u32 = 0;
+                if GetNumberOfConsoleInputEvents(self.stdin_handle, &mut pending) == 0
+                    || pending == 0
+                {
+                    break;
+                }
+                let mut rec: INPUT_RECORD = mem::zeroed();
+                let mut num_read: u32 = 0;
+                if ReadConsoleInputW(self.stdin_handle, &mut rec, 1, &mut num_read) == 0
+                    || num_read == 0
+                {
+                    break;
+                }
+                // Only process key-down events.
+                if rec.EventType != KEY_EVENT as u16 {
+                    continue;
+                }
+                let key = rec.Event.KeyEvent;
+
+                // Windows collapses auto-repeat into one record. Emitting the
+                // key once dropped every repeat but the first.
+                let repeat = key.wRepeatCount.max(1) as usize;
+
+                // Decoding lives in keys::decode_key_event so it stays
+                // unit-testable off-Windows; in particular a vk=0 record that
+                // carries a character is real text (paste / IME / unmapped
+                // characters), not synthetic noise.
+                let event = KeyEvent {
+                    key_down: key.bKeyDown,
+                    repeat_count: key.wRepeatCount,
+                    virtual_key_code: key.wVirtualKeyCode,
+                    control_key_state: key.dwControlKeyState,
+                    unicode_char: key.uChar.UnicodeChar,
+                };
+                let mut scratch = [0u8; 8];
+                let Some(bytes) = decode_key_event(&self.pending_surrogate, event, &mut scratch)
+                else {
+                    continue;
+                };
+
+                for _ in 0..repeat {
+                    if total + bytes.len() > buf.len() {
+                        break;
+                    }
+                    buf[total..total + bytes.len()].copy_from_slice(bytes);
+                    total += bytes.len();
+                }
+            }
+            if total == 0 { -1 } else { total as isize }
+        }
+    }
+}
+
+/// Build the child's environment block (null-separated, double-null
+/// terminated).
+///
+/// Windows uses the FIRST occurrence of a duplicate key, so overrides come
+/// before inherited vars. Keys are uppercased (Windows env vars are
+/// case-insensitive) to deduplicate, and the sorted output satisfies
+/// Windows' expectation of a sorted environment block.
+///
+/// Inherited variables go through `vars_os` with lossy conversion: `vars()`
+/// panics the whole process when any variable is not valid Unicode, and one
+/// stray variable in the environment must not take the wrapper down (#76).
+fn build_env_block(overrides: &[(String, String)]) -> Vec<u16> {
+    let mut env_map = std::collections::BTreeMap::<String, String>::new();
+    // Overrides first — these must win.
+    for (k, v) in overrides {
+        env_map.insert(k.to_uppercase(), v.clone());
+    }
+    // Inherit parent vars only if not already overridden.
+    for (k, v) in std::env::vars_os() {
+        let k = k.to_string_lossy().into_owned();
+        let v = v.to_string_lossy().into_owned();
+        env_map.entry(k.to_uppercase()).or_insert(v);
+    }
+    let mut env_block: Vec<u16> = Vec::new();
+    for (k, v) in &env_map {
+        let entry = format!("{}={}", k, v);
+        env_block.extend(entry.encode_utf16());
+        env_block.push(0);
+    }
+    env_block.push(0); // double-null terminator
+    env_block
 }
 
 impl PtyHandle for WindowsPty {
@@ -248,6 +422,19 @@ impl PtyHandle for WindowsPty {
             // Console input handles are signaled when ANY event (key,
             // mouse, focus, resize) is queued — read_stdin() filters for
             // key-down events via ReadConsoleInputW.
+            //
+            // stdin that cannot be read (no handle, or a relayed stream that
+            // hit EOF/error) stays out of the wait set: an invalid handle
+            // makes the whole wait fail instantly and forever, starving PTY
+            // reads until the screen freezes, and a spent file/device handle
+            // is signaled permanently, which spun one core at 100% (#50).
+            if !self.stdin_kind.pollable(self.stdin_eof.get()) {
+                return (
+                    WaitForSingleObject(self.pty_output_read, timeout_ms as u32) == WAIT_OBJECT_0,
+                    false,
+                );
+            }
+
             let handles = [self.pty_output_read, self.stdin_handle];
             let result = WaitForMultipleObjects(2, handles.as_ptr(), FALSE, timeout_ms as u32);
             match result {
@@ -258,6 +445,22 @@ impl PtyHandle for WindowsPty {
                 v if v == WAIT_OBJECT_0 + 1 => {
                     let pty_also = WaitForSingleObject(self.pty_output_read, 0) == WAIT_OBJECT_0;
                     (pty_also, true)
+                }
+                // A failing wait must degrade rather than wedge or busy-spin:
+                // fall back to waiting on the PTY alone so output keeps
+                // flowing (#50). Anything else is WAIT_TIMEOUT.
+                WAIT_FAILED => {
+                    let pty_ready = WaitForSingleObject(self.pty_output_read, timeout_ms as u32)
+                        == WAIT_OBJECT_0;
+                    if !pty_ready {
+                        // Both handles are unusable; this arm would otherwise
+                        // return instantly forever. Pause so the loop does
+                        // not burn a core while the exit path catches up.
+                        std::thread::sleep(std::time::Duration::from_millis(
+                            timeout_ms.clamp(1, 50) as u64,
+                        ));
+                    }
+                    (pty_ready, false)
                 }
                 _ => (false, false),
             }
@@ -299,86 +502,10 @@ impl PtyHandle for WindowsPty {
     }
 
     fn read_stdin(&self, buf: &mut [u8]) -> isize {
-        unsafe {
-            // Read console input events directly — no relay thread/pipe.
-            // ReadConsoleInputW returns individual INPUT_RECORD events
-            // regardless of console mode, so it never blocks on line
-            // input. Non-key events are consumed and discarded.
-            let mut total: usize = 0;
-            loop {
-                // Stop if we'd overflow the buffer.
-                if total + 16 > buf.len() {
-                    break;
-                }
-                // Check for pending events before reading.
-                let mut pending: u32 = 0;
-                if GetNumberOfConsoleInputEvents(self.stdin_handle, &mut pending) == 0
-                    || pending == 0
-                {
-                    break;
-                }
-                let mut rec: INPUT_RECORD = mem::zeroed();
-                let mut num_read: u32 = 0;
-                if ReadConsoleInputW(self.stdin_handle, &mut rec, 1, &mut num_read) == 0
-                    || num_read == 0
-                {
-                    break;
-                }
-                // Only process key-down events.
-                if rec.EventType != KEY_EVENT as u16 {
-                    continue;
-                }
-                let key = rec.Event.KeyEvent;
-                if key.bKeyDown == 0 {
-                    continue;
-                }
-                // Skip synthetic VT sequence chars injected by
-                // ENABLE_VIRTUAL_TERMINAL_INPUT (Windows Terminal's
-                // default). These have vk=0 and are terminal-generated
-                // noise, not real user keystrokes.
-                if key.wVirtualKeyCode == 0 {
-                    continue;
-                }
-
-                let mods = Modifiers::from_control_key_state(key.dwControlKeyState);
-                let ch = key.uChar.UnicodeChar;
-
-                // Keys like Backspace, Tab, Return have a non-zero
-                // UnicodeChar (0x08, 0x09, 0x0D) but need specific byte
-                // values, so resolve them by virtual key first.
-                let handled_by_vkey = matches!(
-                    key.wVirtualKeyCode,
-                    VK_BACK | VK_TAB | VK_RETURN | VK_ESCAPE
-                );
-
-                // Windows collapses auto-repeat into one record. Emitting the
-                // key once dropped every repeat but the first.
-                let repeat = key.wRepeatCount.max(1) as usize;
-
-                let mut scratch = [0u8; 8];
-                let mut utf8 = [0u8; 4];
-                let bytes: &[u8] = if ch != 0 && !handled_by_vkey {
-                    let Some(scalar) = decode_utf16_unit(&self.pending_surrogate, ch) else {
-                        continue;
-                    };
-                    let len = scalar.encode_utf8(&mut utf8).len();
-                    &utf8[..len]
-                } else {
-                    match vkey_sequence(key.wVirtualKeyCode, mods, &mut scratch) {
-                        Some(seq) => seq,
-                        None => continue,
-                    }
-                };
-
-                for _ in 0..repeat {
-                    if total + bytes.len() > buf.len() {
-                        break;
-                    }
-                    buf[total..total + bytes.len()].copy_from_slice(bytes);
-                    total += bytes.len();
-                }
-            }
-            if total == 0 { -1 } else { total as isize }
+        match self.stdin_kind {
+            StdinKind::Console => self.read_console_events(buf),
+            StdinKind::Pipe | StdinKind::Stream => self.read_stdin_bytes(buf),
+            StdinKind::None => -1,
         }
     }
 
@@ -528,4 +655,45 @@ pub fn find_git_bash() -> Option<String> {
         }
     }
     None
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+
+    fn entries(block: &[u16]) -> Vec<String> {
+        String::from_utf16_lossy(block)
+            .split('\0')
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// Overrides must win over inherited variables even though Windows
+    /// matches keys case-insensitively, and the emitted block must stay
+    /// sorted (CreateProcessW requires it).
+    #[test]
+    fn overrides_win_over_inherited_vars() {
+        // PATH exists in every Windows environment.
+        let block = build_env_block(&[("pAtH".into(), r"C:\override".into())]);
+        let all = entries(&block);
+        let path_entries: Vec<_> = all.iter().filter(|e| e.starts_with("PATH=")).collect();
+        assert_eq!(path_entries, [r"PATH=C:\override"]);
+
+        let keys: Vec<String> = all
+            .iter()
+            .map(|e| e.split('=').next().unwrap_or_default().to_uppercase())
+            .collect();
+        let mut sorted = keys.clone();
+        sorted.sort();
+        assert_eq!(keys, sorted);
+    }
+
+    /// The block is double-null terminated as CreateProcessW requires.
+    #[test]
+    fn block_is_double_null_terminated() {
+        let block = build_env_block(&[]);
+        assert_eq!(&block[block.len() - 2..], &[0, 0]);
+        assert!(!entries(&block).is_empty());
+    }
 }

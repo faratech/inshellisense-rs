@@ -12,6 +12,7 @@
 pub const VK_BACK: u16 = 0x08;
 pub const VK_TAB: u16 = 0x09;
 pub const VK_RETURN: u16 = 0x0D;
+pub const VK_SPACE: u16 = 0x20;
 pub const VK_ESCAPE: u16 = 0x1B;
 pub const VK_PRIOR: u16 = 0x21; // Page Up
 pub const VK_NEXT: u16 = 0x22; // Page Down
@@ -74,7 +75,7 @@ impl Modifiers {
 }
 
 /// `CSI 1;<mod><final>` — the xterm encoding for a modified cursor key.
-fn write_csi_modified(scratch: &mut [u8; 8], param: u8, final_byte: u8) -> usize {
+fn write_csi_modified(scratch: &mut [u8], param: u8, final_byte: u8) -> usize {
     let digits = param.to_string();
     let mut n = 0;
     for b in b"\x1b[1;" {
@@ -90,7 +91,7 @@ fn write_csi_modified(scratch: &mut [u8; 8], param: u8, final_byte: u8) -> usize
 }
 
 /// `CSI <code>~` or `CSI <code>;<mod>~` — the VT encoding for editing keys.
-fn write_csi_tilde(scratch: &mut [u8; 8], code: u8, param: Option<u8>) -> usize {
+fn write_csi_tilde(scratch: &mut [u8], code: u8, param: Option<u8>) -> usize {
     let mut n = 0;
     for b in b"\x1b[" {
         scratch[n] = *b;
@@ -113,17 +114,34 @@ fn write_csi_tilde(scratch: &mut [u8; 8], code: u8, param: Option<u8>) -> usize 
 }
 
 /// Bytes for a virtual key, honoring modifiers.
-pub fn vkey_sequence(vk: u16, mods: Modifiers, scratch: &mut [u8; 8]) -> Option<&[u8]> {
+///
+/// Every arm writes into `scratch` and returns a subslice of it, so callers
+/// can re-encode or extend the result uniformly.
+pub fn vkey_sequence(vk: u16, mods: Modifiers, scratch: &mut [u8]) -> Option<&[u8]> {
     match vk {
-        VK_BACK => Some(b"\x7f"),
+        VK_BACK => {
+            scratch[0] = 0x7f;
+            Some(&scratch[..1])
+        }
         // Shift+Tab is backtab; Ctrl+Tab has no standard sequence.
-        VK_TAB => Some(if mods.shift && !mods.ctrl {
-            &b"\x1b[Z"[..]
-        } else {
-            &b"\t"[..]
-        }),
-        VK_RETURN => Some(b"\r"),
-        VK_ESCAPE => Some(b"\x1b"),
+        VK_TAB => {
+            let n = if mods.shift && !mods.ctrl {
+                scratch[..3].copy_from_slice(b"\x1b[Z");
+                3
+            } else {
+                scratch[0] = b'\t';
+                1
+            };
+            Some(&scratch[..n])
+        }
+        VK_RETURN => {
+            scratch[0] = b'\r';
+            Some(&scratch[..1])
+        }
+        VK_ESCAPE => {
+            scratch[0] = 0x1b;
+            Some(&scratch[..1])
+        }
         VK_UP | VK_DOWN | VK_RIGHT | VK_LEFT | VK_HOME | VK_END => {
             let final_byte = match vk {
                 VK_UP => b'A',
@@ -154,18 +172,54 @@ pub fn vkey_sequence(vk: u16, mods: Modifiers, scratch: &mut [u8; 8]) -> Option<
             let n = write_csi_tilde(scratch, code, param);
             Some(&scratch[..n])
         }
-        VK_F1 => Some(b"\x1bOP"),
-        VK_F2 => Some(b"\x1bOQ"),
-        VK_F3 => Some(b"\x1bOR"),
-        VK_F4 => Some(b"\x1bOS"),
-        VK_F5 => Some(b"\x1b[15~"),
-        VK_F6 => Some(b"\x1b[17~"),
-        VK_F7 => Some(b"\x1b[18~"),
-        VK_F8 => Some(b"\x1b[19~"),
-        VK_F9 => Some(b"\x1b[20~"),
-        VK_F10 => Some(b"\x1b[21~"),
-        VK_F11 => Some(b"\x1b[23~"),
-        VK_F12 => Some(b"\x1b[24~"),
+        VK_F1 => {
+            scratch[..3].copy_from_slice(b"\x1bOP");
+            Some(&scratch[..3])
+        }
+        VK_F2 => {
+            scratch[..3].copy_from_slice(b"\x1bOQ");
+            Some(&scratch[..3])
+        }
+        VK_F3 => {
+            scratch[..3].copy_from_slice(b"\x1bOR");
+            Some(&scratch[..3])
+        }
+        VK_F4 => {
+            scratch[..3].copy_from_slice(b"\x1bOS");
+            Some(&scratch[..3])
+        }
+        VK_F5 => {
+            scratch[..6].copy_from_slice(b"\x1b[15~");
+            Some(&scratch[..6])
+        }
+        VK_F6 => {
+            scratch[..6].copy_from_slice(b"\x1b[17~");
+            Some(&scratch[..6])
+        }
+        VK_F7 => {
+            scratch[..6].copy_from_slice(b"\x1b[18~");
+            Some(&scratch[..6])
+        }
+        VK_F8 => {
+            scratch[..6].copy_from_slice(b"\x1b[19~");
+            Some(&scratch[..6])
+        }
+        VK_F9 => {
+            scratch[..6].copy_from_slice(b"\x1b[20~");
+            Some(&scratch[..6])
+        }
+        VK_F10 => {
+            scratch[..6].copy_from_slice(b"\x1b[21~");
+            Some(&scratch[..6])
+        }
+        VK_F11 => {
+            scratch[..6].copy_from_slice(b"\x1b[23~");
+            Some(&scratch[..6])
+        }
+        VK_F12 => {
+            scratch[..6].copy_from_slice(b"\x1b[24~");
+            Some(&scratch[..6])
+        }
         _ => None,
     }
 }
@@ -189,6 +243,179 @@ pub fn decode_utf16_unit(pending: &std::cell::Cell<u16>, unit: u16) -> Option<ch
         return char::from_u32(cp);
     }
     char::from_u32(unit as u32)
+}
+
+/// Plain-field mirror of Win32's `KEY_EVENT_RECORD`, so the decoding below
+/// stays unit-testable off-Windows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct KeyEvent {
+    /// `bKeyDown` — non-zero on the down stroke.
+    pub key_down: i32,
+    /// `wRepeatCount`.
+    pub repeat_count: u16,
+    /// `wVirtualKeyCode`.
+    pub virtual_key_code: u16,
+    /// `dwControlKeyState`.
+    pub control_key_state: u32,
+    /// `uChar.UnicodeChar`.
+    pub unicode_char: u16,
+}
+
+/// Decode one console `KEY_EVENT` into the VT bytes to forward.
+///
+/// Returns `None` when the record produces no input. Bytes are written into
+/// `scratch` and returned as a subslice of it.
+///
+/// The rules this encodes:
+/// - Only key-down strokes produce bytes; key-up records mirror them and
+///   forwarding both doubled every keystroke.
+/// - A record carrying neither a virtual key nor a character is synthetic
+///   terminal noise (the `ENABLE_VIRTUAL_TERMINAL_INPUT` case) and is
+///   dropped (#24).
+/// - Any record that DOES carry a character emits it, including vk=0 ones:
+///   conhost synthesizes vk=0 records precisely for characters with no
+///   mapping on the active keyboard layout — pastes, IME commits, emoji —
+///   so filtering on vk==0 alone silently discarded real user text (#51).
+/// - Named keys (Backspace/Tab/Return/Escape) resolve by virtual key even
+///   when they carry a character, because they need their exact VT byte.
+/// - An Alt-held chord is prefixed with ESC — xterm's Meta encoding — whether
+///   it arrives as a character record or as a bare virtual-key record
+///   (win32-input-mode), so readline bindings like Alt+B / Alt+F work (#62).
+pub fn decode_key_event<'a>(
+    pending_surrogate: &std::cell::Cell<u16>,
+    ev: KeyEvent,
+    scratch: &'a mut [u8; 8],
+) -> Option<&'a [u8]> {
+    if ev.key_down == 0 {
+        return None;
+    }
+    let mods = Modifiers::from_control_key_state(ev.control_key_state);
+
+    // Synthetic VT-input records carry neither key nor character.
+    if ev.virtual_key_code == 0 && ev.unicode_char == 0 {
+        return None;
+    }
+
+    let named = matches!(
+        ev.virtual_key_code,
+        VK_BACK | VK_TAB | VK_RETURN | VK_ESCAPE
+    );
+    let len = if ev.unicode_char != 0 && !named {
+        if mods.ctrl && !mods.alt && !mods.shift && ev.unicode_char == u16::from(b' ') {
+            // Ctrl+Space arrives as a plain space with only LEFT_CTRL set;
+            // readline expects NUL.
+            scratch[1] = 0;
+            1
+        } else {
+            // scratch[0] stays reserved for the ESC Meta prefix below.
+            let scalar = decode_utf16_unit(pending_surrogate, ev.unicode_char)?;
+            scalar.encode_utf8(&mut scratch[1..]).len()
+        }
+    } else if let Some(seq) = vkey_sequence(ev.virtual_key_code, mods, &mut scratch[1..]) {
+        // Only the length is kept: the bytes were already written into
+        // `scratch`, which frees it for the ESC prefix below.
+        seq.len()
+    } else {
+        // No VT sequence for this virtual key (a letter or digit) and no
+        // character either — win32-input-mode key-downs look exactly like
+        // this. Recover the key's character so the chord still types (#62).
+        let ch = vkey_char(ev.virtual_key_code, mods.shift)?;
+        ch.encode_utf8(&mut scratch[1..]).len()
+    };
+
+    // Alt is Meta: xterm sends ESC before the key's bytes. Sequences that
+    // already begin with ESC (modified arrows/editing keys) carry their own
+    // modifier parameter and must not be doubled.
+    if mods.alt && scratch[1] != 0x1b {
+        scratch[0] = 0x1b;
+        Some(&scratch[..1 + len])
+    } else {
+        Some(&scratch[1..1 + len])
+    }
+}
+
+/// Character for layout-stable virtual keys.
+///
+/// Only keys whose mapping does not depend on the active keyboard layout are
+/// covered: letters (shift-aware), digits and space. Shifted punctuation and
+/// everything OEM varies per layout, so those yield None — dropping the
+/// record beats inventing the wrong character.
+pub fn vkey_char(vk: u16, shift: bool) -> Option<char> {
+    match vk {
+        VK_SPACE => Some(' '),
+        0x30..=0x39 => Some((b'0' + (vk as u8 - 0x30)) as char),
+        0x41..=0x5A => {
+            let letter = (b'a' + (vk as u8 - 0x41)) as char;
+            Some(if shift {
+                letter.to_ascii_uppercase()
+            } else {
+                letter
+            })
+        }
+        _ => None,
+    }
+}
+
+// GetFileType results (mirrored locally like the VK_* constants above so the
+// classification below stays testable off-Windows).
+pub const FILE_TYPE_UNKNOWN: u32 = 0x0000;
+pub const FILE_TYPE_DISK: u32 = 0x0001;
+pub const FILE_TYPE_CHAR: u32 = 0x0002;
+pub const FILE_TYPE_PIPE: u32 = 0x0003;
+
+/// What kind of handle stdin is, which decides how it may be read.
+///
+/// `ReadConsoleInputW` only works on a real console input buffer. When `is`
+/// is launched from mintty/Git Bash (native children get pipe stdio), from a
+/// CI job, or with `< file`, every keystroke read through the console API
+/// failed silently — output kept rendering while all typing vanished, or a
+/// permanently-signaled file handle spun the event loop. Those handles take a
+/// plain byte relay instead (#50).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum StdinKind {
+    /// Console input buffer: `ReadConsoleInputW` decodes KEY_EVENTs.
+    Console,
+    /// Pipe: `PeekNamedPipe` gates the `ReadFile` relay so the reader never
+    /// blocks on keystrokes that have not arrived yet.
+    Pipe,
+    /// Disk file or non-console character device: `ReadFile` returns
+    /// immediately, and EOF ends its usefulness.
+    Stream,
+    /// No usable stdin handle (NULL / INVALID_HANDLE_VALUE).
+    None,
+}
+
+impl StdinKind {
+    /// Classify from probe results; pure so the decision table runs in tests.
+    ///
+    /// `is_console` is the `GetConsoleMode` probe (a console input buffer is
+    /// the only handle kind it succeeds on), `handle_valid` rejects NULL and
+    /// INVALID_HANDLE_VALUE, and `file_type` is the `GetFileType` result.
+    pub fn from_parts(is_console: bool, handle_valid: bool, file_type: u32) -> Self {
+        if is_console {
+            return Self::Console;
+        }
+        if !handle_valid {
+            return Self::None;
+        }
+        match file_type {
+            FILE_TYPE_PIPE => Self::Pipe,
+            _ => Self::Stream,
+        }
+    }
+
+    /// Whether poll() should wait on stdin at all. A spent stream must leave
+    /// the wait set: file and device handles stay signaled forever, so keeping
+    /// them in reported readiness nothing could consume, ~100% CPU (#50). A
+    /// missing handle makes WaitForMultipleObjects fail outright, which starved
+    /// PTY reads until the screen froze.
+    pub fn pollable(self, eof: bool) -> bool {
+        match self {
+            Self::None => false,
+            Self::Stream => !eof,
+            Self::Console | Self::Pipe => true,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -315,5 +542,179 @@ mod tests {
         assert!(plain_down.matches(&seq(VK_DOWN, 0)));
         // ...but not by the modified one.
         assert!(!plain_down.matches(&seq(VK_DOWN, LEFT_CTRL)));
+    }
+
+    fn decode(ev: KeyEvent) -> Option<Vec<u8>> {
+        let pending = Cell::new(0u16);
+        let mut scratch = [0u8; 8];
+        decode_key_event(&pending, ev, &mut scratch).map(<[u8]>::to_vec)
+    }
+
+    fn key(vk: u16, ch: u16, state: u32) -> KeyEvent {
+        KeyEvent {
+            key_down: 1,
+            virtual_key_code: vk,
+            control_key_state: state,
+            unicode_char: ch,
+            ..KeyEvent::default()
+        }
+    }
+
+    /// Characters with no mapping on the active keyboard layout — pastes,
+    /// IME commits, CJK text — arrive from conhost as vk=0 records carrying
+    /// the character. The old unconditional vk==0 filter dropped them, so a
+    /// pasted `修复bug` reached the shell as `bug` (#51).
+    #[test]
+    fn vk0_records_carrying_text_are_emitted() {
+        // U+4FEE 修 = e4 bf ae
+        assert_eq!(decode(key(0, 0x4FEE, 0)), Some(vec![0xE4, 0xBF, 0xAE]));
+        // ASCII paste survives too (it also rides vk=0 synthesis).
+        assert_eq!(decode(key(0, b'a' as u16, 0)), Some(b"a".to_vec()));
+    }
+
+    /// A record with neither a virtual key nor a character is the synthetic
+    /// ENABLE_VIRTUAL_TERMINAL_INPUT noise the #24 fix was written for.
+    #[test]
+    fn synthetic_records_without_character_are_dropped() {
+        assert_eq!(decode(key(0, 0, 0)), None);
+    }
+
+    /// Non-BMP paste arrives as two vk=0 records; both must survive.
+    #[test]
+    fn vk0_surrogate_pairs_are_emitted() {
+        let pending = Cell::new(0u16);
+        let mut scratch = [0u8; 8];
+        assert_eq!(
+            decode_key_event(&pending, key(0, 0xD83D, 0), &mut scratch),
+            None
+        );
+        assert_eq!(
+            decode_key_event(&pending, key(0, 0xDE00, 0), &mut scratch),
+            Some("😀".as_bytes())
+        );
+    }
+
+    /// Key-up strokes and unmapped virtual keys still produce nothing.
+    #[test]
+    fn silent_records_stay_silent() {
+        let mut up = key(VK_RETURN, b'\r' as u16, 0);
+        up.key_down = 0;
+        assert_eq!(decode(up), None);
+        // A virtual key this layer has no sequence for (numpad digits) and no
+        // character is not inventable input.
+        const VK_NUMPAD0: u16 = 0x60;
+        assert_eq!(decode(key(VK_NUMPAD0, 0, 0)), None);
+    }
+
+    /// Printable keys keep emitting their character, and named keys resolve by
+    /// virtual key rather than by their console character.
+    #[test]
+    fn char_and_named_key_paths_are_preserved() {
+        assert_eq!(
+            decode(key(b'B' as u16, b'b' as u16, 0)),
+            Some(b"b".to_vec())
+        );
+        // Backspace carries 0x08 but readline needs DEL.
+        assert_eq!(decode(key(VK_BACK, 0x08, 0)), Some(vec![0x7f]));
+        assert_eq!(
+            decode(key(VK_RETURN, b'\r' as u16, 0)),
+            Some(b"\r".to_vec())
+        );
+        assert_eq!(decode(key(VK_UP, 0, 0)), Some(b"\x1b[A".to_vec()));
+    }
+
+    const RIGHT_ALT: u32 = 0x0001;
+
+    /// Alt chords must reach readline as Meta (`ESC <key>`), not vanish or
+    /// arrive bare. Under win32-input-mode Alt+B arrives as a bare virtual
+    /// key with no character; without it, as a character record with the ALT
+    /// bit set. Both encodings now produce `\x1bb` (#62).
+    #[test]
+    fn alt_chords_get_the_esc_prefix() {
+        // win32-input-mode shape: vk only.
+        assert_eq!(
+            decode(key(b'B' as u16, 0, LEFT_ALT)),
+            Some(b"\x1bb".to_vec())
+        );
+        // character-record shape: char plus ALT.
+        assert_eq!(
+            decode(key(b'B' as u16, b'b' as u16, LEFT_ALT)),
+            Some(b"\x1bb".to_vec())
+        );
+        assert_eq!(
+            decode(key(b'1' as u16, 0, LEFT_ALT)),
+            Some(b"\x1b1".to_vec())
+        );
+        assert_eq!(
+            decode(key(0, b'x' as u16, RIGHT_ALT)),
+            Some(b"\x1bx".to_vec())
+        );
+    }
+
+    /// Alt over keys that already have VT sequences prefixes those bytes
+    /// instead of dropping the modifier.
+    #[test]
+    fn alt_over_named_keys_is_prefixed() {
+        assert_eq!(
+            decode(key(VK_BACK, 0x08, LEFT_ALT)),
+            Some(b"\x1b\x7f".to_vec())
+        );
+        assert_eq!(
+            decode(key(VK_RETURN, b'\r' as u16, LEFT_ALT)),
+            Some(b"\x1b\r".to_vec())
+        );
+        assert_eq!(decode(key(VK_TAB, 0, LEFT_ALT)), Some(b"\x1b\t".to_vec()));
+    }
+
+    /// Modified cursor keys already encode Alt in their CSI parameter; they
+    /// must not gain a second ESC.
+    #[test]
+    fn alt_cursor_keys_keep_their_parameter() {
+        assert_eq!(
+            decode(key(VK_LEFT, 0, LEFT_ALT)),
+            Some(b"\x1b[1;3D".to_vec())
+        );
+        assert_eq!(
+            decode(key(VK_RIGHT, 0, LEFT_ALT | SHIFT)),
+            Some(b"\x1b[1;4C".to_vec())
+        );
+    }
+
+    /// Ctrl+Space is NUL in readline, not a literal space; plain space and
+    /// shifted letters are untouched.
+    #[test]
+    fn ctrl_space_collapses_to_nul() {
+        assert_eq!(decode(key(VK_SPACE, 0x20, LEFT_CTRL)), Some(vec![0]));
+        assert_eq!(decode(key(VK_SPACE, 0x20, 0)), Some(b" ".to_vec()));
+        assert_eq!(decode(key(b'B' as u16, 0, SHIFT)), Some(b"B".to_vec()));
+    }
+
+    /// stdin classification (#50): a console buffer keeps the event reader;
+    /// pipes and files take the byte relay; a missing handle is unusable.
+    #[test]
+    fn stdin_kinds_follow_the_probe_results() {
+        use StdinKind as K;
+        // A console input buffer is whatever GetConsoleMode accepts.
+        assert_eq!(K::from_parts(true, true, FILE_TYPE_CHAR), K::Console);
+        // mintty / Git Bash / CI: a pipe.
+        assert_eq!(K::from_parts(false, true, FILE_TYPE_PIPE), K::Pipe);
+        // `is start < file` or NUL.
+        assert_eq!(K::from_parts(false, true, FILE_TYPE_DISK), K::Stream);
+        assert_eq!(K::from_parts(false, true, FILE_TYPE_CHAR), K::Stream);
+        // No stdin at all.
+        assert_eq!(K::from_parts(false, false, FILE_TYPE_UNKNOWN), K::None);
+    }
+
+    /// A spent stream must leave the poll set — it stays signaled forever,
+    /// which is what spun one core at 100% — while consoles and pipes stay in.
+    #[test]
+    fn only_spent_streams_leave_the_poll_set() {
+        use StdinKind as K;
+        assert!(K::Console.pollable(false));
+        assert!(K::Console.pollable(true)); // events are consumed, never EOF
+        assert!(K::Pipe.pollable(false));
+        assert!(!K::Stream.pollable(true));
+        assert!(K::Stream.pollable(false));
+        assert!(!K::None.pollable(false));
     }
 }
