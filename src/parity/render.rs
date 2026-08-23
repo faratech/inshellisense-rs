@@ -168,15 +168,22 @@ fn run_scenario(bin: &Path, scenario: &Scenario, home: &Path) -> Vec<u8> {
         0 => {
             // Child: exec the binary under test. Single-threaded post-fork,
             // pre-exec context, so mutating the environment is sound.
+            //
+            // Same contract as super::deterministic(): the operator's spec
+            // sources (INSH_RS_SPECS_DIR, config, user TOML specs) must not
+            // configure our side, and a host coreutils install must not add
+            // specs to our popup only. Without this the render category
+            // reported host-dependent suggestion rows as divergences.
+            for key in super::machine_specific_env_keys() {
+                unsafe { std::env::remove_var(&key) };
+            }
             unsafe {
                 std::env::set_var("TERM", "xterm-256color");
                 std::env::remove_var("COLORTERM");
                 std::env::set_var("PS1", "$ ");
                 std::env::set_var("HOME", home);
                 std::env::set_var("XDG_CONFIG_HOME", home.join(".config"));
-                std::env::remove_var("ZDOTDIR");
-                std::env::remove_var("ISTERM");
-                std::env::remove_var("INSH_RS");
+                std::env::set_var("INSH_RS_NO_COREUTILS", "1");
             }
             let _ = std::env::set_current_dir(home);
             let c_bin = std::ffi::CString::new(bin.to_str().unwrap_or("")).unwrap();

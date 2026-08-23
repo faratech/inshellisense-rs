@@ -11,9 +11,14 @@ use std::process::Command;
 pub fn run(cfg: &ScanConfig) -> CategoryReport {
     let mut report = CategoryReport::new(Category::Specs);
 
+    // Same scratch HOME for both sides, so the operator's spec sources
+    // (INSH_RS_SPECS_DIR, rc.toml `[specs].path`, user TOML specs) cannot
+    // configure our side and not upstream's.
+    let home = super::isolated_home(cfg);
+
     let (ours_set, upstream_set) = match (
-        list_specs_ours(&cfg.ours),
-        list_specs_upstream(&cfg.upstream),
+        list_specs_ours(&cfg.ours, &home),
+        list_specs_upstream(&cfg.upstream, &home),
     ) {
         (Ok(o), Ok(u)) => (o, u),
         (ours, upstream) => {
@@ -102,8 +107,8 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
     let mut compared = 0;
     for name in &sample {
         let (Some(ours), Some(upstream)) = (
-            top_level_suggestions(&cfg.ours, name, true),
-            top_level_suggestions(&cfg.upstream, name, false),
+            top_level_suggestions(&cfg.ours, name, true, &home),
+            top_level_suggestions(&cfg.upstream, name, false, &home),
         ) else {
             report.push_fail(
                 format!("specs content: {name}"),
@@ -159,9 +164,10 @@ fn top_level_suggestions(
     bin: &std::path::Path,
     spec: &str,
     ours: bool,
+    home: &std::path::Path,
 ) -> Option<BTreeSet<String>> {
     let mut cmd = Command::new(bin);
-    super::deterministic(&mut cmd);
+    super::deterministic(&mut cmd, home);
     cmd.arg("complete");
     if ours {
         cmd.arg("--json");
@@ -193,9 +199,12 @@ fn top_level_suggestions(
 /// empty set made two failed children compare as an identical (empty)
 /// spec list — perfect parity while comparing nothing. Neither binary can
 /// legitimately report zero specs, so an empty listing is a failure too.
-fn list_specs_ours(bin: &std::path::Path) -> Result<BTreeSet<String>, String> {
+fn list_specs_ours(
+    bin: &std::path::Path,
+    home: &std::path::Path,
+) -> Result<BTreeSet<String>, String> {
     let mut cmd = Command::new(bin);
-    super::deterministic(&mut cmd);
+    super::deterministic(&mut cmd, home);
     let out = cmd
         .args(["specs", "list", "--plain"])
         .output()
@@ -219,9 +228,12 @@ fn list_specs_ours(bin: &std::path::Path) -> Result<BTreeSet<String>, String> {
 }
 
 /// Upstream's spec surface, or `Err` when its listing cannot be trusted.
-fn list_specs_upstream(bin: &std::path::Path) -> Result<BTreeSet<String>, String> {
+fn list_specs_upstream(
+    bin: &std::path::Path,
+    home: &std::path::Path,
+) -> Result<BTreeSet<String>, String> {
     let mut cmd = Command::new(bin);
-    super::deterministic(&mut cmd);
+    super::deterministic(&mut cmd, home);
     let out = cmd
         .args(["specs", "list"])
         .output()
@@ -247,6 +259,14 @@ fn list_specs_upstream(bin: &std::path::Path) -> Result<BTreeSet<String>, String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Scratch HOME handed to [`super::deterministic`] for stub children.
+    #[cfg(unix)]
+    fn scratch_home() -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("insh-parity-home-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
 
     /// A stub binary whose `specs list` runs `script_body`, so each way a
     /// listing can be untrustworthy is reproducible without the real tool.
@@ -286,7 +306,7 @@ mod tests {
     #[test]
     fn upstream_nonzero_exit_is_a_failure_not_an_empty_set() {
         let bin = stub_specs_list("echo error >&2\nexit 1\n");
-        let err = list_specs_upstream(&bin).unwrap_err();
+        let err = list_specs_upstream(&bin, &scratch_home()).unwrap_err();
         assert!(err.contains("exited with"), "err={err}");
     }
 
@@ -294,7 +314,7 @@ mod tests {
     #[test]
     fn upstream_prose_stdout_is_a_failure_not_an_empty_set() {
         let bin = stub_specs_list("echo 'unknown command'\nexit 0\n");
-        let err = list_specs_upstream(&bin).unwrap_err();
+        let err = list_specs_upstream(&bin, &scratch_home()).unwrap_err();
         assert!(err.contains("unparseable"), "err={err}");
     }
 
@@ -303,7 +323,7 @@ mod tests {
     fn upstream_empty_array_is_a_failure() {
         // Neither binary can legitimately report zero specs.
         let bin = stub_specs_list("echo '[]'\nexit 0\n");
-        let err = list_specs_upstream(&bin).unwrap_err();
+        let err = list_specs_upstream(&bin, &scratch_home()).unwrap_err();
         assert!(err.contains("empty spec list"), "err={err}");
     }
 
@@ -311,7 +331,7 @@ mod tests {
     #[test]
     fn upstream_valid_array_parses_to_a_set() {
         let bin = stub_specs_list(r#"echo '["git","ls"]'"#);
-        let specs = list_specs_upstream(&bin).unwrap();
+        let specs = list_specs_upstream(&bin, &scratch_home()).unwrap();
         assert_eq!(specs, BTreeSet::from(["git".to_string(), "ls".to_string()]));
     }
 
@@ -319,14 +339,14 @@ mod tests {
     #[test]
     fn ours_empty_listing_is_a_failure() {
         let bin = stub_specs_list("exit 0\n");
-        assert!(list_specs_ours(&bin).is_err());
+        assert!(list_specs_ours(&bin, &scratch_home()).is_err());
     }
 
     #[cfg(unix)]
     #[test]
     fn ours_plain_lines_parse_to_a_set() {
         let bin = stub_specs_list(r#"printf 'git\n\n  ls  \n'"#);
-        let specs = list_specs_ours(&bin).unwrap();
+        let specs = list_specs_ours(&bin, &scratch_home()).unwrap();
         assert_eq!(specs, BTreeSet::from(["git".to_string(), "ls".to_string()]));
     }
 }

@@ -72,6 +72,11 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
         }
     };
 
+    // Both binaries must run against the same scratch HOME, or our side
+    // picks up the operator's spec sources (INSH_RS_SPECS_DIR, rc.toml
+    // `[specs].path`, user TOML specs) and upstream honors none of them.
+    let home = super::isolated_home(cfg);
+
     // Run all test cases in parallel via std::thread::scope.
     let cases: Vec<Case> = std::thread::scope(|s| {
         let handles: Vec<_> = entries
@@ -86,6 +91,7 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
                         entry.cwd.as_deref(),
                         true,
                         &fixture_cwd,
+                        &home,
                     );
                     let upstream_json = run_complete(
                         &cfg.upstream,
@@ -93,6 +99,7 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
                         entry.cwd.as_deref(),
                         false,
                         &fixture_cwd,
+                        &home,
                     );
 
                     let ours_blob = match parse_suggestions(&ours_json) {
@@ -184,9 +191,10 @@ fn run_complete(
     cwd: Option<&str>,
     ours: bool,
     fixture_cwd: &Path,
+    home: &Path,
 ) -> String {
     let mut cmd = Command::new(bin);
-    super::deterministic(&mut cmd);
+    super::deterministic(&mut cmd, home);
     cmd.arg("complete");
     if ours {
         cmd.arg("--json");

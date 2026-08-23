@@ -26,13 +26,17 @@ const DEFAULT_INVOCATIONS: &[&str] = &[
 pub fn run(cfg: &ScanConfig) -> CategoryReport {
     let mut report = CategoryReport::new(Category::Cli);
 
+    // Both binaries run against the same scratch HOME, so the operator's
+    // spec sources and config cannot configure our side alone.
+    let home = super::isolated_home(cfg);
+
     let invocations = load_invocations(&cfg.corpus_dir.join("cli.txt"))
         .unwrap_or_else(|_| DEFAULT_INVOCATIONS.iter().map(|s| s.to_string()).collect());
 
     for invocation in &invocations {
         let args: Vec<&str> = invocation.split_whitespace().collect();
-        let ours_out = run_and_capture(&cfg.ours, &args);
-        let upstream_out = run_and_capture(&cfg.upstream, &args);
+        let ours_out = run_and_capture(&cfg.ours, &home, &args);
+        let upstream_out = run_and_capture(&cfg.upstream, &home, &args);
 
         let ours_flags = extract_flags(&ours_out);
         let upstream_flags = extract_flags(&upstream_out);
@@ -105,9 +109,9 @@ fn load_invocations(path: &std::path::Path) -> std::io::Result<Vec<String>> {
 /// A spawn failure must never be comparable to another spawn failure — the
 /// sentinel embeds the binary path so `ours` and `upstream` differ and the
 /// case fails loudly instead of matching.
-fn run_and_capture(bin: &std::path::Path, args: &[&str]) -> String {
+fn run_and_capture(bin: &std::path::Path, home: &std::path::Path, args: &[&str]) -> String {
     let mut cmd = Command::new(bin);
-    super::deterministic(&mut cmd);
+    super::deterministic(&mut cmd, home);
     let output = cmd.args(args).output();
     match output {
         Ok(out) => {
