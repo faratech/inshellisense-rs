@@ -7,9 +7,12 @@ const SHELLS: &[&str] = &["bash", "zsh", "fish", "pwsh", "xonsh", "nu"];
 
 pub fn run(cfg: &ScanConfig) -> CategoryReport {
     let mut report = CategoryReport::new(Category::Init);
+    // Both binaries run against the same scratch HOME, so the operator's
+    // spec sources and config cannot configure our side alone.
+    let home = super::isolated_home(cfg);
     for shell in SHELLS {
-        let ours = run_init(&cfg.ours, shell);
-        let upstream = run_init(&cfg.upstream, shell);
+        let ours = run_init(&cfg.ours, shell, &home);
+        let upstream = run_init(&cfg.upstream, shell, &home);
         let ours_n = normalize(&ours);
         let up_n = normalize(&upstream);
         if ours_n == up_n {
@@ -32,9 +35,9 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
     report
 }
 
-fn run_init(bin: &std::path::Path, shell: &str) -> String {
+fn run_init(bin: &std::path::Path, shell: &str, home: &std::path::Path) -> String {
     let mut cmd = Command::new(bin);
-    super::deterministic(&mut cmd);
+    super::deterministic(&mut cmd, home);
     let out = cmd.args(["init", shell]).output();
     match out {
         Ok(o) => String::from_utf8_lossy(&o.stdout).into_owned(),

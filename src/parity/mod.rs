@@ -213,26 +213,76 @@ pub fn isolated_home(cfg: &ScanConfig) -> std::path::PathBuf {
     home
 }
 
-/// Point a child process at the isolated home and a fixed working directory.
-/// Without this, doctor and render inherit the host's `HOME`, config files,
-/// and cwd — so their results depend on which shells the developer happens to
-/// have installed.
-/// Every spawned binary must behave the same on every machine. A host
-/// coreutils install would otherwise add specs to our side of the comparison
-/// and not to upstream's.
-pub fn deterministic(cmd: &mut std::process::Command) {
-    cmd.env("INSH_RS_NO_COREUTILS", "1");
+/// Environment variables we know change what a spawned binary does: spec
+/// sources (`INSH_RS_SPECS_DIR`), feature toggles (`INSH_RS_NO_COREUTILS`),
+/// upstream session markers (`ISTERM*`), and zsh startup redirection
+/// (`ZDOTDIR`). Listed explicitly so they are stripped even when another
+/// code path set them directly rather than inheriting them.
+const MACHINE_SPECIFIC_VARS: &[&str] = &[
+    "INSH_RS",
+    "INSH_RS_LOGIN",
+    "INSH_RS_TEST",
+    "INSH_RS_SPECS_DIR",
+    "INSH_RS_NO_COREUTILS",
+    "ISTERM",
+    "ISTERM_LOGIN",
+    "ISTERM_TESTING",
+    "ZDOTDIR",
+];
+
+/// Does this variable name change what a spawned binary does on this
+/// machine? See [`MACHINE_SPECIFIC_VARS`].
+pub fn is_machine_specific(name: &str) -> bool {
+    // Our own namespace carries spec sources and feature toggles, so strip
+    // every `INSH_RS*` export, not just the ones known today.
+    name.starts_with("INSH_RS") || name.starts_with("ISTERM") || name == "ZDOTDIR"
 }
 
-pub fn isolate(cmd: &mut std::process::Command, home: &std::path::Path) {
-    deterministic(cmd);
+/// Keys of the environment variables that would make a spawned binary
+/// behave differently on this machine than on any other.
+pub fn machine_specific_env_keys() -> Vec<std::ffi::OsString> {
+    let mut keys: Vec<std::ffi::OsString> = MACHINE_SPECIFIC_VARS
+        .iter()
+        .map(std::ffi::OsStr::new)
+        .map(std::ffi::OsString::from)
+        .collect();
+    keys.extend(
+        std::env::vars_os()
+            .map(|(k, _)| k)
+            .filter(|k| is_machine_specific(&k.to_string_lossy())),
+    );
+    keys
+}
+
+/// Make a spawned binary see a machine-independent environment.
+///
+/// Every spawned binary must behave the same on every machine, and both
+/// sides of a comparison must be configured identically by construction:
+///
+/// * Spec-source inputs — `INSH_RS_SPECS_DIR`, `[specs].path` from an
+///   operator rc.toml, user TOML specs under the config dir — are cut off by
+///   stripping every `INSH_RS*`/`ISTERM*`/`ZDOTDIR` variable and pointing
+///   `HOME`, `USERPROFILE`, and `XDG_CONFIG_HOME` at the scan's scratch
+///   home. Upstream honors none of them, so leaving them set compared our
+///   configured side against upstream's unconfigured side.
+/// * A host coreutils install would add specs to our side only, so probing
+///   is disabled outright.
+pub fn deterministic(cmd: &mut std::process::Command, home: &std::path::Path) {
+    // Set last, so `INSH_RS_NO_COREUTILS` survives its own prefix strip.
+    for key in machine_specific_env_keys() {
+        cmd.env_remove(key);
+    }
     cmd.env("HOME", home)
         .env("USERPROFILE", home)
         .env("XDG_CONFIG_HOME", home.join(".config"))
-        .env_remove("ZDOTDIR")
-        .env_remove("ISTERM")
-        .env_remove("INSH_RS")
-        .current_dir(home);
+        .env("INSH_RS_NO_COREUTILS", "1");
+}
+
+/// Like [`deterministic`], plus a fixed working directory for children whose
+/// output depends on cwd.
+pub fn isolate(cmd: &mut std::process::Command, home: &std::path::Path) {
+    deterministic(cmd, home);
+    cmd.current_dir(home);
 }
 
 /// Can this binary actually be executed? Every category converts a spawn
@@ -324,5 +374,37 @@ mod tests {
         report.categories.push(good);
         report.categories.push(bad);
         assert_eq!(report.min_score(), 0.5);
+    }
+
+    /// Spec-source and session inputs must not reach the child. The poisoned
+    /// values are set on the `Command` (not the parent process) so the test
+    /// stays hermetic; `env_remove` must beat them.
+    #[cfg(unix)]
+    #[test]
+    fn deterministic_strips_spec_sources_and_pins_home() {
+        let home = std::env::temp_dir().join(format!("insh-parity-home-{}", std::process::id()));
+        std::fs::create_dir_all(&home).unwrap();
+        let mut cmd = std::process::Command::new("/bin/sh");
+        cmd.arg("-c").arg(
+            "for v in INSH_RS_SPECS_DIR ISTERM ZDOTDIR; do \
+                 if printenv \"$v\" >/dev/null; then echo \"leaked $v\"; fi; done; \
+                 printf 'coreutils=%s\\n' \"$INSH_RS_NO_COREUTILS\"; \
+                 printf 'home=%s\\n' \"$HOME\"",
+        );
+        // What an operator export (or a previous category) might have left.
+        cmd.env("INSH_RS_SPECS_DIR", "/tmp/operator-specs")
+            .env("ISTERM", "1")
+            .env("ZDOTDIR", "/tmp/operator-zsh")
+            .env("INSH_RS_NO_COREUTILS", "0")
+            .env("UNRELATED", "keep");
+        deterministic(&mut cmd, &home);
+        let out = cmd.output().unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).into_owned();
+        assert!(!text.contains("leaked"), "stripped vars leaked: {text}");
+        assert!(text.contains("coreutils=1"), "{text}");
+        assert!(
+            text.contains(&format!("home={}", home.display())),
+            "HOME not pinned: {text}"
+        );
     }
 }
