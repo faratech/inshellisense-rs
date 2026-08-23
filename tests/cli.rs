@@ -1,3 +1,4 @@
+use inshellisense_rs::parity;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -19,24 +20,34 @@ fn temp_dir(name: &str) -> PathBuf {
     dir
 }
 
+/// A `Command` pointing at the binary with a scrubbed environment.
+///
+/// The completion tests used to inherit whatever the invoking shell had
+/// exported: a developer's `INSH_RS_SPECS_DIR`, an rc.toml `[specs].path`,
+/// user TOML specs under their config dir, or a host coreutils install
+/// could each flip an assertion (or make one pass only on one machine).
+/// [`parity::deterministic`] is the same machine-independent contract the
+/// parity scanner imposes on its own children.
+fn isolated_cmd(home: &Path) -> Command {
+    let mut cmd = Command::new(bin());
+    parity::deterministic(&mut cmd, home);
+    cmd
+}
+
 fn run_with_home(home: &Path, args: &[&str]) -> std::process::Output {
-    Command::new(bin())
-        .args(args)
-        .env("HOME", home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
-        .output()
-        .unwrap()
+    isolated_cmd(home).args(args).output().unwrap()
 }
 
 #[test]
 fn complete_cwd_flag_before_line_uses_cwd_not_line() {
     let dir = temp_dir("complete-cwd");
     std::fs::write(dir.join("needle.txt"), "").unwrap();
+    let home = temp_dir("complete-cwd-home");
 
-    let out = Command::new(bin())
-        .args(["complete", "--cwd", dir.to_str().unwrap(), "ls ne"])
-        .output()
-        .unwrap();
+    let out = run_with_home(
+        &home,
+        &["complete", "--cwd", dir.to_str().unwrap(), "ls ne"],
+    );
     assert!(
         out.status.success(),
         "stderr={}",
@@ -64,6 +75,41 @@ fn init_install_rc_targets_requested_shell() {
     let zshrc = std::fs::read_to_string(home.join(".zshrc")).unwrap();
     assert!(zshrc.contains("init/zsh/init.zsh"));
     assert!(!home.join(".bashrc").exists());
+}
+
+/// The harness must scrub host state: a spec dir exported by the
+/// developer (the documented way to iterate on local specs) used to leak
+/// into every spawned child and could flip assertions.
+#[test]
+fn operator_spec_dir_env_does_not_leak_into_children() {
+    let specs_dir = temp_dir("env-scrub-private-specs");
+    std::fs::write(
+        specs_dir.join("zzzprivateaudit.json"),
+        r#"{"names":["zzzprivateaudit"],"description":"must not be loaded"}"#,
+    )
+    .unwrap();
+    let home = temp_dir("env-scrub-home");
+
+    // What an inherited operator export looks like, applied to the command
+    // exactly as the process environment would hand it down. The harness
+    // scrub must win over it (`env_remove` after `env`), so the spec dir
+    // never reaches the child.
+    let mut cmd = Command::new(bin());
+    cmd.env("INSH_RS_SPECS_DIR", &specs_dir);
+    parity::deterministic(&mut cmd, &home);
+    let out = cmd.args(["specs", "list", "--plain"]).output().unwrap();
+    assert!(
+        out.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        !stdout.lines().any(|l| l == "zzzprivateaudit"),
+        "operator spec leaked into the child: {stdout}"
+    );
+    // Sanity check that the listing is real, not an empty failure.
+    assert!(stdout.contains("git"), "stdout={stdout}");
 }
 
 #[test]
@@ -121,10 +167,11 @@ fn offline_text_complete_does_not_use_history() {
     let home = temp_dir("offline-history");
     let hist = home.join("history");
     std::fs::write(&hist, "notarealcmd hello world\n").unwrap();
-    let out = Command::new(bin())
-        .args(["complete", "--text", "notarealcmd h"])
-        .env("HOME", &home)
+    // `HISTFILE` is set after the scrub on purpose: it is this test's
+    // input, not host state to isolate away.
+    let out = isolated_cmd(&home)
         .env("HISTFILE", &hist)
+        .args(["complete", "--text", "notarealcmd h"])
         .output()
         .unwrap();
     assert!(
@@ -137,10 +184,8 @@ fn offline_text_complete_does_not_use_history() {
 
 #[test]
 fn complete_shell_pwsh_uses_powershell_ls_options() {
-    let out = Command::new(bin())
-        .args(["--shell", "pwsh", "complete", "ls -"])
-        .output()
-        .unwrap();
+    let home = temp_dir("pwsh-ls");
+    let out = run_with_home(&home, &["--shell", "pwsh", "complete", "ls -"]);
     assert!(
         out.status.success(),
         "stderr={}",
