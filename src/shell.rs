@@ -156,7 +156,16 @@ impl Shell {
                 Shell::Zsh | Shell::Fish | Shell::Xonsh | Shell::Nu => {
                     args.insert(0, "--login".into())
                 }
-                Shell::Pwsh | Shell::Powershell => args.insert(0, "-Login".into()),
+                // `-Login` exists only in PowerShell 7+ (added in
+                // 7.0-preview.3). Windows PowerShell 5.1 — the `powershell`
+                // binary shipped on every Windows install — has no such host
+                // parameter: it falls back to treating the whole command line
+                // as -Command text, fails on `-Login`, and exits without ever
+                // starting a session. Legacy powershell therefore starts
+                // without it; PowerShell loads profiles either way, so a
+                // login-flavored start is what it does by default.
+                Shell::Pwsh => args.insert(0, "-Login".into()),
+                Shell::Powershell => {}
                 #[cfg(windows)]
                 Shell::Cmd => {} // cmd has no login concept
             }
@@ -358,5 +367,36 @@ mod tests {
             target.args[1],
             "source '/tmp/is home/shell/shellIntegration.fish'"
         );
+    }
+
+    /// `-Login` is a PowerShell 7+ parameter. Windows PowerShell 5.1 has no
+    /// such host parameter: it fails on `-Login` and exits without starting
+    /// any session, so `is start --login --shell powershell` must launch the
+    /// shell bare instead.
+    #[test]
+    fn login_legacy_powershell_drops_the_login_flag() {
+        let target = Shell::Powershell.spawn_target(
+            std::path::Path::new("/tmp/shell"),
+            std::path::Path::new("/tmp/zdot"),
+            true,
+        );
+        assert!(
+            !target.args.iter().any(|a| a == "-Login"),
+            "powershell 5.1 cannot accept -Login: {:?}",
+            target.args
+        );
+        assert_eq!(target.args[0], "-NoExit");
+        assert!(target.args[2].contains("shellIntegration.ps1"));
+    }
+
+    /// pwsh 7+ does know `-Login`, so it keeps it.
+    #[test]
+    fn login_pwsh_keeps_the_login_flag() {
+        let target = Shell::Pwsh.spawn_target(
+            std::path::Path::new("/tmp/shell"),
+            std::path::Path::new("/tmp/zdot"),
+            true,
+        );
+        assert_eq!(target.args.first().map(String::as_str), Some("-Login"));
     }
 }
