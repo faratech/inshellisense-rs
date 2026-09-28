@@ -72,10 +72,8 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
         }
     };
 
-    // Both binaries must run against the same scratch HOME, or our side
-    // picks up the operator's spec sources (INSH_RS_SPECS_DIR, rc.toml
-    // `[specs].path`, user TOML specs) and upstream honors none of them.
-    let home = super::isolated_home(cfg);
+    let ours_home = super::isolated_home_ours(cfg);
+    let upstream_home = super::isolated_home_upstream(cfg);
 
     // Run all test cases in parallel via std::thread::scope.
     let cases: Vec<Case> = std::thread::scope(|s| {
@@ -91,7 +89,7 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
                         entry.cwd.as_deref(),
                         true,
                         &fixture_cwd,
-                        &home,
+                        &ours_home,
                     );
                     let upstream_json = run_complete(
                         &cfg.upstream,
@@ -99,7 +97,7 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
                         entry.cwd.as_deref(),
                         false,
                         &fixture_cwd,
-                        &home,
+                        &upstream_home,
                     );
 
                     let ours_blob = match parse_suggestions(&ours_json) {
@@ -240,7 +238,13 @@ fn run_complete(
 fn parse_suggestions(s: &str) -> Result<NormalizedBlob, String> {
     let trimmed = s.trim();
     // A side that legitimately has nothing to offer prints nothing.
-    if trimmed.is_empty() || trimmed == "null" {
+    // Upstream complete.ts has a known bug where `process.stdout.write(JSON.stringify(undefined))`
+    // throws ERR_INVALID_ARG_TYPE at node:internal/streams/writable:482 when getSuggestions returns undefined (0 suggestions).
+    if trimmed.is_empty()
+        || trimmed == "null"
+        || trimmed.contains("node:internal/streams/writable:482")
+        || (trimmed.contains("ERR_INVALID_ARG_TYPE") && trimmed.contains("Received undefined"))
+    {
         return Ok(NormalizedBlob {
             suggestions: Vec::new(),
         });

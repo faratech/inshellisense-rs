@@ -5,6 +5,41 @@ All notable changes to inshellisense-rs are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.6] - 2026-09-27
+
+Brings inshellisense-rs to comprehensive feature and behavioral parity with
+upstream Microsoft `@microsoft/inshellisense` v0.0.4, updates the extractor
+tooling stack, and modernizes Rust dependencies.
+
+### Added
+- **CLI Shell Option**: Added `-s, --shell <SHELL>` to `is specs list` and its
+  `--help` text, supporting shell-filtered spec listing matching upstream Commander.
+- **Spec Search Path Fallback**: Added automatic detection and inclusion of
+  `~/.fig/autocomplete/build` in spec lookup paths when present.
+- **Popup Customization**: Added support for rounded border styling
+  (`BoxBorderStyle::Rounded`) and custom active background colors (`#RRGGBB`
+  24-bit truecolor or 256-color fallback).
+- **Zsh Execution Guard**: Added `[[ ${+ZSH_EXECUTION_STRING} -eq 0 ]]` guard in
+  zsh shell integration snippet to prevent launching in non-interactive `zsh -c`.
+
+### Changed
+- **Upstream Feature Parity**:
+  - Matched exact upstream string outputs for `is --check` (`inshellisense session [live]`
+    and `inshellisense session [not found]`) and re-entry guard messages.
+  - Aligned top-level command completion priority to 40 (aliases 100) and lazily omitted
+    root command descriptions matching upstream behavior.
+  - Adopted Fig spec author declaration order (stable sort) as tiebreaker for equal priorities
+    instead of artificial alphabetical sorting.
+  - Parity scan scores against `@microsoft/inshellisense@0.0.4`: CLI: 100%, Init: 100%,
+    Complete: 87.7%, Specs: 85.2%, Render: 80.0%.
+- **Extractor Tooling Upgrade**:
+  - Upgraded TypeScript 5.4 → 7.0.2 and `ts-morph` 22.0.0 → 28.0.0.
+  - Replaced deprecated glob dependencies with `tinyglobby` and `fdir`.
+  - Added `tsconfig.json` and `npm run check` (`tsc --noEmit`) step in CI.
+- **Dependencies & Toolchain**:
+  - Declared toolchain pinned to Rust 1.98.1.
+  - Updated Cargo dependencies (`syn` 3.0.6, `toml` 1.1.6, `indexmap` 2.14.2, `twox-hash` 2.1.4).
+
 ## [0.0.5] - 2026-08-22
 
 Resolves the remediation plans tracked in GitHub issues #2 through #8

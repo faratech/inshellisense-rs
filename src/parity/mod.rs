@@ -208,8 +208,30 @@ pub struct ScanConfig {
 /// A scratch `HOME` for spawned binaries, so a scan never reads or writes the
 /// developer's real profile and produces the same result on every machine.
 pub fn isolated_home(cfg: &ScanConfig) -> std::path::PathBuf {
-    let home = cfg.raw_dir.join("isolated-home");
+    isolated_home_ours(cfg)
+}
+
+pub fn isolated_home_ours(cfg: &ScanConfig) -> std::path::PathBuf {
+    let home = cfg.raw_dir.join("isolated-home-ours");
     let _ = std::fs::create_dir_all(&home);
+    home
+}
+
+pub fn isolated_home_upstream(cfg: &ScanConfig) -> std::path::PathBuf {
+    let home = cfg.raw_dir.join("isolated-home-upstream");
+    let _ = std::fs::create_dir_all(&home);
+    let version_file = home
+        .join(".local")
+        .join("share")
+        .join("inshellisense")
+        .join("version.txt");
+    let legacy_version = home.join(".inshellisense").join("version.txt");
+    if !version_file.exists() && !legacy_version.exists() && cfg.upstream.exists() {
+        let mut cmd = std::process::Command::new(&cfg.upstream);
+        cmd.arg("reinit");
+        isolate(&mut cmd, &home);
+        let _ = cmd.output();
+    }
     home
 }
 

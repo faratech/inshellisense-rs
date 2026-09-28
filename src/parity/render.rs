@@ -67,7 +67,8 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
     // Both binaries must run against the same scratch HOME and cwd, or the
     // capture reflects the developer's installed shells and config rather
     // than the implementations under test.
-    let home = super::isolated_home(cfg);
+    let ours_home = super::isolated_home_ours(cfg);
+    let upstream_home = super::isolated_home_upstream(cfg);
 
     // Render scenarios run in parallel — each scenario spawns its
     // own isolated PTY + subprocess pair, so there's no shared state
@@ -78,8 +79,8 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
             .iter()
             .map(|scenario| {
                 s.spawn(|| {
-                    let ours = run_scenario(&cfg.ours, scenario, &home);
-                    let upstream = run_scenario(&cfg.upstream, scenario, &home);
+                    let ours = run_scenario(&cfg.ours, scenario, &ours_home, true);
+                    let upstream = run_scenario(&cfg.upstream, scenario, &upstream_home, false);
 
                     // Raw captures are written even for failed runs so a
                     // broken scenario can be replayed by hand.
@@ -211,7 +212,12 @@ fn load_corpus(path: &Path) -> std::io::Result<Vec<Scenario>> {
 /// unusable. Returning an empty byte stream on failure used to replay to a
 /// blank screen — which diffed equal to another blank screen and scored
 /// perfect parity for a broken PTY environment.
-fn run_scenario(bin: &Path, scenario: &Scenario, home: &Path) -> Result<Vec<u8>, String> {
+fn run_scenario(
+    bin: &Path,
+    scenario: &Scenario,
+    home: &Path,
+    is_ours: bool,
+) -> Result<Vec<u8>, String> {
     // Build everything the child needs BEFORE forking. Scenarios run on
     // parallel scope threads, so at the fork instant sibling threads may
     // hold allocator or environment locks; the child therefore does nothing
@@ -222,7 +228,11 @@ fn run_scenario(bin: &Path, scenario: &Scenario, home: &Path) -> Result<Vec<u8>,
         .map_err(|_| format!("binary path {} contains a NUL byte", bin.display()))?;
     let c_home = std::ffi::CString::new(home.as_os_str().as_encoded_bytes())
         .map_err(|_| format!("home path {} contains a NUL byte", home.display()))?;
-    let args = ["start", "--ui", "popup"];
+    let args: Vec<&str> = if is_ours {
+        vec!["start", "--ui", "popup"]
+    } else {
+        vec!["-s", "bash"]
+    };
     let c_args: Vec<std::ffi::CString> = std::iter::once(c_bin.clone())
         .chain(args.iter().map(|a| std::ffi::CString::new(*a).unwrap()))
         .collect();
@@ -353,6 +363,11 @@ where
     for (k, v) in base {
         if super::is_machine_specific(&k.to_string_lossy())
             || k == *std::ffi::OsStr::new("COLORTERM")
+            || k == *std::ffi::OsStr::new("HOME")
+            || k == *std::ffi::OsStr::new("USERPROFILE")
+            || k == *std::ffi::OsStr::new("XDG_CONFIG_HOME")
+            || k == *std::ffi::OsStr::new("TERM")
+            || k == *std::ffi::OsStr::new("PS1")
         {
             continue;
         }

@@ -104,6 +104,10 @@ jobs:
         working-directory: tools/extractor
         run: npm install
 
+      - name: Type check extractor
+        working-directory: tools/extractor
+        run: npm run check
+
       - name: Run extractor against latest @withfig/autocomplete
         run: |
           if [ ! -d /tmp/withfig-autocomplete ]; then

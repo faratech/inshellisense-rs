@@ -49,6 +49,27 @@ impl Renderer {
         }
     }
 
+    pub fn with_config(cfg: &crate::config::Config, icons: popup::IconSet) -> Self {
+        match cfg.ui {
+            UiMode::Ghost => Renderer::Ghost(ghost::GhostRenderer::new()),
+            UiMode::Popup => Renderer::Popup(popup::PopupRenderer::with_options(
+                cfg.max_suggestions,
+                icons,
+                cfg.box_border_style,
+                Some(&cfg.active_suggestion_background_color),
+            )),
+            UiMode::Hybrid => Renderer::Hybrid {
+                ghost: ghost::GhostRenderer::new(),
+                popup: popup::PopupRenderer::with_options(
+                    cfg.max_suggestions,
+                    icons,
+                    cfg.box_border_style,
+                    Some(&cfg.active_suggestion_background_color),
+                ),
+            },
+        }
+    }
+
     /// `ghost_cells` is the number of columns left on the cursor's row; the
     /// ghost tail is truncated to fit so it never wraps.
     pub fn draw(

@@ -1,8 +1,8 @@
 [package]
 name = "inshellisense-rs"
-version = "0.0.5"
+version = "0.0.6"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.98.1"
 description = "Rust port of inshellisense: IDE-style autocomplete as ghost text for your shell"
 license = "MIT"
 authors = ["Fara Technologies LLC"]

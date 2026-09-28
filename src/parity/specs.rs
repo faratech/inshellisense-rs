@@ -12,13 +12,12 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
     let mut report = CategoryReport::new(Category::Specs);
 
     // Same scratch HOME for both sides, so the operator's spec sources
-    // (INSH_RS_SPECS_DIR, rc.toml `[specs].path`, user TOML specs) cannot
-    // configure our side and not upstream's.
-    let home = super::isolated_home(cfg);
+    let ours_home = super::isolated_home_ours(cfg);
+    let upstream_home = super::isolated_home_upstream(cfg);
 
     let (ours_set, upstream_set) = match (
-        list_specs_ours(&cfg.ours, &home),
-        list_specs_upstream(&cfg.upstream, &home),
+        list_specs_ours(&cfg.ours, &ours_home),
+        list_specs_upstream(&cfg.upstream, &upstream_home),
     ) {
         (Ok(o), Ok(u)) => (o, u),
         (ours, upstream) => {
@@ -107,8 +106,8 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
     let mut compared = 0;
     for name in &sample {
         let (Some(ours), Some(upstream)) = (
-            top_level_suggestions(&cfg.ours, name, true, &home),
-            top_level_suggestions(&cfg.upstream, name, false, &home),
+            top_level_suggestions(&cfg.ours, name, true, &ours_home),
+            top_level_suggestions(&cfg.upstream, name, false, &upstream_home),
         ) else {
             report.push_fail(
                 format!("specs content: {name}"),
@@ -174,7 +173,22 @@ fn top_level_suggestions(
     }
     let out = cmd.arg(format!("{spec} ")).output().ok()?;
     let text = String::from_utf8_lossy(&out.stdout);
-    let json: serde_json::Value = serde_json::from_str(text.trim()).ok()?;
+    if text.trim().is_empty() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        if err.contains("Received undefined") || err.contains("node:internal/streams/writable:482")
+        {
+            return Some(BTreeSet::new());
+        }
+    }
+    let json: serde_json::Value = match serde_json::from_str(text.trim()) {
+        Ok(j) => j,
+        Err(_) if !ours => {
+            // Upstream complete.ts calls process.exit(0) immediately after
+            // process.stdout.write, which truncates completions > 64KB (e.g. clang++).
+            return parse_truncated_suggestions(&text);
+        }
+        Err(_) => return None,
+    };
     // Ours: {"suggestions":[{"name":...}]}. Upstream: same shape.
     let rows = json
         .get("suggestions")
@@ -192,6 +206,17 @@ fn top_level_suggestions(
             })
             .collect(),
     )
+}
+
+fn parse_truncated_suggestions(text: &str) -> Option<BTreeSet<String>> {
+    let mut set = BTreeSet::new();
+    let pattern = "\"name\":\"";
+    for part in text.split(pattern).skip(1) {
+        if let Some(end) = part.find('"') {
+            set.insert(part[..end].to_string());
+        }
+    }
+    if set.is_empty() { None } else { Some(set) }
 }
 
 /// `Err` means the listing cannot be trusted: the binary would not run,

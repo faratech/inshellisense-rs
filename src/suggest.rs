@@ -120,12 +120,15 @@ impl Engine {
         let original_trailing_space = line.ends_with(char::is_whitespace);
         if original_tokens.len() == 1 && !original_trailing_space {
             let cmd = &original_tokens[0].token;
-            let mut results = self.top_level_name_matches(cmd);
-            // Add matching aliases (priority 100, type Shortcut).
+            let results = self.top_level_name_matches(cmd);
+            // Add matching aliases (priority 100, type Shortcut), sorted alphabetically.
+            let mut alias_results = Vec::new();
             let partial_lc = cmd.to_lowercase();
-            for (name, value) in &self.aliases {
+            let mut sorted_aliases: Vec<_> = self.aliases.iter().collect();
+            sorted_aliases.sort_by_key(|(k, _)| *k);
+            for (name, value) in sorted_aliases {
                 if name.to_lowercase().starts_with(&partial_lc) {
-                    results.push(Suggestion {
+                    alias_results.push(Suggestion {
                         name: name.clone(),
                         description: Some(value.clone()),
                         suggestion_type: SuggestionType::Shortcut,
@@ -134,18 +137,9 @@ impl Engine {
                     });
                 }
             }
-            results.sort_by(|a, b| {
-                b.priority
-                    .unwrap_or(50)
-                    .cmp(&a.priority.unwrap_or(50))
-                    .then_with(|| (b.name == *cmd).cmp(&(a.name == *cmd)))
-                    .then_with(|| a.name.len().cmp(&b.name.len()))
-                    // Alias candidates arrive in HashMap iteration order;
-                    // without a content-derived tiebreaker the final order
-                    // differed between runs (#83).
-                    .then_with(|| a.name.cmp(&b.name))
-            });
-            return dedup_by_name(results);
+            let mut combined = alias_results;
+            combined.extend(results);
+            return dedup_by_name(combined);
         }
 
         // Expand aliases before resolving — if the first word in the active
@@ -348,18 +342,14 @@ impl Engine {
         // Both `-L` and `-l` still appear (case-insensitive filter, like
         // upstream), but typing `-l` ranks `-l` above even a higher-priority
         // `-L` so the exact case the user typed is the active/ghost selection
-        // (GH issue #2). Ties after the priority tiers fall back to name
-        // order: insertion order is NOT a stable tiebreaker here because
-        // alias candidates come out of a HashMap, so equal-ranked entries
-        // could swap positions between runs (#83).
+        // (GH issue #2). Preserves Fig spec declaration order for items with
+        // equal priority (matching upstream suggestion.ts:372/427).
         candidates.sort_by(|a, b| {
             let pa = a.priority.unwrap_or(50);
             let pb = b.priority.unwrap_or(50);
             let ea = a.name.starts_with(&partial);
             let eb = b.name.starts_with(&partial);
-            eb.cmp(&ea)
-                .then_with(|| pb.cmp(&pa))
-                .then_with(|| a.name.cmp(&b.name))
+            eb.cmp(&ea).then_with(|| pb.cmp(&pa))
         });
 
         dedup_by_name(candidates)
@@ -391,9 +381,9 @@ impl Engine {
             out.push(Suggestion {
                 name: name.to_string(),
                 all_names: spec.names.clone(),
-                description: spec.description.clone(),
+                description: None,
                 suggestion_type: SuggestionType::Subcommand,
-                priority: Some(spec.priority.unwrap_or(50)),
+                priority: Some(spec.priority.unwrap_or(40)),
                 icon: spec.icon.clone(),
                 ..Default::default()
             });

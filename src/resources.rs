@@ -336,6 +336,7 @@ fn init_file_contents(shell: Shell) -> String {
              if [[ -n \"${{ISTERM:-}}${{INSH_RS:-}}\" ]]; then\n\
              \x20   [[ -f '{sd}/shellIntegration-rc.zsh' ]] && source '{sd}/shellIntegration-rc.zsh'\n\
              elif [[ -o interactive ]] && [[ -z \"${{VSCODE_RESOLVING_ENVIRONMENT:-}}\" ]] \\\n\
+             \x20    && [[ ${{+ZSH_EXECUTION_STRING}} -eq 0 ]] \\\n\
              \x20    && (( $+commands[is] )); then\n\
              \x20   is start || echo \"inshellisense-rs: 'is start' failed; continuing without suggestions\" >&2\n\
              fi\n",
@@ -670,6 +671,12 @@ mod tests {
         assert!(vendored_script("shellIntegration-login.zsh").contains(".zlogin"));
         assert!(vendored_script("shellIntegration-profile.zsh").contains(".zprofile"));
         assert!(vendored_script("shellIntegration.fish").contains("printf '%s'"));
+    }
+
+    #[test]
+    fn zsh_init_guards_against_execution_string() {
+        let zsh_init = init_file_contents(Shell::Zsh);
+        assert!(zsh_init.contains("ZSH_EXECUTION_STRING"));
     }
 
     /// Resource writes go through a temp file + rename so an interrupted pass

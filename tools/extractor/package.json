@@ -5,11 +5,15 @@
   "description": "Extracts @withfig/autocomplete TypeScript specs into JSON for insh-rs",
   "type": "module",
   "scripts": {
-    "extract": "tsx extract.ts"
+    "extract": "tsx extract.ts",
+    "check": "tsc --noEmit"
   },
   "dependencies": {
-    "ts-morph": "^22.0.0",
+    "ts-morph": "^28.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.4.0"
+    "typescript": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3"
   }
 }

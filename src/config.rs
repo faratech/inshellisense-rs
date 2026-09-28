@@ -44,6 +44,10 @@ pub struct Config {
     #[serde(alias = "maxSuggestions")]
     pub max_suggestions: u8,
     pub ui: UiMode,
+    #[serde(alias = "boxBorderStyle")]
+    pub box_border_style: BoxBorderStyle,
+    #[serde(alias = "activeSuggestionBackgroundColor")]
+    pub active_suggestion_background_color: String,
 }
 
 impl Default for Config {
@@ -55,6 +59,8 @@ impl Default for Config {
             use_nerd_font: false,
             max_suggestions: 5,
             ui: UiMode::Hybrid,
+            box_border_style: BoxBorderStyle::default(),
+            active_suggestion_background_color: "#7D56F4".to_string(),
         }
     }
 }
@@ -106,6 +112,10 @@ struct PartialConfig {
     #[serde(alias = "maxSuggestions")]
     max_suggestions: Option<u8>,
     ui: Option<UiMode>,
+    #[serde(alias = "boxBorderStyle")]
+    box_border_style: Option<BoxBorderStyle>,
+    #[serde(alias = "activeSuggestionBackgroundColor")]
+    active_suggestion_background_color: Option<String>,
     #[serde(flatten)]
     unknown: Unknown,
 }
@@ -315,6 +325,25 @@ impl UiMode {
     }
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum BoxBorderStyle {
+    /// Square corners: ┌─┐│└─┘ (default).
+    #[default]
+    Square,
+    /// Rounded corners: ╭─╮│╰─╯.
+    Rounded,
+}
+
+impl BoxBorderStyle {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Square => "square",
+            Self::Rounded => "rounded",
+        }
+    }
+}
+
 /// Load config from all known paths. Never fails — invalid files log a
 /// warning to stderr and are skipped so a botched config can't brick
 /// the CLI.
@@ -323,6 +352,15 @@ pub fn load() -> Config {
     for path in candidate_paths() {
         if let Some(loaded) = try_load(&path) {
             cfg = merge_partial(cfg, loaded);
+        }
+    }
+    if let Some(home) = paths::home() {
+        let fig_build = home.join(".fig").join("autocomplete").join("build");
+        if fig_build.exists() {
+            let fig_build_str = fig_build.display().to_string();
+            if !cfg.specs.path.contains(&fig_build_str) {
+                cfg.specs.path.insert(0, fig_build_str);
+            }
         }
     }
     cfg
@@ -422,6 +460,12 @@ fn merge_partial(mut base: Config, override_: PartialConfig) -> Config {
     }
     if let Some(v) = override_.ui {
         base.ui = v;
+    }
+    if let Some(s) = override_.box_border_style {
+        base.box_border_style = s;
+    }
+    if let Some(c) = override_.active_suggestion_background_color {
+        base.active_suggestion_background_color = c;
     }
     base
 }
@@ -613,5 +657,27 @@ modifier = "ctrl"
         assert!(!merged.use_aliases);
         assert_eq!(merged.max_suggestions, 8);
         assert_eq!(merged.ui, UiMode::Popup);
+    }
+
+    #[test]
+    fn box_border_style_and_active_bg_support_camel_and_snake_case() {
+        let toml_camel = r##"
+boxBorderStyle = "rounded"
+activeSuggestionBackgroundColor = "#2E7D32"
+"##;
+        let c1: Config = toml::from_str(toml_camel).expect("parse camelCase");
+        assert_eq!(c1.box_border_style, BoxBorderStyle::Rounded);
+        assert_eq!(c1.active_suggestion_background_color, "#2E7D32");
+
+        let toml_snake = r##"
+box_border_style = "rounded"
+active_suggestion_background_color = "#112233"
+"##;
+        let c2: Config = toml::from_str(toml_snake).expect("parse snake_case");
+        assert_eq!(c2.box_border_style, BoxBorderStyle::Rounded);
+        assert_eq!(c2.active_suggestion_background_color, "#112233");
+
+        let partial: PartialConfig = toml::from_str(toml_camel).unwrap();
+        assert!(partial.unknown_keys().is_empty());
     }
 }

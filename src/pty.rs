@@ -194,9 +194,10 @@ pub fn run_wrapped(
     let has_ghost = matches!(effective_ui, UiMode::Ghost | UiMode::Hybrid);
     let bindings: Bindings = cfg.bindings.clone();
     let max_popup_rows = cfg.max_suggestions.max(1) as usize + 1 /* desc line */ + 4 /* desc overflow headroom */;
-    let mut renderer = Renderer::new(
-        effective_ui,
-        cfg.max_suggestions,
+    let mut render_cfg = cfg.clone();
+    render_cfg.ui = effective_ui;
+    let mut renderer = Renderer::with_config(
+        &render_cfg,
         crate::render::popup::IconSet::from_config(cfg.use_nerd_font),
     );
 

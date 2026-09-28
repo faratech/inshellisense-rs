@@ -190,6 +190,10 @@ fn extract_subcommands(s: &str) -> BTreeSet<String> {
             in_commands = false;
             continue;
         }
+        if line.starts_with("   ") {
+            // Indented continuation line in command description (e.g. Commander.js wrapping)
+            continue;
+        }
         if let Some(name) = line.split_whitespace().next()
             && name
                 .chars()

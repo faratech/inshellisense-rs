@@ -47,17 +47,78 @@ pub const fn max_lines(max_suggestions: u8) -> usize {
     BORDER_WIDTH + inner + 1 // +1 trailing newline slack matches upstream
 }
 
-/// Upstream active-row background.
-///
-/// Upstream's source sets `activeSuggestionBackgroundColor = "#7D56F4"`
-/// via `chalk.bgHex(...)`, but chalk's `supports-color` crate downgrades
-/// to the nearest 256-color index when the terminal doesn't advertise
-/// `COLORTERM=truecolor`. In practice upstream's binary almost always
-/// emits `\x1b[48;5;105m` (xterm-256 index 105 ≈ #8787FF) on Linux ttys.
-/// For byte-for-byte parity we follow the same detection + fallback.
+pub use crate::config::BoxBorderStyle;
+
+impl BoxBorderStyle {
+    pub const fn top_left(self) -> &'static str {
+        match self {
+            Self::Square => "┌",
+            Self::Rounded => "╭",
+        }
+    }
+    pub const fn top_right(self) -> &'static str {
+        match self {
+            Self::Square => "┐",
+            Self::Rounded => "╮",
+        }
+    }
+    pub const fn bottom_left(self) -> &'static str {
+        match self {
+            Self::Square => "└",
+            Self::Rounded => "╰",
+        }
+    }
+    pub const fn bottom_right(self) -> &'static str {
+        match self {
+            Self::Square => "┘",
+            Self::Rounded => "╯",
+        }
+    }
+}
+
+pub fn parse_hex_color(hex: &str) -> Option<(u8, u8, u8)> {
+    let hex = hex.strip_prefix('#')?;
+    if hex.len() != 6 {
+        return None;
+    }
+    let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+    Some((r, g, b))
+}
+
+pub fn rgb_to_ansi256(r: u8, g: u8, b: u8) -> u8 {
+    if r == g && g == b {
+        if r < 8 {
+            16
+        } else if r > 248 {
+            231
+        } else {
+            (((r as u16 - 8) * 24) / 240) as u8 + 232
+        }
+    } else {
+        let qr = (r as u16 * 5 + 127) / 255;
+        let qg = (g as u16 * 5 + 127) / 255;
+        let qb = (b as u16 * 5 + 127) / 255;
+        (16 + 36 * qr + 6 * qg + qb) as u8
+    }
+}
+
+pub fn compute_active_bg(hex: &str) -> String {
+    let (r, g, b) = parse_hex_color(hex).unwrap_or((125, 86, 244));
+    if is_truecolor() {
+        format!("\x1b[48;2;{r};{g};{b}m")
+    } else if (r, g, b) == (125, 86, 244) {
+        "\x1b[48;5;105m".to_string()
+    } else {
+        let idx = rgb_to_ansi256(r, g, b);
+        format!("\x1b[48;5;{idx}m")
+    }
+}
+
+/// Upstream active-row background default.
+#[cfg(test)]
 fn active_bg_on() -> &'static str {
-    // Check once, cache. We never flip between terminals within one
-    // run so a static OnceLock is fine.
     use std::sync::LazyLock;
     static BG: LazyLock<&'static str> = LazyLock::new(|| {
         if is_truecolor() {
@@ -93,6 +154,8 @@ pub enum Direction {
 pub struct PopupRenderer {
     max_suggestions: u8,
     icons: IconSet,
+    border_style: BoxBorderStyle,
+    active_bg: String,
     last_drawn_rows: u16,
     last_direction: Direction,
     last_signature: Option<u64>,
@@ -100,9 +163,21 @@ pub struct PopupRenderer {
 
 impl PopupRenderer {
     pub fn new(max_suggestions: u8, icons: IconSet) -> Self {
+        Self::with_options(max_suggestions, icons, BoxBorderStyle::default(), None)
+    }
+
+    pub fn with_options(
+        max_suggestions: u8,
+        icons: IconSet,
+        border_style: BoxBorderStyle,
+        active_bg_hex: Option<&str>,
+    ) -> Self {
+        let active_bg = compute_active_bg(active_bg_hex.unwrap_or("#7D56F4"));
         Self {
             max_suggestions: max_suggestions.max(1),
             icons,
+            border_style,
+            active_bg,
             last_drawn_rows: 0,
             last_direction: Direction::Below,
             last_signature: None,
@@ -169,8 +244,15 @@ impl PopupRenderer {
             calculate_padding(cursor_col, term_cols, &active_desc, sug_width);
 
         // Render each column.
-        let suggestion_box = render_suggestion_box(visible, active_in_page, self.icons, sug_width);
-        let description_box = render_description_box(&active_desc);
+        let suggestion_box = render_suggestion_box(
+            visible,
+            active_in_page,
+            self.icons,
+            sug_width,
+            self.border_style,
+            &self.active_bg,
+        );
+        let description_box = render_description_box(&active_desc, self.border_style);
 
         let max_rows = suggestion_box.len().max(description_box.len());
 
@@ -368,28 +450,40 @@ fn render_suggestion_box(
     active_in_page: usize,
     icons: IconSet,
     width: usize,
+    border_style: BoxBorderStyle,
+    active_bg: &str,
 ) -> Vec<String> {
     let inner = width.saturating_sub(BORDER_WIDTH); // cells between the borders
     let mut out = Vec::with_capacity(visible.len() + 2);
     // Top border
-    out.push(format!("\x1b[0m┌{}┐", "─".repeat(inner)));
+    out.push(format!(
+        "\x1b[0m{}{}{}",
+        border_style.top_left(),
+        "─".repeat(inner),
+        border_style.top_right()
+    ));
     for (idx, s) in visible.iter().enumerate() {
         let text = format!("{} {}", icon_for(s, icons), s.name);
         let padded = truncate_or_pad_wc(&text, inner);
         let body = if idx == active_in_page {
-            format!("{}{}{}\x1b[0m", active_bg_on(), padded, ACTIVE_BG_OFF)
+            format!("{}{}{}\x1b[0m", active_bg, padded, ACTIVE_BG_OFF)
         } else {
             padded
         };
         out.push(format!("\x1b[0m│{}│", body));
     }
     // Bottom border
-    out.push(format!("\x1b[0m└{}┘", "─".repeat(inner)));
+    out.push(format!(
+        "\x1b[0m{}{}{}",
+        border_style.bottom_left(),
+        "─".repeat(inner),
+        border_style.bottom_right()
+    ));
     out
 }
 
 /// Port of `_renderDescription` → `renderBox(truncateMultilineText(...))`.
-fn render_description_box(description: &str) -> Vec<String> {
+fn render_description_box(description: &str, border_style: BoxBorderStyle) -> Vec<String> {
     if description.is_empty() {
         return Vec::new();
     }
@@ -397,12 +491,22 @@ fn render_description_box(description: &str) -> Vec<String> {
     let inner = width - BORDER_WIDTH; // 28 cells
     let lines = wrap_multiline(description, inner, DESCRIPTION_HEIGHT);
     let mut out = Vec::with_capacity(lines.len() + 2);
-    out.push(format!("\x1b[0m┌{}┐", "─".repeat(inner)));
+    out.push(format!(
+        "\x1b[0m{}{}{}",
+        border_style.top_left(),
+        "─".repeat(inner),
+        border_style.top_right()
+    ));
     for line in &lines {
         let padded = pad_right_wc(line, inner);
         out.push(format!("\x1b[0m│{}│", padded));
     }
-    out.push(format!("\x1b[0m└{}┘", "─".repeat(inner)));
+    out.push(format!(
+        "\x1b[0m{}{}{}",
+        border_style.bottom_left(),
+        "─".repeat(inner),
+        border_style.bottom_right()
+    ));
     out
 }
 
@@ -714,19 +818,50 @@ mod tests {
             "Switch branches",
             SuggestionType::Subcommand,
         )];
-        let box_ = render_suggestion_box(&sugs, 0, IconSet::default(), SUGGESTION_WIDTH);
+        let box_ = render_suggestion_box(
+            &sugs,
+            0,
+            IconSet::default(),
+            SUGGESTION_WIDTH,
+            BoxBorderStyle::Square,
+            active_bg_on(),
+        );
         assert!(box_[0].contains("┌"));
         assert!(box_[0].ends_with('┐'));
         assert!(box_.last().unwrap().contains("└"));
         assert!(box_.last().unwrap().ends_with('┘'));
+
+        let rounded_box = render_suggestion_box(
+            &sugs,
+            0,
+            IconSet::default(),
+            SUGGESTION_WIDTH,
+            BoxBorderStyle::Rounded,
+            active_bg_on(),
+        );
+        assert!(rounded_box[0].contains("╭"));
+        assert!(rounded_box[0].ends_with('╮'));
+        assert!(rounded_box.last().unwrap().contains("╰"));
+        assert!(rounded_box.last().unwrap().ends_with('╯'));
     }
 
     #[test]
     fn description_box_has_borders() {
-        let box_ = render_description_box("Switch branches or restore working tree files");
+        let box_ = render_description_box(
+            "Switch branches or restore working tree files",
+            BoxBorderStyle::Square,
+        );
         assert!(!box_.is_empty());
         assert!(box_[0].contains("┌"));
         assert!(box_.last().unwrap().contains("└"));
+
+        let rounded = render_description_box(
+            "Switch branches or restore working tree files",
+            BoxBorderStyle::Rounded,
+        );
+        assert!(!rounded.is_empty());
+        assert!(rounded[0].contains("╭"));
+        assert!(rounded.last().unwrap().contains("╰"));
     }
 
     #[test]
@@ -744,8 +879,6 @@ mod tests {
         r.draw_full(&mut buf, &sugs, 0, Direction::Below, 10, 120)
             .unwrap();
         let s = String::from_utf8_lossy(&buf);
-        // Active bg is either truecolor (48;2;125;86;244) or 256-color
-        // indexed (48;5;105) depending on COLORTERM.
         assert!(
             s.contains("\x1b[48;2;125;86;244m") || s.contains("\x1b[48;5;105m"),
             "no active bg found: {s:?}"
@@ -753,6 +886,32 @@ mod tests {
         assert!(s.contains("┌"));
         assert!(s.contains("└"));
         assert!(s.contains("📦"));
+    }
+
+    #[test]
+    fn draw_full_honors_rounded_borders_and_custom_color() {
+        let mut buf: Vec<u8> = Vec::new();
+        let mut r = PopupRenderer::with_options(
+            5,
+            IconSet::default(),
+            BoxBorderStyle::Rounded,
+            Some("#2E7D32"),
+        );
+        let sugs = vec![mk(
+            "checkout",
+            "Switch branches",
+            SuggestionType::Subcommand,
+        )];
+        r.draw_full(&mut buf, &sugs, 0, Direction::Below, 10, 120)
+            .unwrap();
+        let s = String::from_utf8_lossy(&buf);
+        assert!(s.contains("╭"));
+        assert!(s.contains("╰"));
+        // #2E7D32 is (46, 125, 50) -> truecolor \x1b[48;2;46;125;50m or 256-color cube
+        assert!(
+            s.contains("\x1b[48;2;46;125;50m") || s.contains("\x1b[48;5;"),
+            "custom active bg not found: {s:?}"
+        );
     }
 
     #[test]

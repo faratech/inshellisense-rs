@@ -72,7 +72,7 @@ const stats: Stats = {
 interface ManifestEntry {
   name: string;
   file: string;
-  kind: "pure" | "partial" | "js_only";
+  kind: "pure" | "partial" | "js_only" | "error";
   has_functions: boolean;
 }
 

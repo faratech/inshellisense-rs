@@ -62,11 +62,11 @@ pub fn main() -> Result<()> {
     }
     if check {
         if is_env::session_active() {
-            println!("inshellisense-rs session live");
+            println!("inshellisense session [live]");
             return Ok(());
         }
         // Upstream exits 0 here (it reports status, not an error).
-        println!("inshellisense-rs session not found");
+        println!("inshellisense session [not found]");
         return Ok(());
     }
 
@@ -82,7 +82,7 @@ pub fn main() -> Result<()> {
             // session, print confirmation and exit — don't nest.
             // Matches upstream's behavior at commands/root.ts:25-29.
             if is_env::session_active() {
-                println!("inshellisense-rs session live");
+                println!("inshellisense session [live]");
                 return Ok(());
             }
             let start_opts = parse_start_args(&rest, shell, login, verbose, test)?;
@@ -643,7 +643,7 @@ Usage: is specs list [OPTIONS]
 
 Options:
   --plain              Print one spec name per line (no decoration)
-  --shell <SHELL>      Filter to specs relevant for the given shell
+  -s, --shell <SHELL>  Filter to specs relevant for the given shell
   -h, --help           Print this help"
     );
 }
