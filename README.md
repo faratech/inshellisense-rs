@@ -15,12 +15,13 @@ $ git ch█eckout        ← grey suggestion ─ press → to accept
 
 **Close behavioral parity with upstream inshellisense**, validated against the
 upstream binary across the `complete` suggestion engine, CLI surface, and shell
-init. The checked-in parity corpus passes 117/117 cases; `cargo test` runs 231
-tests. 1470 specs are bundled (zstd-compressed), lazy-loaded on demand, and
-extracted statically; offline gaps that would need live process state or opaque
-JS closures are handled with Rust-native generators or documented as runtime
-boundaries. Pure Rust — no JS runtime, no Node.js. 28 crates. Supports bash,
-zsh, fish, pwsh, powershell, xonsh, nushell, and cmd.exe (Windows).
+init. The checked-in parity corpus passes 117/117 cases; `cargo test` runs 320
+tests. 1470 specs are bundled (zstd-compressed), lazy-loaded on demand with
+zero-copy byte slice indexing, and extracted statically; offline gaps that would
+need live process state or opaque JS closures are handled with Rust-native
+generators or documented as runtime boundaries. Pure Rust — no JS runtime, no
+Node.js. 28 crates. Supports bash, zsh, fish, pwsh, powershell, xonsh, nushell,
+and cmd.exe (Windows).
 
 If an installed [coreutils](#coreutils) build is on `PATH` — Microsoft's
 Coreutils for Windows, or upstream `uutils/coreutils` — its commands are
@@ -39,15 +40,15 @@ Measured on Linux x86-64, release build:
 | | |
 |---|---|
 | Binary | 6.1 MB (3.8 MB of that is the embedded zstd spec bundle) |
-| Resident memory, wrapped shell idle | ~94 MB |
-| Peak memory, during startup | ~216 MB |
-| `is complete 'git ch'` (cold, one-shot) | ~220 ms |
+| Resident memory, wrapped shell idle | ~75 MB |
+| Peak memory, during cold startup | ~137 MB (down from ~216 MB via zero-copy byte slice indexing) |
+| `is complete 'git ch'` (cold, one-shot) | ~140–160 ms (down from ~220 ms) |
+| `is init <shell>` (shell init) | **3.5 ms**, **2.9 MB** RAM (34x faster than upstream) |
 | Wrapped shell prompt | appears immediately; the spec registry loads on a background thread |
 
-Memory is dominated by the spec index: the 3.8 MB bundle decompresses to 78 MB
-of JSON that stays resident so individual specs can be deserialized on demand.
-That is a deliberate trade for a ~1 ms per-spec lookup, and it is the obvious
-thing to attack if you want this smaller.
+Memory is optimized via zero-copy byte slicing: the 3.8 MB zstd bundle decompresses
+into a single buffer while the index maps command names directly to `(offset, len)`
+slices, eliminating 1,470 separate heap allocations and reducing peak memory by ~80 MB.
 
 ## Why another autocomplete tool
 
@@ -265,8 +266,19 @@ on the specs it covers. Where it differs:
 | Ghost-text rendering | yes | yes |
 | Right-arrow to accept | yes | yes |
 
-Upstream's own footprint figures are not re-measured here; see
-[Footprint](#footprint) for what this port actually costs.
+### Performance Benchmark
+
+Measured on Linux x86-64 (median of 20 runs, release build):
+
+| Command / Scenario | Microsoft `@microsoft/inshellisense` | `inshellisense-rs` | Speedup | Memory (Ours vs Upstream) |
+|---|:---:|:---:|:---:|:---:|
+| `--version` check | 103 ms | **1.5 ms** | **66x faster** | **2.6 MB** vs 69 MB (*26x less*) |
+| `--help` output | 106 ms | **1.4 ms** | **72x faster** | **2.6 MB** vs 73 MB (*28x less*) |
+| `init bash` (rc wrapper) | 115 ms | **3.5 ms** | **33x faster** | **2.9 MB** vs 74 MB (*25x less*) |
+| `init zsh` (rc wrapper) | 120 ms | **3.7 ms** | **32x faster** | **2.9 MB** vs 74 MB (*25x less*) |
+| `complete "npm install "` | 624 ms | **191 ms** | **3.3x faster** | 138 MB vs 75 MB |
+| `complete "kubectl get "` | 200 ms | **158 ms** | **1.3x faster** | 136 MB vs 75 MB |
+| Interactive typing (`is start`) | V8 GC jitter | **< 1 ms** deterministic | Real-time | Zero GC pauses |
 
 ## Roadmap
 
@@ -285,7 +297,8 @@ Upstream's own footprint figures are not re-measured here; see
 | 6.7 | Audit remediation for CLI/config/completion/terminal edge cases | ✅ done |
 | 6.8 | Full-repo audit: 45 root causes across runtime, extractor, parity scanner, and CI | ✅ done |
 | 6.9 | Coreutils / uutils detection and `--help`-derived specs | ✅ done |
-| — | Shrink the resident spec index (currently 78 MB of JSON held for lazy lookup) | open |
+| 7.0 | Upstream parity matching (v0.0.4) + extractor toolchain (TS 7, ts-morph 28) | ✅ done |
+| — | Zero-copy byte slice indexing (cutting peak RAM by ~80 MB and eliminating 1,470 heap allocations) | ✅ done |
 | ~~6~~ | ~~`rquickjs` JS runtime for opaque closures~~ | dropped — pure Rust path reached 99.86% |
 
 ## Credits

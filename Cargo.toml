@@ -40,6 +40,7 @@ windows-sys = { version = "0.61", features = [
 default = []
 
 [profile.release]
-lto = "thin"
+lto = true
 codegen-units = 1
 strip = true
+opt-level = "s"
