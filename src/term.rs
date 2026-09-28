@@ -113,12 +113,22 @@ impl TermTracker {
     /// The command text up to the cursor. Completions are computed from what
     /// precedes the cursor, not from the whole line — with the cursor after
     /// `git s` in `git status`, the candidate is `s`, not `status`.
-    pub fn command_before_cursor(&self) -> String {
-        self.state
+    pub fn command_before_cursor(&self) -> &str {
+        if self.state.cursor_offset == 0 {
+            return "";
+        }
+        if self.cursor_at_command_end() {
+            return &self.state.command;
+        }
+        match self
+            .state
             .command
-            .chars()
-            .take(self.state.cursor_offset)
-            .collect()
+            .char_indices()
+            .nth(self.state.cursor_offset)
+        {
+            Some((idx, _)) => &self.state.command[..idx],
+            None => &self.state.command,
+        }
     }
 
     /// Called on SIGWINCH — tell the headless vt parser about the new

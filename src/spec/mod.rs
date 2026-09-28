@@ -32,14 +32,24 @@ const _: () = {
     let _ = assertions;
 };
 
+enum LazyEntry {
+    /// Byte range (offset, length) within `bundle_buf`.
+    Bundle(usize, usize),
+    /// Standalone allocated bytes (e.g. tests or dynamic specs).
+    #[allow(dead_code)]
+    Owned(Vec<u8>),
+}
+
 #[derive(Default)]
 struct Inner {
     /// Parsed specs (curated, TOML user specs, and lazily-parsed bundle
     /// specs). Values are boxed so their addresses stay put while the map
     /// rebalances — `get(&self)` returns references into these allocations.
     specs: BTreeMap<String, Box<Subcommand>>,
-    /// Lazy index: key → raw JSON bytes for specs not yet parsed.
-    lazy: BTreeMap<String, Vec<u8>>,
+    /// Lazy index: key → byte range in `bundle_buf` or owned bytes.
+    lazy: BTreeMap<String, LazyEntry>,
+    /// Decompressed embedded bundle buffer.
+    bundle_buf: Option<Box<[u8]>>,
     /// Root alias → primary key in `lazy`. A spec's root `names` may list
     /// aliases (`["R", "Rscript"]`), but the bundle is keyed only by the
     /// first, so typing an alias resolved to nothing.
@@ -55,7 +65,8 @@ struct Inner {
 /// index that keeps startup at ~75ms.
 fn probe_names(raw: &[u8]) -> Vec<String> {
     const KEY: &[u8] = b"\"names\":";
-    let Some(pos) = raw
+    let search_slice = if raw.len() > 1024 { &raw[..1024] } else { raw };
+    let Some(pos) = search_slice
         .windows(KEY.len())
         .position(|window| window == KEY)
         .map(|p| p + KEY.len())
@@ -173,7 +184,7 @@ impl Registry {
         // this scans keys but does NOT deserialize the nested spec
         // objects. Each value is kept as raw JSON bytes for lazy
         // deserialization on first get().
-        let map: BTreeMap<String, Box<serde_json::value::RawValue>> =
+        let map: BTreeMap<&str, &serde_json::value::RawValue> =
             match serde_json::from_slice(&decoded) {
                 Ok(m) => m,
                 Err(e) => {
@@ -181,16 +192,22 @@ impl Registry {
                     return;
                 }
             };
+        let buf_start = decoded.as_ptr() as usize;
         let inner = self.inner_mut();
         for (key, raw) in map {
-            let bytes = raw.get().as_bytes().to_vec();
-            for alias in probe_names(&bytes).into_iter().skip(1) {
+            let raw_str = raw.get();
+            let offset = raw_str.as_ptr() as usize - buf_start;
+            let len = raw_str.len();
+            for alias in probe_names(raw_str.as_bytes()).into_iter().skip(1) {
                 if alias != key {
-                    inner.aliases.insert(alias, key.clone());
+                    inner.aliases.insert(alias, key.to_string());
                 }
             }
-            inner.lazy.insert(key, bytes);
+            inner
+                .lazy
+                .insert(key.to_string(), LazyEntry::Bundle(offset, len));
         }
+        inner.bundle_buf = Some(decoded.into_boxed_slice());
     }
 
     fn load_configured_json_dirs(&mut self) {
@@ -301,8 +318,15 @@ impl Registry {
                 let spec = spec.clone();
                 inner.specs.insert(name.to_string(), spec);
             } else {
-                let raw = inner.lazy.remove(&key)?;
-                match serde_json::from_slice::<Subcommand>(&raw) {
+                let entry = inner.lazy.remove(&key)?;
+                let spec_res = match entry {
+                    LazyEntry::Bundle(offset, len) => {
+                        let buf = inner.bundle_buf.as_deref()?;
+                        serde_json::from_slice::<Subcommand>(&buf[offset..offset + len])
+                    }
+                    LazyEntry::Owned(ref bytes) => serde_json::from_slice::<Subcommand>(bytes),
+                };
+                match spec_res {
                     Ok(mut spec) => {
                         // Surgically augment bundled specs to close extractor
                         // gaps (missing options, opaque-JS generators, lost
@@ -371,7 +395,7 @@ impl Registry {
     fn insert_lazy(&mut self, name: &str, json: &str) {
         self.inner_mut()
             .lazy
-            .insert(name.to_string(), json.as_bytes().to_vec());
+            .insert(name.to_string(), LazyEntry::Owned(json.as_bytes().to_vec()));
     }
 
     fn load_toml_dir(&mut self) {

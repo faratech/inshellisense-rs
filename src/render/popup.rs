@@ -439,6 +439,17 @@ fn calc_row_padding(
     }
 }
 
+#[inline]
+fn repeat_bar(inner: usize) -> std::borrow::Cow<'static, str> {
+    const BARS: &str = "────────────────────────────────────────────────────────────────────────────────────────────────────";
+    let bytes = inner * 3;
+    if bytes <= BARS.len() {
+        std::borrow::Cow::Borrowed(&BARS[..bytes])
+    } else {
+        std::borrow::Cow::Owned("─".repeat(inner))
+    }
+}
+
 /// Port of `_renderSuggestions` → `renderBox(...)`.
 ///
 /// Byte format matches upstream exactly: each middle row is
@@ -455,11 +466,12 @@ fn render_suggestion_box(
 ) -> Vec<String> {
     let inner = width.saturating_sub(BORDER_WIDTH); // cells between the borders
     let mut out = Vec::with_capacity(visible.len() + 2);
+    let bar = repeat_bar(inner);
     // Top border
     out.push(format!(
         "\x1b[0m{}{}{}",
         border_style.top_left(),
-        "─".repeat(inner),
+        bar,
         border_style.top_right()
     ));
     for (idx, s) in visible.iter().enumerate() {
@@ -476,7 +488,7 @@ fn render_suggestion_box(
     out.push(format!(
         "\x1b[0m{}{}{}",
         border_style.bottom_left(),
-        "─".repeat(inner),
+        bar,
         border_style.bottom_right()
     ));
     out
@@ -491,10 +503,11 @@ fn render_description_box(description: &str, border_style: BoxBorderStyle) -> Ve
     let inner = width - BORDER_WIDTH; // 28 cells
     let lines = wrap_multiline(description, inner, DESCRIPTION_HEIGHT);
     let mut out = Vec::with_capacity(lines.len() + 2);
+    let bar = repeat_bar(inner);
     out.push(format!(
         "\x1b[0m{}{}{}",
         border_style.top_left(),
-        "─".repeat(inner),
+        bar,
         border_style.top_right()
     ));
     for line in &lines {
@@ -504,7 +517,7 @@ fn render_description_box(description: &str, border_style: BoxBorderStyle) -> Ve
     out.push(format!(
         "\x1b[0m{}{}{}",
         border_style.bottom_left(),
-        "─".repeat(inner),
+        bar,
         border_style.bottom_right()
     ));
     out

@@ -453,15 +453,15 @@ pub fn run_wrapped(
                 // line: with the cursor mid-word the suffix isn't typed yet
                 // from the completion engine's point of view.
                 let typed = tracker.command_before_cursor();
-                let sig = suggestion_signature(&typed, &cwd);
+                let sig = suggestion_signature(typed, &cwd);
                 if sig != request_sig {
                     request_sig = sig;
-                    if req_tx.send((sig, typed.clone(), cwd.clone())).is_err() {
+                    if req_tx.send((sig, typed.to_string(), cwd.clone())).is_err() {
                         break;
                     }
                 }
                 if got_suggestions {
-                    ranked_typed = typed.clone();
+                    ranked_typed = typed.to_string();
                 }
                 // Results for the text on screen have not arrived yet. Leave
                 // the last coherent popup up rather than blanking the screen
@@ -487,9 +487,9 @@ pub fn run_wrapped(
                     _ => 0,
                 };
                 let tail = if !ranked.is_empty() && has_ghost && cursor_at_end {
-                    let partial = current_partial(&typed);
+                    let partial = current_partial(typed);
                     let repl =
-                        replacement_tail(&ranked[active_cursor], &typed, &partial, Some(shell));
+                        replacement_tail(&ranked[active_cursor], typed, &partial, Some(shell));
                     // A replacement that erases the token starts with
                     // backspaces, and one with a `{cursor}` needs a caret
                     // move — neither is displayable as inline ghost text.
@@ -636,8 +636,8 @@ fn handle_stdin(
                 return false;
             }
             let selected = &ranked[cursor.min(ranked.len() - 1)];
-            let partial = current_partial(&typed);
-            let repl = replacement_tail(selected, &typed, &partial, Some(shell));
+            let partial = current_partial(typed);
+            let repl = replacement_tail(selected, typed, &partial, Some(shell));
             renderer.clear(out).ok();
             if !repl.tail.is_empty() {
                 pty.pty_write(repl.tail.as_bytes());
