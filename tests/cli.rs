@@ -182,22 +182,6 @@ fn offline_text_complete_does_not_use_history() {
     assert_eq!(String::from_utf8_lossy(&out.stdout), "");
 }
 
-/// parity-scan executes its `--upstream` binary, so it must be given one
-/// explicitly rather than defaulting to a path under the shared `/tmp` (#88).
-#[test]
-fn parity_scan_requires_an_explicit_upstream() {
-    let out = Command::new(env!("CARGO_BIN_EXE_parity-scan"))
-        .args(["--ours", bin()])
-        .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(2));
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        stderr.contains("--upstream <PATH> is required"),
-        "stderr={stderr}"
-    );
-}
-
 #[test]
 fn complete_shell_pwsh_uses_powershell_ls_options() {
     let home = temp_dir("pwsh-ls");
@@ -216,4 +200,20 @@ fn complete_shell_pwsh_uses_powershell_ls_options() {
         .collect();
     assert!(names.contains(&"-Recurse"), "names={names:?}");
     assert!(!names.contains(&"-l"), "names={names:?}");
+}
+
+/// parity-scan executes its `--upstream` binary, so it must be given one
+/// explicitly rather than defaulting to a path under the shared `/tmp` (#88).
+#[test]
+fn parity_scan_requires_an_explicit_upstream() {
+    let out = Command::new(env!("CARGO_BIN_EXE_parity-scan"))
+        .args(["--ours", bin()])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("--upstream <PATH> is required"),
+        "stderr={stderr}"
+    );
 }
