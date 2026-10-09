@@ -1143,6 +1143,13 @@ mod tests {
         assert!(start.elapsed() < Duration::from_secs(1));
     }
 
+    #[test]
+    fn json_object_packages_become_suggestions() {
+        let got = json_to_suggestions(r#"{"packages":[{"name":"pkg-a"},{"name":"pkg-b"}]}"#, None);
+        let names: Vec<String> = got.into_iter().map(|s| s.name).collect();
+        assert_eq!(names, vec!["pkg-a", "pkg-b"]);
+    }
+
     /// A fresh, uniquely named directory for one test.
     #[cfg(unix)]
     fn scratch_dir(tag: &str) -> std::path::PathBuf {
@@ -1249,12 +1256,5 @@ mod tests {
             "an endless generator ran for {:?}",
             start.elapsed()
         );
-    }
-
-    #[test]
-    fn json_object_packages_become_suggestions() {
-        let got = json_to_suggestions(r#"{"packages":[{"name":"pkg-a"},{"name":"pkg-b"}]}"#, None);
-        let names: Vec<String> = got.into_iter().map(|s| s.name).collect();
-        assert_eq!(names, vec!["pkg-a", "pkg-b"]);
     }
 }
