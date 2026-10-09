@@ -615,9 +615,17 @@ fn type_rank(t: SuggestionType) -> u8 {
     }
 }
 
+/// Most candidates one request keeps. A directory with a million entries or a
+/// generator printing a million lines otherwise sends every one of them to the
+/// UI thread on each keystroke (and through `is complete`); nobody pages that
+/// far through a popup.
+const MAX_SUGGESTIONS: usize = 5_000;
+
+/// Drop later duplicates by name and keep at most `MAX_SUGGESTIONS`, in rank
+/// order.
 fn dedup_by_name(mut v: Vec<Suggestion>) -> Vec<Suggestion> {
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    v.retain(|s| seen.insert(s.name.clone()));
+    v.retain(|s| seen.len() < MAX_SUGGESTIONS && seen.insert(s.name.clone()));
     v
 }
 
@@ -730,6 +738,34 @@ mod partial_tests {
         assert_eq!(
             current_partial("ls my\\ file", Some(Shell::Bash)).as_deref(),
             Some("my file")
+        );
+    }
+}
+
+#[cfg(test)]
+mod cap_tests {
+    use super::{MAX_SUGGESTIONS, Suggestion, dedup_by_name};
+
+    /// A huge directory or generator listing is cut to `MAX_SUGGESTIONS`
+    /// after ranking, keeping the best-ranked candidates in order (#87).
+    #[test]
+    fn candidates_are_capped_after_ranking() {
+        let ranked: Vec<Suggestion> = (0..MAX_SUGGESTIONS + 1_000)
+            .flat_map(|i| {
+                // Every name twice: the cap counts distinct names.
+                let s = Suggestion {
+                    name: format!("entry-{i:05}"),
+                    ..Default::default()
+                };
+                [s.clone(), s]
+            })
+            .collect();
+        let kept = dedup_by_name(ranked);
+        assert_eq!(kept.len(), MAX_SUGGESTIONS);
+        assert_eq!(kept[0].name, "entry-00000");
+        assert_eq!(
+            kept[MAX_SUGGESTIONS - 1].name,
+            format!("entry-{:05}", MAX_SUGGESTIONS - 1)
         );
     }
 }

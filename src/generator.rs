@@ -154,7 +154,7 @@ fn file_exists_then(
         return Vec::new();
     }
     if let Some(needle) = content_contains {
-        let Ok(contents) = std::fs::read_to_string(&target) else {
+        let Some(contents) = read_project_file(&target, MAX_PROBE_FILE_BYTES) else {
             return Vec::new();
         };
         if !contents.contains(needle) {
@@ -253,6 +253,46 @@ fn is_known_node_cli(name: &str) -> bool {
     NODE_CLIS.contains(&name)
 }
 
+/// Largest manifest (`package.json`, `Cargo.toml`) read for suggestions. Real
+/// ones are a few KiB; a monorepo root stays well under this.
+const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
+
+/// Largest file `FileExistsThen` scans for its marker (`manage.py`).
+const MAX_PROBE_FILE_BYTES: u64 = 256 * 1024;
+
+/// Read a file from the working directory for completion, or `None`.
+///
+/// These files belong to whoever authored the directory, and are read on
+/// every keystroke. `read_to_string` after `exists()` followed a symlink to
+/// `/dev/zero` and grew its buffer until the allocation aborted the wrapper
+/// (taking the user's shell session with it), and blocked forever opening a
+/// FIFO. Only regular files up to `limit` bytes are read. On Unix the file is
+/// opened non-blocking so a FIFO cannot stall the open, and the type and size
+/// checks use the opened handle, so swapping the path afterwards changes
+/// nothing.
+fn read_project_file(path: &Path, limit: u64) -> Option<String> {
+    use std::io::Read;
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    let file = options.open(path).ok()?;
+    let meta = file.metadata().ok()?;
+    if !meta.is_file() || meta.len() > limit {
+        return None;
+    }
+    // The size can still grow between the check and the read.
+    let mut text = String::new();
+    file.take(limit + 1).read_to_string(&mut text).ok()?;
+    if text.len() as u64 > limit {
+        return None;
+    }
+    Some(text)
+}
+
 fn project_file_suggestions(reader: ProjectFileReader, cwd: &str) -> Vec<Suggestion> {
     match reader {
         ProjectFileReader::PackageJsonScripts => package_json_scripts(cwd),
@@ -265,7 +305,7 @@ fn project_file_suggestions(reader: ProjectFileReader, cwd: &str) -> Vec<Suggest
 fn package_json_scripts(cwd: &str) -> Vec<Suggestion> {
     let pkg_path =
         std::path::Path::new(if cwd.is_empty() { "." } else { cwd }).join("package.json");
-    let Ok(text) = std::fs::read_to_string(&pkg_path) else {
+    let Some(text) = read_project_file(&pkg_path, MAX_MANIFEST_BYTES) else {
         return Vec::new();
     };
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
@@ -289,7 +329,7 @@ fn package_json_scripts(cwd: &str) -> Vec<Suggestion> {
 fn package_json_node_clis(cwd: &str) -> Vec<Suggestion> {
     let pkg_path =
         std::path::Path::new(if cwd.is_empty() { "." } else { cwd }).join("package.json");
-    let Ok(text) = std::fs::read_to_string(&pkg_path) else {
+    let Some(text) = read_project_file(&pkg_path, MAX_MANIFEST_BYTES) else {
         return Vec::new();
     };
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
@@ -349,7 +389,7 @@ fn node_modules_binaries(cwd: &str) -> Vec<Suggestion> {
 
 fn cargo_workspace_members(cwd: &str) -> Vec<Suggestion> {
     let path = std::path::Path::new(if cwd.is_empty() { "." } else { cwd }).join("Cargo.toml");
-    let Ok(text) = std::fs::read_to_string(&path) else {
+    let Some(text) = read_project_file(&path, MAX_MANIFEST_BYTES) else {
         return Vec::new();
     };
     let Ok(value) = toml::from_str::<toml::Value>(&text) else {
@@ -728,16 +768,39 @@ fn run_command_with_timeout(
     // grandchild inherits the stdout pipe and holds its write end open long
     // after the direct child has exited, so `read_to_end` never returns and
     // the generator outlived its timeout.
+    //
+    // The read is capped too. The timeout bounds how long a generator runs,
+    // not how much it prints in that time, and an abandoned reader on an
+    // escaped descendant kept accumulating after the timeout fired.
     let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        let _ = std::io::Read::read_to_end(&mut stdout, &mut buf);
-        let _ = tx.send(buf);
-    });
+    let overflowed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    {
+        let overflowed = overflowed.clone();
+        std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            let limit = MAX_GENERATOR_OUTPUT as u64 + 1;
+            let _ =
+                std::io::Read::read_to_end(&mut std::io::Read::take(&mut stdout, limit), &mut buf);
+            if buf.len() > MAX_GENERATOR_OUTPUT {
+                buf = Vec::new();
+                overflowed.store(true, std::sync::atomic::Ordering::Release);
+            }
+            let _ = tx.send(buf);
+        });
+    }
+    let overflowed = || overflowed.load(std::sync::atomic::Ordering::Acquire);
 
     let timeout = Duration::from_millis(timeout_ms.max(1) as u64);
     let start = Instant::now();
     loop {
+        // Over the cap: the output is unusable, so stop the generator (and
+        // its process group) now instead of letting it block on a full pipe
+        // until the timeout.
+        if overflowed() {
+            kill_generator_child(&mut child);
+            let _ = child.wait();
+            return None;
+        }
         match child.try_wait() {
             Ok(Some(status)) => {
                 // Killing the process group closes any inherited write end, so
@@ -747,7 +810,7 @@ fn run_command_with_timeout(
                     .saturating_sub(start.elapsed())
                     .max(Duration::from_millis(50));
                 let bytes = rx.recv_timeout(grace).ok();
-                if !status.success() {
+                if !status.success() || overflowed() {
                     return None;
                 }
                 return bytes;
@@ -772,6 +835,11 @@ fn run_command_with_timeout(
         }
     }
 }
+
+/// Most bytes of generator stdout kept. Completion lists are a few KiB; even
+/// every installable package on a distribution (`apt-cache pkgnames`) is
+/// around 1 MiB. Output over the cap is discarded as a failed generator.
+const MAX_GENERATOR_OUTPUT: usize = 4 * 1024 * 1024;
 
 fn kill_generator_child(child: &mut std::process::Child) {
     #[cfg(unix)]
@@ -1073,6 +1141,114 @@ mod tests {
         );
         assert!(got.is_empty());
         assert!(start.elapsed() < Duration::from_secs(1));
+    }
+
+    /// A fresh, uniquely named directory for one test.
+    #[cfg(unix)]
+    fn scratch_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "insh-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&dir).unwrap();
+        dir
+    }
+
+    /// Run `f` on a thread and fail, rather than hang the suite, if it does
+    /// not return within a few seconds.
+    #[cfg(unix)]
+    fn within_seconds<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(f());
+        });
+        rx.recv_timeout(Duration::from_secs(5))
+            .expect("completion blocked on a project file")
+    }
+
+    /// Project files belong to whoever authored the directory and are read on
+    /// every keystroke. Only small regular files may be read: a FIFO used to
+    /// block the suggestion worker forever, and a link to `/dev/zero` grew the
+    /// buffer until the allocation aborted the wrapper (#87).
+    #[cfg(unix)]
+    #[test]
+    fn project_files_are_read_only_when_small_and_regular() {
+        // A FIFO named package.json / manage.py.
+        let fifo_dir = scratch_dir("fifo");
+        for name in ["package.json", "manage.py"] {
+            let path = std::ffi::CString::new(fifo_dir.join(name).to_str().unwrap()).unwrap();
+            assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0);
+        }
+        let cwd = fifo_dir.to_str().unwrap().to_string();
+        let (scripts, clis, django) = within_seconds(move || {
+            let django = Subcommand {
+                names: vec!["django-admin".into()],
+                ..Default::default()
+            };
+            (
+                package_json_scripts(&cwd),
+                package_json_node_clis(&cwd),
+                file_exists_then("manage.py", Some("django"), &django, &cwd),
+            )
+        });
+        assert!(scripts.is_empty() && clis.is_empty() && django.is_empty());
+
+        // A link to an endless device.
+        let zero_dir = scratch_dir("zero");
+        std::os::unix::fs::symlink("/dev/zero", zero_dir.join("package.json")).unwrap();
+        std::os::unix::fs::symlink("/dev/zero", zero_dir.join("Cargo.toml")).unwrap();
+        let cwd = zero_dir.to_str().unwrap().to_string();
+        let (scripts, members) =
+            within_seconds(move || (package_json_scripts(&cwd), cargo_workspace_members(&cwd)));
+        assert!(scripts.is_empty() && members.is_empty());
+
+        // An oversized manifest is ignored; a normal one still works.
+        let big_dir = scratch_dir("big");
+        let mut big = String::from(r#"{"scripts":{"build":"tsc"}}"#);
+        big.push_str(&" ".repeat(MAX_MANIFEST_BYTES as usize));
+        std::fs::write(big_dir.join("package.json"), big).unwrap();
+        assert!(package_json_scripts(big_dir.to_str().unwrap()).is_empty());
+        std::fs::write(
+            big_dir.join("package.json"),
+            r#"{"scripts":{"build":"tsc"}}"#,
+        )
+        .unwrap();
+        let names: Vec<String> = package_json_scripts(big_dir.to_str().unwrap())
+            .into_iter()
+            .map(|s| s.name)
+            .collect();
+        assert_eq!(names, ["build"]);
+
+        for dir in [fifo_dir, zero_dir, big_dir] {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+
+    /// The timeout bounds how long a generator runs, not how much it prints.
+    /// Output over the cap is discarded and the generator is stopped at once
+    /// rather than left to the timeout (#87).
+    #[cfg(unix)]
+    #[test]
+    fn generator_output_is_capped() {
+        let over = format!("yes | head -c {}", MAX_GENERATOR_OUTPUT + 1);
+        assert!(run_command_with_timeout(&Invocation::Shell(over), ".", 10_000).is_none());
+
+        let at_cap = format!("yes | head -c {MAX_GENERATOR_OUTPUT}");
+        let bytes = run_command_with_timeout(&Invocation::Shell(at_cap), ".", 10_000).unwrap();
+        assert_eq!(bytes.len(), MAX_GENERATOR_OUTPUT);
+
+        // Endless output: stopped as soon as the cap is reached.
+        let start = Instant::now();
+        assert!(run_command_with_timeout(&Invocation::Shell("yes".into()), ".", 30_000).is_none());
+        assert!(
+            start.elapsed() < Duration::from_secs(10),
+            "an endless generator ran for {:?}",
+            start.elapsed()
+        );
     }
 
     #[test]
