@@ -20,8 +20,11 @@ pub fn run(line: &str, text_mode: bool, cwd: &str, shell: Option<Shell>) -> Resu
     engine.set_shell(shell.unwrap_or_else(crate::shell::detect));
 
     if text_mode {
+        // The tail can be the rest of a filename or generator value; print it
+        // with its control characters made visible, as the ghost renderer
+        // does. (JSON mode is already safe: serde escapes them.)
         if let Some(s) = engine.suggest(line, cwd) {
-            println!("{}", s);
+            println!("{}", crate::render::printable(&s));
         }
         return Ok(());
     }

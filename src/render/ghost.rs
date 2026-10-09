@@ -43,7 +43,13 @@ impl GhostRenderer {
         tail: Option<&str>,
         max_cells: usize,
     ) -> io::Result<()> {
+        // Sanitize before measuring: the tail can be the rest of a filename
+        // or generator value, and `fit_to_width` counts control characters
+        // as zero width, so an escape sequence would survive truncation and
+        // reach the terminal.
+        let tail = tail.map(super::printable);
         let new = tail
+            .as_deref()
             .map(|s| fit_to_width(s, max_cells))
             .filter(|s| !s.is_empty())
             .map(str::to_string);
@@ -107,6 +113,41 @@ mod tests {
         assert!(!ghost.is_visible());
         let text = String::from_utf8(out).unwrap();
         assert!(!text.contains("eckout"));
+    }
+
+    /// A tail taken from a filename or generator value must never reach the
+    /// terminal as an escape sequence (#85).
+    #[test]
+    fn draw_never_emits_control_characters_from_the_tail() {
+        let mut ghost = GhostRenderer::new();
+        let mut out = Vec::new();
+        ghost
+            .draw(&mut out, Some("x\x1b]0;pwned\x07\x1b[2J\r\n\u{9b}2J"), 80)
+            .unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(
+            !text.contains("\x1b]0;"),
+            "OSC reached the terminal: {text:?}"
+        );
+        assert!(
+            !text.contains("\x1b[2J"),
+            "CSI reached the terminal: {text:?}"
+        );
+        assert!(!text.contains('\x07'));
+        assert!(!text.contains('\r'));
+        assert!(!text.contains('\n'));
+        assert!(!text.contains('\u{9b}'), "C1 CSI reached the terminal");
+        assert!(text.contains("x?]0;pwned??[2J???2J"), "{text:?}");
+    }
+
+    /// Replacement characters are one cell wide, so truncation stays exact.
+    #[test]
+    fn sanitized_tail_is_measured_after_replacement() {
+        let mut ghost = GhostRenderer::new();
+        let mut out = Vec::new();
+        ghost.draw(&mut out, Some("\x1b[2Jabc"), 3).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(text.contains(&format!("{}?[2{}", ansi::GREY_FG, ansi::RESET)));
     }
 
     #[test]
