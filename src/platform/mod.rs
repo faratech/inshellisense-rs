@@ -168,10 +168,7 @@ mod tests {
     struct Sandbox(PathBuf);
     impl Sandbox {
         fn new(tag: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!("insh-path-{tag}-{}", std::process::id()));
-            let _ = fs::remove_dir_all(&dir);
-            fs::create_dir_all(&dir).unwrap();
-            Self(dir)
+            Self(crate::test_support::unique_temp_dir(&format!("path-{tag}")))
         }
         fn write_executable(&self, name: &str) {
             let path = self.0.join(name);

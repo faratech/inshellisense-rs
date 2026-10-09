@@ -18,6 +18,8 @@ pub struct TermTracker {
     /// (0,0) when PE fires. This flag defers anchor-setting until
     /// after the next batch of bytes updates the vt100 screen.
     pending_prompt_end: bool,
+    /// `INSH_DUMP_BYTES` debug transcript, opened once at startup.
+    byte_dump: Option<std::fs::File>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -48,6 +50,7 @@ impl TermTracker {
             cwd: String::new(),
             state: CmdState::default(),
             pending_prompt_end: false,
+            byte_dump: open_byte_dump(std::env::var_os("INSH_DUMP_BYTES").as_deref()),
         }
     }
 
@@ -141,24 +144,18 @@ impl TermTracker {
 
     /// Feed cleaned bytes (no OSC 6973) into the parser and refresh cmd state.
     pub fn feed(&mut self, bytes: &[u8], events: &[IsEvent]) {
-        // Debug: dump bytes to /tmp/insh-bytes.log for offline analysis.
-        if std::env::var("INSH_DUMP_BYTES").is_ok() {
+        // Debug: dump bytes (INSH_DUMP_BYTES) for offline analysis.
+        if let Some(f) = self.byte_dump.as_mut() {
             use std::io::Write;
-            if let Ok(mut f) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open("/tmp/insh-bytes.log")
-            {
-                let _ = writeln!(
-                    f,
-                    "{}",
-                    bytes
-                        .iter()
-                        .map(|b| format!("{:02x}", b))
-                        .collect::<Vec<_>>()
-                        .join(" ")
-                );
-            }
+            let _ = writeln!(
+                f,
+                "{}",
+                bytes
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            );
         }
         self.parser.process(bytes);
         // Apply deferred PromptEnd from a PREVIOUS feed() call.
@@ -362,10 +359,93 @@ fn row_text(screen: &vt100::Screen, row: usize, start_col: usize, end_col: usize
     s
 }
 
+/// Open the `INSH_DUMP_BYTES` debug transcript, or `None` when it is unset
+/// or cannot be opened safely.
+///
+/// The transcript holds every byte the wrapped shell prints. It used to be
+/// appended to the fixed, shared `/tmp/insh-bytes.log` with default
+/// permissions (world-readable under a 022 umask), through whatever file or
+/// symlink another local user had put there first. It now goes to
+/// `~/.inshellisense/insh-bytes.log`, or to the path the variable names when
+/// that is absolute (`INSH_DUMP_BYTES=1` keeps working). On Unix the file is
+/// opened without following a final symlink, created 0600, and used only if
+/// it is a regular file owned by this user; an existing one is tightened to
+/// 0600.
+fn open_byte_dump(setting: Option<&std::ffi::OsStr>) -> Option<std::fs::File> {
+    let setting = setting?;
+    let path = if std::path::Path::new(setting).is_absolute() {
+        std::path::PathBuf::from(setting)
+    } else {
+        let root = crate::paths::resource_root()?;
+        std::fs::create_dir_all(&root).ok()?;
+        root.join("insh-bytes.log")
+    };
+    let mut options = std::fs::OpenOptions::new();
+    options.create(true).append(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600).custom_flags(libc::O_NOFOLLOW);
+    }
+    let file = options.open(&path).ok()?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let meta = file.metadata().ok()?;
+        // SAFETY: geteuid has no preconditions and cannot fail.
+        if !meta.is_file() || meta.uid() != unsafe { libc::geteuid() } {
+            return None;
+        }
+        if meta.mode() & 0o077 != 0 {
+            file.set_permissions(std::fs::Permissions::from_mode(0o600))
+                .ok()?;
+        }
+    }
+    Some(file)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ansi::IsEvent;
+
+    /// The `INSH_DUMP_BYTES` transcript is private: created 0600, never
+    /// written through a planted symlink, and an existing file is tightened
+    /// before anything is appended (#88).
+    #[cfg(unix)]
+    #[test]
+    fn byte_dump_is_private_and_never_follows_a_symlink() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = crate::test_support::unique_temp_dir("dump");
+        let mode = |p: &std::path::Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+
+        // A fresh file is created 0600 and receives the dump.
+        let log = dir.join("bytes.log");
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.byte_dump = open_byte_dump(Some(log.as_os_str()));
+        tracker.feed(b"hi", &[]);
+        assert_eq!(std::fs::read_to_string(&log).unwrap(), "68 69\n");
+        assert_eq!(mode(&log), 0o600);
+
+        // A symlink planted at the path is refused; its target is untouched.
+        let target = dir.join("victim");
+        std::fs::write(&target, "keep").unwrap();
+        let link = dir.join("link.log");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        assert!(open_byte_dump(Some(link.as_os_str())).is_none());
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "keep");
+
+        // A world-readable file left by an older build is tightened.
+        let old = dir.join("old.log");
+        std::fs::write(&old, "").unwrap();
+        std::fs::set_permissions(&old, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(open_byte_dump(Some(old.as_os_str())).is_some());
+        assert_eq!(mode(&old), 0o600);
+
+        // Unset: no transcript at all.
+        assert!(open_byte_dump(None).is_none());
+        let _ = std::fs::remove_dir_all(dir);
+    }
 
     #[test]
     fn preserves_trailing_space_at_cursor() {
