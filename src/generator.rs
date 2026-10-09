@@ -102,6 +102,32 @@ fn run_generator(
     help_subcommands: &[Subcommand],
     shell: Option<Shell>,
 ) -> Vec<Suggestion> {
+    let mut out = run_generator_inner(g, cwd, prefix, include_history, help_subcommands, shell);
+    // Script output, glob matches and project files are whatever the
+    // directory or the tools in it say, not spec text: mark them so the
+    // accept path quotes them. Templates are handled by type (filesystem
+    // names are File/Folder; `history` is the user's own command text and
+    // `help` lists spec subcommands), and `FileExistsThen` yields the spec's
+    // own subcommand names.
+    if matches!(
+        g,
+        Generator::Script { .. } | Generator::Glob { .. } | Generator::ProjectFile { .. }
+    ) {
+        for s in &mut out {
+            s.external = true;
+        }
+    }
+    out
+}
+
+fn run_generator_inner(
+    g: &Generator,
+    cwd: &str,
+    prefix: &str,
+    include_history: bool,
+    help_subcommands: &[Subcommand],
+    shell: Option<Shell>,
+) -> Vec<Suggestion> {
     match g {
         Generator::Script {
             input,
@@ -1073,6 +1099,60 @@ mod tests {
         );
         assert!(got.is_empty());
         assert!(start.elapsed() < Duration::from_secs(1));
+    }
+
+    /// Generator output and project-file values are data, not spec text, so
+    /// they are marked for quoting on insertion; a spec's own suggestions are
+    /// not (#86).
+    #[cfg(unix)]
+    #[test]
+    fn generator_and_project_file_values_are_marked_external() {
+        let dir = std::env::temp_dir().join(format!(
+            "insh-external-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&dir).unwrap();
+        std::fs::write(
+            dir.join("package.json"),
+            r#"{"scripts":{"build;id":"tsc"}}"#,
+        )
+        .unwrap();
+        let arg = Arg {
+            suggestions: vec![Suggestion {
+                name: "\\;".into(),
+                ..Default::default()
+            }],
+            generators: vec![
+                Generator::Script {
+                    input: ScriptInput::Argv {
+                        argv: vec!["printf".into(), "feat;id\\n".into()],
+                    },
+                    split_on: None,
+                    post_process: PostProcess::default(),
+                    timeout_ms: 5000,
+                    cache: None,
+                },
+                Generator::ProjectFile {
+                    reader: ProjectFileReader::PackageJsonScripts,
+                },
+            ],
+            ..Default::default()
+        };
+        let got = suggestions_for_arg(&arg, dir.to_str().unwrap(), "", false, &[], None);
+        let _ = std::fs::remove_dir_all(&dir);
+        let external = |name: &str| {
+            got.iter()
+                .find(|s| s.name == name)
+                .unwrap_or_else(|| panic!("{name} missing from {got:?}"))
+                .external
+        };
+        assert!(external("feat;id"));
+        assert!(external("build;id"));
+        assert!(!external("\\;"), "spec-authored text must stay verbatim");
     }
 
     #[test]

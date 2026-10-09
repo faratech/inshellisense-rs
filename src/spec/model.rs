@@ -323,6 +323,13 @@ pub struct Suggestion {
     pub is_dangerous: bool,
     pub hidden: bool,
     pub deprecated: bool,
+    /// The name is data read at completion time — a generator's output or a
+    /// project file — rather than text a spec authored. Such a value is
+    /// quoted on insertion like a filename: a git ref or `package.json`
+    /// script name may contain `;`, `|`, `$(...)` or a backtick. Never read
+    /// from a spec, so a spec cannot opt its own text into or out of it.
+    #[serde(skip)]
+    pub external: bool,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq)]
