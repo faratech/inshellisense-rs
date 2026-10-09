@@ -20,6 +20,27 @@ use std::io;
 
 pub use popup::Direction;
 
+/// Make untrusted text safe to paint on the user's terminal.
+///
+/// Suggestion names and descriptions come from filenames, `package.json`,
+/// `cargo metadata` and other generator output — text whoever authored the
+/// current directory controls. Written raw, an embedded ESC/CSI/OSC sequence
+/// is executed by the terminal emulator (retitle the window, clear or repaint
+/// the screen, write the clipboard over OSC 52). Every control character
+/// (C0, DEL, C1) is shown as `?`, the way `ls` prints such names on a
+/// terminal. The replacement is one cell wide, so width math done afterwards
+/// stays exact.
+pub fn printable(s: &str) -> std::borrow::Cow<'_, str> {
+    if !s.chars().any(char::is_control) {
+        return std::borrow::Cow::Borrowed(s);
+    }
+    std::borrow::Cow::Owned(
+        s.chars()
+            .map(|c| if c.is_control() { '?' } else { c })
+            .collect(),
+    )
+}
+
 pub fn pick_top(suggestions: &[Suggestion], partial: &str) -> Option<String> {
     let top = suggestions.first()?;
     if top.name.len() <= partial.len() || !top.name.starts_with(partial) {

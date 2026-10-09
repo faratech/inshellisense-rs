@@ -98,12 +98,24 @@ impl Engine {
             return Some(top.name[partial.len()..].to_string());
         }
         // Fallback to history.
-        if !self.offline
-            && let Some(full) = history::best_match(&self.history, line)
-        {
-            return Some(full[line.len()..].to_string());
+        self.history_tail(line)
+    }
+
+    /// `suggest`'s history fallback on its own: the rest of the newest
+    /// history entry that extends `line`.
+    ///
+    /// The interactive loop already holds the ranked suggestions and builds
+    /// the ghost for the active one itself (quoted, like popup accept). It
+    /// needs this tail separately so it can tell the user's own command text,
+    /// which is inserted verbatim, from a suggestion name, which is not.
+    pub fn history_tail(&self, line: &str) -> Option<String> {
+        if self.offline || line.trim().is_empty() {
+            return None;
         }
-        None
+        // Same gate as `suggest`: nothing is left to type for a complete
+        // last token (#67).
+        current_partial(line, self.shell)?;
+        history::best_match(&self.history, line).map(|full| full[line.len()..].to_string())
     }
 
     /// Full suggestion blob — sorted and filtered.

@@ -475,7 +475,9 @@ fn render_suggestion_box(
         border_style.top_right()
     ));
     for (idx, s) in visible.iter().enumerate() {
-        let text = format!("{} {}", icon_for(s, icons), s.name);
+        // Names come from filenames and generator output; sanitize before
+        // the width math, which counts control characters as zero width.
+        let text = format!("{} {}", icon_for(s, icons), super::printable(&s.name));
         let padded = truncate_or_pad_wc(&text, inner);
         let body = if idx == active_in_page {
             format!("{}{}{}\x1b[0m", active_bg, padded, ACTIVE_BG_OFF)
@@ -501,7 +503,12 @@ fn render_description_box(description: &str, border_style: BoxBorderStyle) -> Ve
     }
     let width = DESCRIPTION_WIDTH;
     let inner = width - BORDER_WIDTH; // 28 cells
-    let lines = wrap_multiline(description, inner, DESCRIPTION_HEIGHT);
+    // Descriptions can be a `package.json` script body or a crate's manifest
+    // description. Whitespace controls (`\n`, `\t`) only separate words when
+    // wrapped; every other control character is made visible so no escape
+    // sequence reaches the terminal.
+    let description = super::printable(&description.replace(char::is_whitespace, " ")).into_owned();
+    let lines = wrap_multiline(&description, inner, DESCRIPTION_HEIGHT);
     let mut out = Vec::with_capacity(lines.len() + 2);
     let bar = repeat_bar(inner);
     out.push(format!(
@@ -899,6 +906,41 @@ mod tests {
         assert!(s.contains("┌"));
         assert!(s.contains("└"));
         assert!(s.contains("📦"));
+    }
+
+    /// Names and descriptions can come from filenames, `package.json` and
+    /// `cargo metadata`. Their control characters must never reach the
+    /// terminal as escape sequences (#85).
+    #[test]
+    fn names_and_descriptions_never_emit_control_characters() {
+        let sugs = vec![
+            mk(
+                "ev\x1b]0;pwned\x07il",
+                "run \x1b]52;c;aGk=\x07 now\nthen",
+                SuggestionType::Arg,
+            ),
+            mk("x\u{9b}2Jy", "", SuggestionType::File),
+        ];
+        let mut r = PopupRenderer::new(5, IconSet::default());
+        let mut out = Vec::new();
+        r.draw_full(&mut out, &sugs, 0, Direction::Below, 0, 120)
+            .unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(
+            !text.contains("\x1b]"),
+            "OSC reached the terminal: {text:?}"
+        );
+        assert!(!text.contains('\x07'), "BEL reached the terminal: {text:?}");
+        assert!(!text.contains('\u{9b}'), "C1 CSI reached the terminal");
+        assert!(text.contains("ev?]0;pwned?il"), "{text:?}");
+        assert!(text.contains("x?2Jy"), "{text:?}");
+        // The description's newline still separates words.
+        assert!(text.contains("?]52;c;aGk=?"), "{text:?}");
+        assert!(text.contains("now then"), "{text:?}");
+        // Every visible row still fits the terminal.
+        for line in visible_rows(&text) {
+            assert!(UnicodeWidthStr::width(line.as_str()) <= 120, "{line:?}");
+        }
     }
 
     #[test]

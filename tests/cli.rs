@@ -182,6 +182,36 @@ fn offline_text_complete_does_not_use_history() {
     assert_eq!(String::from_utf8_lossy(&out.stdout), "");
 }
 
+/// `complete --text` prints the ghost tail. A filename carrying an escape
+/// sequence must come out with its control characters made visible, not
+/// executed by the terminal (#85).
+#[cfg(unix)]
+#[test]
+fn text_complete_never_prints_control_characters() {
+    let dir = temp_dir("complete-text-ctl");
+    std::fs::write(dir.join("evil\x1b]0;pwned\x07.txt"), "").unwrap();
+    let home = temp_dir("complete-text-ctl-home");
+    let out = run_with_home(
+        &home,
+        &[
+            "complete",
+            "--text",
+            "--cwd",
+            dir.to_str().unwrap(),
+            "cat evi",
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(!stdout.contains('\x1b'), "ESC reached stdout: {stdout:?}");
+    assert!(!stdout.contains('\x07'), "BEL reached stdout: {stdout:?}");
+    assert_eq!(stdout, "l?]0;pwned?.txt\n");
+}
+
 #[test]
 fn complete_shell_pwsh_uses_powershell_ls_options() {
     let home = temp_dir("pwsh-ls");

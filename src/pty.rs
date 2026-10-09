@@ -175,8 +175,12 @@ pub fn run_wrapped(
                     continue;
                 };
                 let ranked = engine_ref.suggest_blob(&typed, &cwd);
-                let tail = engine_ref.suggest(&typed, &cwd);
-                if res_tx.send((sig, ranked, tail)).is_err() {
+                // The ghost for a ranked suggestion is built on the event
+                // loop from the suggestion itself, so only the history
+                // fallback is needed from the engine. (`Engine::suggest`
+                // would also run `suggest_blob`, and every generator, again.)
+                let history_tail = engine_ref.history_tail(&typed);
+                if res_tx.send((sig, ranked, history_tail)).is_err() {
                     return;
                 }
             }
@@ -202,7 +206,7 @@ pub fn run_wrapped(
     );
 
     // Shared suggestion state.
-    let mut pending_tail: Option<String> = None; // ghost mode
+    let mut pending_tail: Option<GhostTail> = None; // ghost mode
     let mut ranked: Vec<Suggestion> = Vec::new();
     let mut popup_mode = PopupMode::Hidden;
     let mut last_cmd_signature = String::new();
@@ -222,7 +226,7 @@ pub fn run_wrapped(
     // the suggestions currently in `ranked` were computed from.
     let mut request_sig: u64 = 0;
     let mut ranked_typed = String::new();
-    let mut engine_tail: Option<String> = None;
+    let mut history_tail: Option<String> = None;
 
     let mut pty_buf = [0u8; 4096];
     let mut stdin_buf = [0u8; 1024];
@@ -295,7 +299,7 @@ pub fn run_wrapped(
         while let Ok((sig, new_ranked, new_tail)) = res_rx.try_recv() {
             if sig == request_sig {
                 ranked = new_ranked;
-                engine_tail = new_tail;
+                history_tail = new_tail;
                 got_suggestions = true;
             }
         }
@@ -486,26 +490,18 @@ pub fn run_wrapped(
                     }
                     _ => 0,
                 };
-                let tail = if !ranked.is_empty() && has_ghost && cursor_at_end {
-                    let partial = current_partial(typed);
-                    let repl =
-                        replacement_tail(&ranked[active_cursor], typed, &partial, Some(shell));
-                    // A replacement that erases the token starts with
-                    // backspaces, and one with a `{cursor}` needs a caret
-                    // move — neither is displayable as inline ghost text.
-                    // Fall back to the engine's plain tail for display; the
-                    // richer `Replacement` is rebuilt at accept time.
-                    if repl.tail.starts_with('\x08') || repl.had_marker {
-                        engine_tail.clone()
-                    } else {
-                        Some(repl.tail)
-                    }
-                } else if has_ghost && cursor_at_end {
-                    engine_tail.clone()
+                let ghost = if has_ghost && cursor_at_end {
+                    ranked
+                        .get(active_cursor)
+                        .and_then(|s| {
+                            suggestion_ghost(s, typed, &current_partial(typed), Some(shell))
+                        })
+                        .or_else(|| history_tail.as_deref().and_then(history_ghost))
                 } else {
                     None
                 };
-                pending_tail = tail.clone();
+                let tail = ghost.as_ref().map(|g| g.display.clone());
+                pending_tail = ghost;
 
                 if has_popup && popup_mode != PopupMode::Dismissed && !ranked.is_empty() {
                     // Flipping to `Above` whenever there was not enough room
@@ -580,7 +576,7 @@ fn handle_stdin(
     bytes: &[u8],
     has_ghost: bool,
     has_popup: bool,
-    pending_tail: &mut Option<String>,
+    pending_tail: &mut Option<GhostTail>,
     popup_mode: &mut PopupMode,
     ranked: &[Suggestion],
     // The text `ranked` was computed from. Suggestions are produced off the
@@ -600,10 +596,12 @@ fn handle_stdin(
     if has_ghost {
         let ghost_accept: &[&[u8]] = &[b"\x1b[C", b"\x1b[F", b"\x05"];
         if ghost_accept.contains(&bytes)
-            && let Some(tail) = pending_tail.take()
+            && let Some(ghost) = pending_tail.take()
         {
             renderer.clear(out).ok();
-            pty.pty_write(tail.as_bytes());
+            // The accept bytes, never the displayed text: they carry the
+            // quoting and the backspaces that rewrite the token.
+            pty.pty_write(&ghost.insert);
             *popup_mode = PopupMode::Hidden;
             return false;
         }
@@ -859,10 +857,12 @@ fn needs_quoting(s: &str) -> bool {
     s.chars().any(|c| SPECIAL.contains(&c))
 }
 
-/// Wrap a filesystem name in the quoting syntax of the shell being wrapped so
-/// spaces and metacharacters insert literally. Applied only to File/Folder
-/// suggestions, whose names come from the filesystem; an `insert_value` is
-/// shell text authored by the spec and must be inserted verbatim.
+/// Wrap a filesystem name or generator value in the quoting syntax of the
+/// shell being wrapped so spaces and metacharacters insert literally. Applied
+/// to File/Folder suggestions, whose names come from the filesystem, and to
+/// `external` values (generator output, project files); an `insert_value`
+/// or a spec's own suggestion name is shell text authored by the spec and
+/// must be inserted verbatim.
 ///
 /// The quote style differs per shell, and using POSIX rules everywhere made
 /// the insertion un-runnable elsewhere: cmd.exe does not treat `'…'` as a
@@ -872,10 +872,31 @@ fn needs_quoting(s: &str) -> bool {
 fn quote_for_shell(s: &str, shell: Option<Shell>) -> String {
     match shell {
         // PowerShell escapes a quote inside a single-quoted literal by
-        // doubling it; every other character stays literal.
-        Some(Shell::Pwsh | Shell::Powershell) => format!("'{}'", s.replace('\'', "''")),
-        // xonsh strings follow Python rules, where `\'` escapes the quote.
-        Some(Shell::Xonsh) => format!("'{}'", s.replace('\'', "\\'")),
+        // doubling it; every other character stays literal. Its tokenizer
+        // also treats the typographic single quotes U+2018/2019/201A/201B as
+        // quote characters, so each of those must be doubled too: an
+        // undoubled U+2019 ends the literal and the rest of the name runs as
+        // commands.
+        Some(Shell::Pwsh | Shell::Powershell) => {
+            let mut out = String::with_capacity(s.len() + 2);
+            out.push('\'');
+            for c in s.chars() {
+                out.push(c);
+                if matches!(c, '\'' | '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}') {
+                    out.push(c);
+                }
+            }
+            out.push('\'');
+            out
+        }
+        // fish honors only `\\` and `\'` as escapes inside single quotes, so
+        // the POSIX splice below mis-parses a name holding a backslash next to
+        // a quote (`a\'; id #` closes the literal early and `id` runs).
+        Some(Shell::Fish) => format!("'{}'", s.replace('\\', "\\\\").replace('\'', "\\'")),
+        // xonsh strings follow Python rules: `\'` escapes the quote and `\\`
+        // is an escaped backslash, so backslashes are doubled first (a name
+        // ending `\'` would otherwise cancel the quote's escape).
+        Some(Shell::Xonsh) => format!("'{}'", s.replace('\\', "\\\\").replace('\'', "\\'")),
         Some(Shell::Nu) => {
             if s.contains('\'') {
                 // Nushell's single-quoted strings have no way to represent an
@@ -897,6 +918,63 @@ fn quote_for_shell(s: &str, shell: Option<Shell>) -> String {
     }
 }
 
+/// The ghost suggestion: what is painted after the cursor, and what accepting
+/// it (Right / End / Ctrl-E) writes to the shell. The two differ whenever the
+/// accepted text cannot be shown inline — it rewrites the token (a quoted
+/// filename) or moves the caret (`{cursor}`).
+#[derive(Debug, Clone, PartialEq)]
+struct GhostTail {
+    /// Painted after the cursor. Never written to the shell.
+    display: String,
+    /// Written to the shell on accept.
+    insert: Vec<u8>,
+}
+
+/// The ghost for a ranked suggestion. Accepting it writes the same
+/// `Replacement` popup accept does — quoted, control characters stripped —
+/// minus popup accept's separating space.
+///
+/// Ghost accept used to write the engine's raw tail whenever that replacement
+/// started with backspaces or carried a `{cursor}` marker. That is exactly the
+/// case for every filename that needs quoting, so `cat a` + Right inserted
+/// `a b.txt` as two words, and a name's control characters (a CR submits the
+/// line) reached the line editor (#86).
+fn suggestion_ghost(
+    suggestion: &Suggestion,
+    line: &str,
+    partial: &Partial,
+    shell: Option<Shell>,
+) -> Option<GhostTail> {
+    let repl = replacement_tail(suggestion, line, partial, shell);
+    let mut insert = repl.tail.clone().into_bytes();
+    insert.extend(repl.caret_move());
+    let display = if repl.tail.starts_with('\x08') || repl.had_marker {
+        // Not displayable inline: show the rest of the name instead.
+        strip_control_chars(&suggestion.name)
+            .strip_prefix(partial.text.as_str())?
+            .to_string()
+    } else {
+        repl.tail
+    };
+    if display.is_empty() {
+        return None;
+    }
+    Some(GhostTail { display, insert })
+}
+
+/// The ghost for a history completion: the user's own command text, inserted
+/// verbatim apart from control characters.
+fn history_ghost(tail: &str) -> Option<GhostTail> {
+    let tail = strip_control_chars(tail);
+    if tail.is_empty() {
+        return None;
+    }
+    Some(GhostTail {
+        insert: tail.clone().into_bytes(),
+        display: tail,
+    })
+}
+
 /// Given an accepted suggestion and the line so far, the bytes to write into
 /// the shell so the line ends with `insert_value` (or `name`).
 fn replacement_tail(
@@ -909,10 +987,16 @@ fn replacement_tail(
         Some(raw) => split_cursor_marker(&strip_control_chars(raw)),
         None => {
             let name = strip_control_chars(&suggestion.name);
-            let quote = matches!(
-                suggestion.suggestion_type,
-                SuggestionType::File | SuggestionType::Folder
-            ) && needs_quoting(&name);
+            // A git ref may legally contain `;`, `|`, `$`, `(` or a
+            // backtick, and a `package.json` script name anything at all:
+            // unquoted, they become separators or substitutions when the
+            // line runs.
+            let quote = (suggestion.external
+                || matches!(
+                    suggestion.suggestion_type,
+                    SuggestionType::File | SuggestionType::Folder
+                ))
+                && needs_quoting(&name);
             let rendered = if quote {
                 quote_for_shell(&name, shell)
             } else {
@@ -1151,6 +1235,29 @@ mod tests {
         assert!(tail.contains("notesid[A"));
     }
 
+    /// Per-shell quoting must keep a hostile name inside the quotes: fish
+    /// treats `\\` and `\'` as escapes inside single quotes, and PowerShell
+    /// treats typographic single quotes as quote characters.
+    #[test]
+    fn quoting_survives_fish_backslashes_and_powershell_smart_quotes() {
+        assert_eq!(
+            quote_for_shell("a\\'; id #", Some(Shell::Fish)),
+            "'a\\\\\\'; id #'"
+        );
+        assert_eq!(quote_for_shell("o'b c", Some(Shell::Fish)), "'o\\'b c'");
+        assert_eq!(
+            quote_for_shell("x\u{2019}; id; \u{2019}y", Some(Shell::Pwsh)),
+            "'x\u{2019}\u{2019}; id; \u{2019}\u{2019}y'"
+        );
+        assert_eq!(quote_for_shell("it's", Some(Shell::Powershell)), "'it''s'");
+        assert_eq!(
+            quote_for_shell("a\\'; id #", Some(Shell::Xonsh)),
+            "'a\\\\\\'; id #'"
+        );
+        // bash / zsh keep the POSIX splice.
+        assert_eq!(quote_for_shell("o'b", Some(Shell::Bash)), "'o'\\''b'");
+    }
+
     /// A filename with a space is one argument, not two.
     #[test]
     fn filenames_needing_quoting_are_quoted() {
@@ -1342,7 +1449,7 @@ mod tests {
         renderer.draw(&mut out, Some("eckout"), &[], 80).unwrap();
         out.clear();
 
-        let mut pending_tail = Some("eckout".to_string());
+        let mut pending_tail = history_ghost("eckout");
         let mut popup_mode = PopupMode::Hidden;
         let mut submitting = false;
         let forwarded_cursor_navigation = handle_stdin(
@@ -1366,6 +1473,158 @@ mod tests {
         assert_eq!(pty.writes.borrow().as_slice(), b"\x1b[D");
         assert!(!renderer.ghost_visible());
         assert!(String::from_utf8_lossy(&out).contains(crate::ansi::ERASE_LINE_RIGHT));
+    }
+
+    /// Drive one key through `handle_stdin` the way the event loop does and
+    /// return what reached the PTY.
+    fn press(
+        key: &[u8],
+        has_popup: bool,
+        pending_tail: &mut Option<GhostTail>,
+        popup_mode: &mut PopupMode,
+        ranked: &[Suggestion],
+    ) -> Vec<u8> {
+        let pty = FakePty::default();
+        let bindings = crate::config::Bindings::default();
+        let tracker = TermTracker::new(24, 80);
+        let ui = if has_popup {
+            UiMode::Hybrid
+        } else {
+            UiMode::Ghost
+        };
+        let mut renderer = Renderer::new(ui, 5, crate::render::popup::IconSet::default());
+        let mut out = Vec::new();
+        let mut submitting = false;
+        handle_stdin(
+            key,
+            true,
+            has_popup,
+            pending_tail,
+            popup_mode,
+            ranked,
+            // An empty tracker reports an empty line; the suggestions were
+            // computed for it.
+            "",
+            &bindings,
+            Shell::Bash,
+            &tracker,
+            &mut renderer,
+            &mut out,
+            &pty,
+            &mut submitting,
+        );
+        pty.writes.into_inner()
+    }
+
+    /// #21's own reproduction through the ghost: `cat a` + Right with
+    /// `a b.txt` present must insert one quoted word, not two (#86).
+    #[test]
+    fn ghost_accept_quotes_filenames() {
+        let s = Suggestion {
+            name: "a b.txt".into(),
+            suggestion_type: SuggestionType::File,
+            ..Default::default()
+        };
+        let line = "cat a";
+        let ghost = suggestion_ghost(&s, line, &current_partial(line), Some(Shell::Bash)).unwrap();
+        // The ghost still reads naturally after the cursor…
+        assert_eq!(ghost.display, " b.txt");
+        // …but accepting it rewrites the token quoted, like popup accept.
+        let mut pending = Some(ghost);
+        let wrote = press(b"\x1b[C", false, &mut pending, &mut PopupMode::Hidden, &[]);
+        assert_eq!(wrote, b"\x08'a b.txt'");
+    }
+
+    /// A `{cursor}` suggestion accepted through the ghost inserts its
+    /// `insert_value` and places the caret, as popup accept does. It used to
+    /// insert the rest of the bare name.
+    #[test]
+    fn ghost_accept_honors_insert_value_and_cursor_marker() {
+        let s = Suggestion {
+            name: "-app".into(),
+            insert_value: Some("-app '{cursor}'".into()),
+            ..Default::default()
+        };
+        let line = "cmd -a";
+        let ghost = suggestion_ghost(&s, line, &current_partial(line), None).unwrap();
+        assert_eq!(ghost.display, "pp");
+        assert_eq!(ghost.insert, b"pp ''\x1b[D");
+    }
+
+    /// No control character from a suggestion reaches the line editor on
+    /// either accept path. A CR would submit the line without Enter (#86).
+    #[test]
+    fn control_characters_never_reach_the_pty_on_either_accept_path() {
+        let s = Suggestion {
+            name: "a b\rid\x1b[2J".into(),
+            suggestion_type: SuggestionType::File,
+            ..Default::default()
+        };
+        // Ghost accept.
+        let line = "cat a";
+        let ghost = suggestion_ghost(&s, line, &current_partial(line), Some(Shell::Bash)).unwrap();
+        assert!(!ghost.display.chars().any(char::is_control));
+        let mut pending = Some(ghost);
+        let wrote = press(b"\x1b[C", false, &mut pending, &mut PopupMode::Hidden, &[]);
+        assert_eq!(wrote, b"\x08'a bid[2J'");
+
+        // Popup accept.
+        let mut mode = PopupMode::Visible { cursor: 0 };
+        let wrote = press(b"\t", true, &mut None, &mut mode, std::slice::from_ref(&s));
+        assert_eq!(wrote, b"'a bid[2J' ");
+
+        // History ghost.
+        let mut pending = history_ghost("tatus\r; id");
+        let wrote = press(b"\x1b[C", false, &mut pending, &mut PopupMode::Hidden, &[]);
+        assert_eq!(wrote, b"tatus; id");
+    }
+
+    /// Generator values (git refs, `package.json` scripts) are quoted on
+    /// insert on both accept paths; a ref may legally contain `;` (#86).
+    #[test]
+    fn generator_values_are_quoted_on_insert() {
+        let branch = Suggestion {
+            name: "feat;id".into(),
+            external: true,
+            ..Default::default()
+        };
+        assert_eq!(accept(&branch, "git checkout fe").tail, "\x08\x08'feat;id'");
+        assert_eq!(
+            accept_as(&branch, "git checkout fe", Some(Shell::Pwsh)).tail,
+            "\x08\x08'feat;id'"
+        );
+
+        let line = "git checkout fe";
+        let ghost =
+            suggestion_ghost(&branch, line, &current_partial(line), Some(Shell::Bash)).unwrap();
+        assert_eq!(ghost.display, "at;id");
+        assert_eq!(ghost.insert, b"\x08\x08'feat;id'");
+
+        let mut mode = PopupMode::Visible { cursor: 0 };
+        let wrote = press(
+            b"\t",
+            true,
+            &mut None,
+            &mut mode,
+            std::slice::from_ref(&branch),
+        );
+        assert_eq!(wrote, b"'feat;id' ");
+
+        // A plain generator value needs no quotes.
+        let plain = Suggestion {
+            name: "feature/login".into(),
+            external: true,
+            ..Default::default()
+        };
+        assert_eq!(accept(&plain, "git checkout fe").tail, "ature/login");
+    }
+
+    /// A spec's own suggestion names are shell text, like `insert_value`:
+    /// `find -exec … \;` must insert `\;`, not the literal `'\;'`.
+    #[test]
+    fn spec_authored_names_are_not_quoted() {
+        assert_eq!(accept(&sug("\\;"), "find . -exec ls {} ").tail, "\\;");
+        assert_eq!(accept(&sug("~"), "cd ").tail, "~");
     }
 
     #[test]
