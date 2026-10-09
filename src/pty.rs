@@ -872,10 +872,31 @@ fn needs_quoting(s: &str) -> bool {
 fn quote_for_shell(s: &str, shell: Option<Shell>) -> String {
     match shell {
         // PowerShell escapes a quote inside a single-quoted literal by
-        // doubling it; every other character stays literal.
-        Some(Shell::Pwsh | Shell::Powershell) => format!("'{}'", s.replace('\'', "''")),
-        // xonsh strings follow Python rules, where `\'` escapes the quote.
-        Some(Shell::Xonsh) => format!("'{}'", s.replace('\'', "\\'")),
+        // doubling it; every other character stays literal. Its tokenizer
+        // also treats the typographic single quotes U+2018/2019/201A/201B as
+        // quote characters, so each of those must be doubled too: an
+        // undoubled U+2019 ends the literal and the rest of the name runs as
+        // commands.
+        Some(Shell::Pwsh | Shell::Powershell) => {
+            let mut out = String::with_capacity(s.len() + 2);
+            out.push('\'');
+            for c in s.chars() {
+                out.push(c);
+                if matches!(c, '\'' | '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}') {
+                    out.push(c);
+                }
+            }
+            out.push('\'');
+            out
+        }
+        // fish honors only `\\` and `\'` as escapes inside single quotes, so
+        // the POSIX splice below mis-parses a name holding a backslash next to
+        // a quote (`a\'; id #` closes the literal early and `id` runs).
+        Some(Shell::Fish) => format!("'{}'", s.replace('\\', "\\\\").replace('\'', "\\'")),
+        // xonsh strings follow Python rules: `\'` escapes the quote and `\\`
+        // is an escaped backslash, so backslashes are doubled first (a name
+        // ending `\'` would otherwise cancel the quote's escape).
+        Some(Shell::Xonsh) => format!("'{}'", s.replace('\\', "\\\\").replace('\'', "\\'")),
         Some(Shell::Nu) => {
             if s.contains('\'') {
                 // Nushell's single-quoted strings have no way to represent an
@@ -1212,6 +1233,29 @@ mod tests {
         assert!(!tail.contains('\n'), "newline reached the line editor");
         assert!(!tail.contains('\x1b'), "escape reached the line editor");
         assert!(tail.contains("notesid[A"));
+    }
+
+    /// Per-shell quoting must keep a hostile name inside the quotes: fish
+    /// treats `\\` and `\'` as escapes inside single quotes, and PowerShell
+    /// treats typographic single quotes as quote characters.
+    #[test]
+    fn quoting_survives_fish_backslashes_and_powershell_smart_quotes() {
+        assert_eq!(
+            quote_for_shell("a\\'; id #", Some(Shell::Fish)),
+            "'a\\\\\\'; id #'"
+        );
+        assert_eq!(quote_for_shell("o'b c", Some(Shell::Fish)), "'o\\'b c'");
+        assert_eq!(
+            quote_for_shell("x\u{2019}; id; \u{2019}y", Some(Shell::Pwsh)),
+            "'x\u{2019}\u{2019}; id; \u{2019}\u{2019}y'"
+        );
+        assert_eq!(quote_for_shell("it's", Some(Shell::Powershell)), "'it''s'");
+        assert_eq!(
+            quote_for_shell("a\\'; id #", Some(Shell::Xonsh)),
+            "'a\\\\\\'; id #'"
+        );
+        // bash / zsh keep the POSIX splice.
+        assert_eq!(quote_for_shell("o'b", Some(Shell::Bash)), "'o'\\''b'");
     }
 
     /// A filename with a space is one argument, not two.
