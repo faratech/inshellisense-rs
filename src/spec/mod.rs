@@ -492,16 +492,7 @@ mod tests {
     }
 
     fn unique_tmp_dir(tag: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "inshellisense-rs-{tag}-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
+        crate::test_support::unique_temp_dir(&format!("rs-{tag}"))
     }
 
     /// A Fig-style spec tree on disk: `aws/ec2.json` holds the real body,

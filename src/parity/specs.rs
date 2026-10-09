@@ -290,9 +290,7 @@ mod tests {
     /// Scratch HOME handed to [`super::deterministic`] for stub children.
     #[cfg(unix)]
     fn scratch_home() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("insh-parity-home-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
+        crate::test_support::unique_temp_dir("parity-home")
     }
 
     /// A stub binary whose `specs list` runs `script_body`, so each way a
@@ -301,15 +299,8 @@ mod tests {
     fn stub_specs_list(script_body: &str) -> std::path::PathBuf {
         use std::io::Write;
         use std::os::unix::fs::PermissionsExt;
-        use std::sync::atomic::{AtomicUsize, Ordering};
 
-        static SEQ: AtomicUsize = AtomicUsize::new(0);
-        let dir = std::env::temp_dir().join(format!(
-            "insh-parity-specs-{}-{}",
-            std::process::id(),
-            SEQ.fetch_add(1, Ordering::SeqCst)
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = crate::test_support::unique_temp_dir("parity-specs");
         let script = dir.join("stub-is");
         let mut f = std::fs::File::create(&script).unwrap();
         write!(f, "#!/bin/sh\n{script_body}").unwrap();

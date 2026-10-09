@@ -581,15 +581,7 @@ mod tests {
     /// temporary directory, restoring the previous value afterwards.
     fn with_temp_home(check: impl FnOnce(&std::path::Path)) {
         let _guard = HOME_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let dir = std::env::temp_dir().join(format!(
-            "insh-rs-resources-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        fs::create_dir_all(&dir).unwrap();
+        let dir = crate::test_support::unique_temp_dir("rs-resources");
         #[cfg(unix)]
         let var = "HOME";
         #[cfg(windows)]
@@ -684,8 +676,7 @@ mod tests {
     /// file lingers afterwards.
     #[test]
     fn atomic_write_replaces_exactly_and_leaves_no_temp_file() {
-        let dir = std::env::temp_dir().join(format!("insh-rs-atomic-{}", std::process::id()));
-        fs::create_dir_all(&dir).unwrap();
+        let dir = crate::test_support::unique_temp_dir("rs-atomic");
         let path = dir.join("script.sh");
         fs::write(&path, "stale bytes from a previous install").unwrap();
         write_atomic(&path, "fresh\nbytes\n").unwrap();

@@ -205,6 +205,49 @@ pub struct ScanConfig {
     pub threshold: f64,
 }
 
+/// Create the scan's output directory, or reuse it only if it is private.
+///
+/// Raw captures are written into it with `fs::write`, and the scratch HOMEs
+/// whose startup files the spawned shells source live inside it. The
+/// defaults used to be fixed names in the shared `/tmp`, accepted with
+/// `create_dir_all` whoever had created them: another local user could
+/// pre-create `/tmp/parity-out`, plant a `.bashrc` in a scratch HOME (run as
+/// the developer) or a symlink where a capture is written. On Unix the
+/// directory is created 0700 and refused if it is a symlink, owned by
+/// another user, or writable by group or others.
+pub fn prepare_output_dir(dir: &std::path::Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(dir)?;
+        let meta = std::fs::symlink_metadata(dir)?;
+        let refuse = |why: &str| {
+            Err(std::io::Error::other(format!(
+                "refusing output directory {}: {why}",
+                dir.display()
+            )))
+        };
+        if !meta.is_dir() {
+            return refuse("not a directory (or a symlink)");
+        }
+        // SAFETY: geteuid has no preconditions and cannot fail.
+        if meta.uid() != unsafe { libc::geteuid() } {
+            return refuse("owned by another user");
+        }
+        if meta.mode() & 0o022 != 0 {
+            return refuse("writable by group or others");
+        }
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::create_dir_all(dir)
+    }
+}
+
 /// A scratch `HOME` for spawned binaries, so a scan never reads or writes the
 /// developer's real profile and produces the same result on every machine.
 pub fn isolated_home(cfg: &ScanConfig) -> std::path::PathBuf {
@@ -369,6 +412,35 @@ pub fn run_scan(cfg: &ScanConfig) -> Report {
 mod tests {
     use super::*;
 
+    /// The output directory holds captures and the scratch HOMEs whose
+    /// startup files spawned shells source, so it must be private (#88).
+    #[cfg(unix)]
+    #[test]
+    fn output_dir_is_created_private_and_shared_ones_are_refused() {
+        use std::os::unix::fs::PermissionsExt;
+        let base = crate::test_support::unique_temp_dir("parity-out");
+        let mode = |p: &std::path::Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+
+        // Created fresh: 0700, and reusing it is fine.
+        let fresh = base.join("a").join("raw");
+        prepare_output_dir(&fresh).unwrap();
+        assert_eq!(mode(&fresh), 0o700);
+        prepare_output_dir(&fresh).unwrap();
+
+        // A directory others can write into is refused.
+        let shared = base.join("shared");
+        std::fs::create_dir(&shared).unwrap();
+        std::fs::set_permissions(&shared, std::fs::Permissions::from_mode(0o777)).unwrap();
+        assert!(prepare_output_dir(&shared).is_err());
+
+        // So is a symlink standing in for the directory.
+        let link = base.join("link");
+        std::os::unix::fs::symlink(&fresh, &link).unwrap();
+        assert!(prepare_output_dir(&link).is_err());
+
+        let _ = std::fs::remove_dir_all(base);
+    }
+
     /// A category with no cases proved nothing. Scoring it 1.0 let a deleted
     /// or unreadable corpus report perfect parity and clear the threshold.
     #[test]
@@ -404,8 +476,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn deterministic_strips_spec_sources_and_pins_home() {
-        let home = std::env::temp_dir().join(format!("insh-parity-home-{}", std::process::id()));
-        std::fs::create_dir_all(&home).unwrap();
+        let home = crate::test_support::unique_temp_dir("parity-home");
         let mut cmd = std::process::Command::new("/bin/sh");
         cmd.arg("-c").arg(
             "for v in INSH_RS_SPECS_DIR ISTERM ZDOTDIR; do \

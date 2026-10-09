@@ -1053,7 +1053,7 @@ Options:
     /// (#69).
     #[test]
     fn cached_files_are_written_atomically() {
-        let dir = std::env::temp_dir().join(format!("insh-cache-{}", std::process::id()));
+        let dir = crate::test_support::unique_temp_dir("cache");
         let path = dir.join("fp").join("list.txt");
         persist(&path, b"ls\n");
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "ls\n");
@@ -1071,7 +1071,7 @@ Options:
     /// option augmentation until the coreutils binary changed (#70).
     #[test]
     fn an_unmeasured_verdict_is_not_cached() {
-        let dir = std::env::temp_dir().join(format!("insh-owns-{}", std::process::id()));
+        let dir = crate::test_support::unique_temp_dir("owns");
         let path = dir.join("owned").join("ls");
         persist(&path, b"/usr/bin/ls\n1");
 
@@ -1105,8 +1105,7 @@ Options:
     #[cfg(unix)]
     #[test]
     fn a_slow_probe_reports_a_timeout() {
-        let dir = std::env::temp_dir().join(format!("insh-probe-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = crate::test_support::unique_temp_dir("probe");
         let script = dir.join("slow");
         std::fs::write(
             &script,

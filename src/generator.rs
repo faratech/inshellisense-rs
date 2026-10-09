@@ -1111,8 +1111,7 @@ mod tests {
     /// leaks the raw record line into the suggestions.
     #[test]
     fn history_template_loads_the_wrapped_shells_history() {
-        let dir = std::env::temp_dir().join(format!("insh-hist-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = crate::test_support::unique_temp_dir("hist");
         let path = dir.join("history");
         std::fs::write(&path, "- cmd: git status\n  when: 1700000000\n").unwrap();
 

@@ -414,8 +414,6 @@ mod tests {
     }
 
     fn tempdir(tag: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("insh-rs-{tag}-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
+        crate::test_support::unique_temp_dir(&format!("rs-{tag}"))
     }
 }
