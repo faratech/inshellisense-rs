@@ -229,33 +229,27 @@ fn run_subcommand<'a>(
 
         // Clustered short flags: `-abc` means `-a -b -c`. Each letter is
         // recorded as accepted so `exclusiveOn`/`dependsOn` see them.
-        if let Some(cluster) = expand_short_cluster(&all_opts, &active.token) {
+        if let Some((cluster, attached_value)) = expand_short_cluster(&all_opts, &active.token) {
             let mut new_ctx = ctx.clone();
             for opt in &cluster {
                 new_ctx.accepted_options.push(opt.names[0].clone());
             }
-            // If the final flag takes an argument, the next token feeds it.
+            // If the final flag takes an argument and none was attached in
+            // this token (`-p2222` attaches it), the next token feeds it.
             if let Some(last) = cluster.last()
                 && !last.args.is_empty()
+                && !attached_value
             {
                 return run_arg(&tokens[1..], &last.args, sub, new_ctx, true, false);
             }
             return run_subcommand(&tokens[1..], sub, new_ctx, false, false);
         }
 
-        // Unknown option — fall through but don't match as subcommand.
-        return ResolveResult {
-            subcommand: surface(&ctx, sub),
-            parent_subcommand: ctx.parent,
-            active_arg: None,
-            persistent_options: visible_options(&ctx, &sub.options),
-            args_depleted,
-            active_partial: None,
-            from_option: false,
-            accepted_option_tokens: ctx.accepted_options.clone(),
-            positional_args_consumed: ctx.positional_args_consumed,
-            end_of_options: ctx.end_of_options,
-        };
+        // Unknown option — skip it and keep resolving the rest of the line
+        // (#94). Returning here with no partial used to discard a valid
+        // subcommand and the token being typed, dumping the unfiltered
+        // top-level list; the flag simply is not ours to complete.
+        return run_subcommand(&tokens[1..], sub, ctx.clone(), args_depleted, false);
     }
 
     // Raw tokens (after `--`) only match positional args. The end-of-options
@@ -283,8 +277,22 @@ fn run_subcommand<'a>(
         return run_arg(tokens, &sub.args, sub, ctx, false, false);
     }
 
-    // Nothing matched — skip the token and keep going at this level.
-    run_subcommand(&tokens[1..], sub, ctx, args_depleted, true)
+    // Nothing matched — an unknown command word cannot be completed past
+    // (#98). Skipping it used to restart completion at this level, so
+    // `git chekout ` offered every git subcommand and accepting one
+    // produced `git chekout archive`.
+    ResolveResult {
+        subcommand: &EMPTY_SUBCOMMAND,
+        parent_subcommand: ctx.parent,
+        active_arg: None,
+        persistent_options: Vec::new(),
+        args_depleted: true,
+        active_partial: None,
+        from_option: false,
+        accepted_option_tokens: ctx.accepted_options.clone(),
+        positional_args_consumed: ctx.positional_args_consumed,
+        end_of_options: ctx.end_of_options,
+    }
 }
 
 fn run_option<'a>(
@@ -369,21 +377,37 @@ fn run_arg<'a>(
     }
 
     let active = &tokens[0];
-    // If all remaining args are optional, the user may be skipping to an
-    // option or subcommand instead.
-    if args.iter().all(|a| a.is_optional) {
-        let all_opts: Vec<&Opt> = ctx
-            .persistent
-            .iter()
-            .copied()
-            .chain(sub.options.iter())
-            .collect();
-        if active.is_option && !active.is_raw {
-            if let Some(opt) = find_option(&all_opts, &active.token, ctx.case_insensitive) {
-                let mut new_ctx = ctx.clone();
-                new_ctx.accepted_options.push(active.token.clone());
-                return run_option(tokens, opt, sub, new_ctx);
+    // An option token is an option wherever it appears — including after a
+    // required positional (`grep foo -l`, #97). Checking only when every
+    // remaining arg was optional swallowed such flags as positional values,
+    // so they never reached `accepted_option_tokens` and exclusiveOn /
+    // dependsOn / repeat limits silently stopped applying.
+    let all_opts: Vec<&Opt> = ctx
+        .persistent
+        .iter()
+        .copied()
+        .chain(sub.options.iter())
+        .collect();
+    if active.is_option && !active.is_raw && !ctx.end_of_options {
+        if let Some(opt) = find_option(&all_opts, &active.token, ctx.case_insensitive) {
+            let mut new_ctx = ctx.clone();
+            new_ctx.accepted_options.push(active.token.clone());
+            return run_option(tokens, opt, sub, new_ctx);
+        }
+        if let Some((cluster, attached_value)) = expand_short_cluster(&all_opts, &active.token) {
+            let mut new_ctx = ctx.clone();
+            for opt in &cluster {
+                new_ctx.accepted_options.push(opt.names[0].clone());
             }
+            if let Some(last) = cluster.last()
+                && !last.args.is_empty()
+                && !attached_value
+            {
+                return run_arg(&tokens[1..], &last.args, sub, new_ctx, true, false);
+            }
+            return run_subcommand(&tokens[1..], sub, new_ctx, false, false);
+        }
+        if args.iter().all(|a| a.is_optional) {
             return ResolveResult {
                 subcommand: surface(&ctx, sub),
                 parent_subcommand: ctx.parent,
@@ -397,23 +421,28 @@ fn run_arg<'a>(
                 end_of_options: ctx.end_of_options,
             };
         }
-        if !active.is_raw
-            && !ctx.end_of_options
-            && let Some(next) = find_subcommand(sub, &active.token, ctx.case_insensitive)
-        {
-            // Inherit this level's persistent options, exactly as
-            // `run_subcommand` does. Omitting it meant `cmd --optWithOptionalArg
-            // subcmd` dropped every parent `isPersistent` option.
-            let mut new_ctx = ctx.clone();
-            for opt in &sub.options {
-                if opt.is_persistent && !new_ctx.persistent.iter().any(|o| opts_eq(o, opt)) {
-                    new_ctx.persistent.push(opt);
-                }
+        // Unknown dash-token with required args outstanding: fall through
+        // and let it be consumed as a positional value (e.g. a pattern).
+    }
+    // If all remaining args are optional, the user may be skipping to a
+    // subcommand instead.
+    if args.iter().all(|a| a.is_optional)
+        && !active.is_raw
+        && !ctx.end_of_options
+        && let Some(next) = find_subcommand(sub, &active.token, ctx.case_insensitive)
+    {
+        // Inherit this level's persistent options, exactly as
+        // `run_subcommand` does. Omitting it meant `cmd --optWithOptionalArg
+        // subcmd` dropped every parent `isPersistent` option.
+        let mut new_ctx = ctx.clone();
+        for opt in &sub.options {
+            if opt.is_persistent && !new_ctx.persistent.iter().any(|o| opts_eq(o, opt)) {
+                new_ctx.persistent.push(opt);
             }
-            new_ctx.parent = Some(sub);
-            let resolved = maybe_substitute(next, &new_ctx);
-            return run_subcommand(&tokens[1..], resolved, new_ctx, false, false);
         }
+        new_ctx.parent = Some(sub);
+        let resolved = maybe_substitute(next, &new_ctx);
+        return run_subcommand(&tokens[1..], resolved, new_ctx, false, false);
     }
 
     let active_arg = &args[0];
@@ -425,7 +454,14 @@ fn run_arg<'a>(
     if active_arg.is_command
         && !active.is_raw
         && let Some(reg) = ctx.registry
-        && let Some(loaded) = reg.get(&active.token)
+        && let Some(loaded) = reg.get(&active.token).or_else(|| {
+            // PowerShell/cmd command names are case-insensitive (#106).
+            if ctx.case_insensitive {
+                reg.get(&active.token.to_lowercase())
+            } else {
+                None
+            }
+        })
     {
         let nested = Ctx {
             persistent: Vec::new(),
@@ -458,7 +494,11 @@ fn run_arg<'a>(
 fn find_option<'a>(opts: &[&'a Opt], token: &str, case_insensitive: bool) -> Option<&'a Opt> {
     opts.iter().copied().find(|o| {
         if case_insensitive {
-            o.names.iter().any(|n| n.eq_ignore_ascii_case(token))
+            o.names.iter().any(|n| {
+                n.eq_ignore_ascii_case(token)
+                    || n.strip_suffix('=')
+                        .is_some_and(|bare| bare.eq_ignore_ascii_case(token))
+            })
         } else {
             o.matches(token)
         }
@@ -516,24 +556,30 @@ fn find_separated_option<'a>(
 }
 
 /// Expand `-abc` into the options `-a`, `-b`, `-c` when every letter names a
-/// known single-character flag. Returns `None` if any letter is unknown, so a
-/// genuinely unknown option still reports as unknown.
-fn expand_short_cluster<'a>(opts: &[&'a Opt], token: &str) -> Option<Vec<&'a Opt>> {
+/// known single-character flag. Returns the cluster plus whether the final
+/// flag's value was attached in the same token (`-p2222`, `-mfoo`): per POSIX
+/// an arg-taking short flag consumes the rest of the token as its value, so
+/// `-p2222` is `-p 2222`, not a cluster of unknown letters (#96). Returns
+/// `None` if any leading letter is unknown, so a genuinely unknown option
+/// still reports as unknown.
+fn expand_short_cluster<'a>(opts: &[&'a Opt], token: &str) -> Option<(Vec<&'a Opt>, bool)> {
     let letters = token.strip_prefix('-')?;
     if letters.is_empty() || letters.starts_with('-') || letters.chars().count() < 2 {
         return None;
     }
-    let mut cluster = Vec::with_capacity(letters.chars().count());
+    let count = letters.chars().count();
+    let mut cluster = Vec::with_capacity(count);
     for (idx, ch) in letters.chars().enumerate() {
         let name = format!("-{ch}");
         let opt = find_option(opts, &name, false)?;
-        // Only the final flag in a cluster may take an argument.
-        if !opt.args.is_empty() && idx + 1 != letters.chars().count() {
-            return None;
+        if !opt.args.is_empty() {
+            cluster.push(opt);
+            // Attached value present unless this flag is the last char.
+            return Some((cluster, idx + 1 != count));
         }
         cluster.push(opt);
     }
-    Some(cluster)
+    Some((cluster, false))
 }
 
 fn opts_eq(a: &Opt, b: &Opt) -> bool {
@@ -601,6 +647,65 @@ mod tests {
         );
     }
 
+    /// #94: an unrecognized option must not abort the whole line.
+    #[test]
+    fn unknown_option_is_skipped_not_fatal() {
+        let status = make_spec("status", vec![], vec![make_opt("--short")]);
+        let root = make_spec("git", vec![status], vec![]);
+        let tokens = tok("git --bogus status --sh");
+        let result = resolve(&root, &tokens);
+        assert_eq!(result.subcommand.names[0], "status");
+        assert_eq!(result.active_partial.unwrap().token, "--sh");
+    }
+
+    /// #98: an unknown command word cannot be completed past.
+    #[test]
+    fn unknown_subcommand_word_yields_no_surface() {
+        let root = make_spec("git", vec![make_spec("checkout", vec![], vec![])], vec![]);
+        let tokens = tok("git chekout ");
+        let result = resolve(&root, &tokens);
+        assert!(result.subcommand.names.iter().all(|n| n.is_empty()));
+        assert!(result.persistent_options.is_empty());
+        assert!(result.active_arg.is_none());
+    }
+
+    /// #96: `-p2222` consumes 2222 as -p's attached value.
+    #[test]
+    fn attached_short_option_value_is_consumed() {
+        let port = Opt {
+            names: vec!["-p".to_string()],
+            args: vec![make_arg()],
+            ..Default::default()
+        };
+        let root = make_spec("ssh", vec![], vec![port, make_opt("-v")]);
+        let tokens = tok("ssh -p2222 -v");
+        let result = resolve(&root, &tokens);
+        assert!(
+            result.accepted_option_tokens.contains(&"-p".to_string()),
+            "{:?}",
+            result.accepted_option_tokens
+        );
+        assert_eq!(result.active_partial.unwrap().token, "-v");
+    }
+
+    /// #97: an option after a required positional is still an option.
+    #[test]
+    fn option_after_required_positional_is_recorded() {
+        let grep = Subcommand {
+            names: vec!["grep".to_string()],
+            args: vec![make_arg()],
+            options: vec![make_opt("-l"), make_opt("--files-without-match")],
+            ..Default::default()
+        };
+        let tokens = tok("grep foo -l --files-without");
+        let result = resolve(&grep, &tokens);
+        assert!(
+            result.accepted_option_tokens.contains(&"-l".to_string()),
+            "{:?}",
+            result.accepted_option_tokens
+        );
+    }
+
     fn make_arg() -> Arg {
         Arg::default()
     }
@@ -665,10 +770,14 @@ mod tests {
 
     #[test]
     fn resolve_unknown_subcommand_stays_at_root() {
+        // #98 changed this contract: an unknown command word yields no
+        // suggestion surface at all (previously resolution stayed at root
+        // and every subcommand was offered past the typo).
         let root = make_spec("git", vec![make_spec("status", vec![], vec![])], vec![]);
         let tokens = tok("git nonexistent ");
         let result = resolve(&root, &tokens);
-        assert_eq!(result.subcommand.names[0], "git");
+        assert!(result.subcommand.names.iter().all(|n| n.is_empty()));
+        assert!(result.persistent_options.is_empty());
     }
 
     #[test]
@@ -963,5 +1072,40 @@ mod tests {
             "options leaked past `--`: {blob:?}"
         );
         assert!(blob.iter().any(|s| s.name == "tracked-file"));
+    }
+
+    /// #95: while an option's argument is pending, the engine must not
+    /// offer subcommands or more options for that slot.
+    #[test]
+    fn engine_offers_nothing_for_a_free_text_option_argument() {
+        use crate::suggest::Engine;
+
+        let msg = Opt {
+            names: vec!["-m".to_string(), "--message".to_string()],
+            args: vec![make_arg()],
+            ..Default::default()
+        };
+        let commit = make_spec(
+            "commit",
+            vec![make_spec("sub", vec![], vec![])],
+            vec![msg, make_opt("--all")],
+        );
+        let mut registry = Registry::new_with_options(false);
+        registry.insert(make_spec("git", vec![commit], vec![]));
+        let engine = Engine::new(registry, Vec::new());
+
+        assert!(
+            engine.suggest_blob("git commit -m ", "/").is_empty(),
+            "option-argument slot offered command surface"
+        );
+        assert!(
+            engine.suggest_blob("git commit --message ", "/").is_empty(),
+            "option-argument slot offered command surface"
+        );
+        // Control: without the pending option, options are offered.
+        assert!(
+            !engine.suggest_blob("git commit ", "/").is_empty(),
+            "plain commit context lost its suggestions"
+        );
     }
 }

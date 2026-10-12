@@ -21,6 +21,9 @@ pub use resolver::{ResolveResult, resolve};
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 
+/// Cap for a single on-disk spec file read from a user spec dir (#103).
+const MAX_DISK_SPEC_BYTES: u64 = 16 * 1024 * 1024;
+
 /// `get(&self)` hands out `&Subcommand` borrowed from inside the map while
 /// only holding a shared borrow of the Registry, so `Subcommand` must be
 /// shareable across threads for `Registry: Sync` to be sound.
@@ -243,7 +246,12 @@ impl Registry {
             if path.is_dir() {
                 Self::walk_disk(root, &path, reg);
             } else if path.extension().and_then(|e| e.to_str()) == Some("json") {
-                let Ok(bytes) = std::fs::read_to_string(&path) else {
+                // #103: a FIFO/device in a spec dir blocked forever.
+                let Some(raw) = crate::generator::read_bounded_file(&path, MAX_DISK_SPEC_BYTES)
+                else {
+                    continue;
+                };
+                let Ok(bytes) = String::from_utf8(raw) else {
                     continue;
                 };
                 let Ok(spec) = serde_json::from_str::<Subcommand>(&bytes) else {
@@ -410,7 +418,10 @@ impl Registry {
             if path.extension().and_then(|e| e.to_str()) != Some("toml") {
                 continue;
             }
-            let Ok(src) = std::fs::read_to_string(&path) else {
+            let Some(raw) = crate::generator::read_bounded_file(&path, MAX_DISK_SPEC_BYTES) else {
+                continue;
+            };
+            let Ok(src) = String::from_utf8(raw) else {
                 continue;
             };
             match toml::from_str::<Subcommand>(&src) {

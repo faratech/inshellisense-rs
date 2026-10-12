@@ -50,7 +50,7 @@ pub struct Subcommand {
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default)]
 pub struct Opt {
-    #[serde(deserialize_with = "de_string_or_vec", alias = "name")]
+    #[serde(deserialize_with = "de_opt_names", alias = "name")]
     pub names: Vec<String>,
 
     #[serde(alias = "displayName")]
@@ -70,6 +70,7 @@ pub struct Opt {
     pub requires_separator: Option<String>,
     #[serde(alias = "exclusiveOn")]
     pub exclusive_on: Vec<String>,
+    #[serde(alias = "dependsOn")]
     pub depends_on: Vec<String>,
 
     pub priority: Option<u8>,
@@ -370,6 +371,32 @@ where
     }
 }
 
+/// Option names in Fig specs often embed the value placeholder in the name
+/// itself (`--execute=COMMAND`, `--partial-dir=DIR` — 116 in the bundle).
+/// Kept verbatim, the placeholder was displayed and inserted literally, and
+/// the bare `--opt` token the tokenizer produces at `=` never matched, so
+/// the option's value could not be completed (#99). Normalize to the
+/// attach form `--opt=`: matching strips the trailing `=` (see
+/// `Opt::matches`), and insertion ends at the `=` ready for a value.
+fn de_opt_names<'de, D>(d: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(de_string_or_vec(d)?
+        .into_iter()
+        .map(|name| {
+            if name.starts_with('-')
+                && let Some((head, _)) = name.split_once('=')
+                && !head.is_empty()
+            {
+                format!("{head}=")
+            } else {
+                name
+            }
+        })
+        .collect())
+}
+
 fn de_arg_or_vec<'de, D>(d: D) -> Result<Vec<Arg>, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -413,7 +440,12 @@ impl Opt {
         }
     }
     pub fn matches(&self, token: &str) -> bool {
-        self.names.iter().any(|n| n == token)
+        // Names normalized from `--opt=PLACEHOLDER` keep a trailing `=`;
+        // the tokenizer splits typed input there, so the bare `--opt`
+        // token must match too (#99).
+        self.names
+            .iter()
+            .any(|n| n == token || n.strip_suffix('=') == Some(token))
     }
 }
 
@@ -425,6 +457,31 @@ mod tests {
     /// flagged field parsed "successfully" while reverting to its default
     /// (`isCommand: true` became `false`, `filterStrategy: "fuzzy"` became
     /// `"default"`, …), so specs loaded without error and completed wrong.
+    /// #104: `dependsOn` is a camelCase Fig key like its siblings.
+    /// #99: an option name embedding `=PLACEHOLDER` normalizes to `--opt=`
+    /// and still matches the bare token the tokenizer produces.
+    #[test]
+    fn depends_on_alias_and_placeholder_names() {
+        let json = r#"{
+            "name": "depcmd",
+            "options": [
+                {"name": "--binary", "dependsOn": ["--other"]},
+                {"name": "--other"},
+                {"name": "--execute=COMMAND", "args": [{"name": "cmd"}]},
+                {"name": ["-e", "--level=NUM"]}
+            ]
+        }"#;
+        let spec: Subcommand = serde_json::from_str(json).expect("spec must parse");
+        assert_eq!(spec.options[0].depends_on, vec!["--other".to_string()]);
+        assert_eq!(spec.options[2].names, vec!["--execute=".to_string()]);
+        assert!(spec.options[2].matches("--execute"));
+        assert!(spec.options[2].matches("--execute="));
+        assert_eq!(
+            spec.options[3].names,
+            vec!["-e".to_string(), "--level=".to_string()]
+        );
+    }
+
     #[test]
     fn camel_case_fig_keys_deserialize() {
         let json = r#"{

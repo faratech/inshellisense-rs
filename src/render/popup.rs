@@ -78,7 +78,9 @@ impl BoxBorderStyle {
 
 pub fn parse_hex_color(hex: &str) -> Option<(u8, u8, u8)> {
     let hex = hex.strip_prefix('#')?;
-    if hex.len() != 6 {
+    // Byte-length alone lets a 6-byte non-ASCII value through, and the
+    // slicing below then panics on a char boundary (#107).
+    if hex.len() != 6 || !hex.is_ascii() {
         return None;
     }
     let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
@@ -262,11 +264,23 @@ impl PopupRenderer {
         let mut rows: Vec<(usize, String)> = Vec::with_capacity(max_rows);
         for i in 0..max_rows {
             let (sug_row, desc_row) = if direction == Direction::Above {
-                let si = i + suggestion_box.len().saturating_sub(max_rows);
-                let di = i + description_box.len().saturating_sub(max_rows);
+                // Bottom-align (#110): a box shorter than max_rows starts
+                // at row (max_rows - len), so both boxes share the bottom
+                // row adjacent to the prompt. The old `i + len-max`
+                // (saturating) top-aligned the shorter box instead.
+                let sug_off = max_rows - suggestion_box.len();
+                let desc_off = max_rows - description_box.len();
                 (
-                    suggestion_box.get(si).cloned(),
-                    description_box.get(di).cloned(),
+                    if i >= sug_off {
+                        suggestion_box.get(i - sug_off).cloned()
+                    } else {
+                        None
+                    },
+                    if i >= desc_off {
+                        description_box.get(i - desc_off).cloned()
+                    } else {
+                        None
+                    },
                 )
             } else {
                 (
@@ -312,7 +326,16 @@ impl PopupRenderer {
             sug_width,
             term_cols,
         };
-        let sig = signature_hash(visible, active_in_page, direction, &active_desc, &layout);
+        let sig = signature_hash(
+            visible,
+            active_in_page,
+            direction,
+            &active_desc,
+            &layout,
+            self.icons,
+            self.border_style,
+            &self.active_bg,
+        );
         if Some(sig) == self.last_signature && self.last_direction == direction {
             return Ok(());
         }
@@ -540,16 +563,27 @@ struct Layout {
     term_cols: u16,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn signature_hash(
     visible: &[Suggestion],
     active: usize,
     direction: Direction,
     desc: &str,
     layout: &Layout,
+    icons: IconSet,
+    border_style: BoxBorderStyle,
+    active_bg: &str,
 ) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     for s in visible {
         s.name.hash(&mut h);
+        // Every field that decides the emitted row bytes must count
+        // (#109): the icon comes from type/icon, and a reclassified
+        // entry (File -> Folder) previously kept the stale icon.
+        s.display_name.hash(&mut h);
+        s.icon.hash(&mut h);
+        std::mem::discriminant(&s.suggestion_type).hash(&mut h);
+        s.description.hash(&mut h);
     }
     active.hash(&mut h);
     (direction == Direction::Above).hash(&mut h);
@@ -558,6 +592,9 @@ fn signature_hash(
     layout.swap_description.hash(&mut h);
     layout.sug_width.hash(&mut h);
     layout.term_cols.hash(&mut h);
+    std::mem::discriminant(&icons).hash(&mut h);
+    std::mem::discriminant(&border_style).hash(&mut h);
+    active_bg.hash(&mut h);
     h.finish()
 }
 
@@ -810,6 +847,15 @@ mod tests {
         }
     }
 
+    /// #107: a 6-byte non-ASCII color must fall back, not panic.
+    #[test]
+    fn non_ascii_color_falls_back() {
+        assert_eq!(parse_hex_color("#a€bc"), None);
+        assert_eq!(parse_hex_color("#€abcde"), None);
+        assert_eq!(parse_hex_color("#7D56F4"), Some((125, 86, 244)));
+        assert!(!compute_active_bg("#a€bc").is_empty());
+    }
+
     #[test]
     fn wrap_short_fits_one_line() {
         let w = wrap_multiline("hello world", 28, 5);
@@ -882,6 +928,59 @@ mod tests {
         assert!(!rounded.is_empty());
         assert!(rounded[0].contains("╭"));
         assert!(rounded.last().unwrap().contains("╰"));
+    }
+
+    /// #109: same name, different type/icon must force a redraw.
+    #[test]
+    fn type_change_forces_redraw() {
+        let mut r = PopupRenderer::new(5, IconSet::Emoji);
+        let mut out = Vec::new();
+        r.draw_full(
+            &mut out,
+            &[mk("thing", "", SuggestionType::File)],
+            0,
+            Direction::Below,
+            0,
+            80,
+        )
+        .unwrap();
+        assert!(!out.is_empty());
+        let mut out2 = Vec::new();
+        r.draw_full(
+            &mut out2,
+            &[mk("thing", "", SuggestionType::Folder)],
+            0,
+            Direction::Below,
+            0,
+            80,
+        )
+        .unwrap();
+        assert!(
+            !out2.is_empty(),
+            "Folder redraw was suppressed; stale File icon remains"
+        );
+    }
+
+    /// #110: Above boxes share the bottom row, not the top.
+    #[test]
+    fn above_boxes_share_bottom_row() {
+        let mut r = PopupRenderer::new(5, IconSet::Emoji);
+        let sugs = vec![mk(
+            "one",
+            "line1\nline2\nline3\nline4\nline5",
+            SuggestionType::Arg,
+        )];
+        let mut out = Vec::new();
+        r.draw_full(&mut out, &sugs, 0, Direction::Above, 0, 120)
+            .unwrap();
+        let text = String::from_utf8(out).unwrap();
+        // Rows split on CNL; the suggestion box bottom border must be in
+        // the last row chunk, flush with the description bottom border.
+        let last = text.rsplit("\x1b[E").next().unwrap();
+        assert!(
+            last.matches('└').count() >= 2,
+            "bottom borders not shared: {text:?}"
+        );
     }
 
     #[test]

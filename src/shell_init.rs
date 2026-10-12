@@ -32,6 +32,7 @@ fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
         .position(|window| window == needle)
 }
 
+#[cfg(test)]
 fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
     find_bytes(haystack, needle).is_some()
 }
@@ -136,9 +137,15 @@ pub fn print_init(shell: &str) -> Result<()> {
 /// Append `snippet` to `rc` unless `marker` is already present. Existing
 /// bytes are preserved verbatim — the snippet is only ever appended, so a
 /// profile we cannot decode is still a profile we can safely extend.
-fn append_snippet(rc: &Path, marker: &[u8], snippet: &str) -> Result<bool> {
+fn append_snippet(
+    rc: &Path,
+    already_present: &dyn Fn(&[u8]) -> bool,
+    snippet: &str,
+) -> Result<bool> {
     let existing = read_rc_bytes(rc)?;
-    if contains_bytes(&existing, marker) {
+    // Presence must be a real, uncommented installation (#108): a
+    // substring search accepts a commented-out line as installed.
+    if already_present(&existing) {
         return Ok(false);
     }
     if let Some(parent) = rc.parent() {
@@ -157,7 +164,7 @@ fn append_snippet(rc: &Path, marker: &[u8], snippet: &str) -> Result<bool> {
 pub fn install() -> Result<()> {
     let home = crate::paths::home().ok_or_else(|| anyhow::anyhow!("no HOME"))?;
     let rc = home.join(".bashrc");
-    if !append_snippet(&rc, MARKER.as_bytes(), &wrapper_snippet())? {
+    if !append_snippet(&rc, &has_wrapper_block, &wrapper_snippet())? {
         println!("is: already installed in {}", rc.display());
         return Ok(());
     }
@@ -175,8 +182,7 @@ pub fn install_rc(shell: Shell) -> Result<()> {
         )
     })?;
     let snippet = source_snippet(shell);
-    let marker = snippet.trim().to_string();
-    if !append_snippet(&rc, marker.as_bytes(), &snippet)? {
+    if !append_snippet(&rc, &|c| has_source_line(shell, c), &snippet)? {
         println!(
             "is: {} init already installed in {}",
             shell.as_str(),
@@ -208,14 +214,19 @@ pub fn has_source_line(shell: Shell, contents: &[u8]) -> bool {
 }
 
 /// Is the `is install` auto-exec wrapper present, opened *and* closed?
+/// Both markers must be real (uncommented) lines (#108): a commented-out
+/// marker block is not an installation, matching `has_source_line`.
 pub fn has_wrapper_block(contents: &[u8]) -> bool {
-    contents_has_block(contents).is_some()
-}
-
-fn contents_has_block(contents: &[u8]) -> Option<usize> {
-    let start = find_bytes(contents, MARKER.as_bytes())?;
-    let end_rel = find_bytes(&contents[start..], MARKER_END.as_bytes())?;
-    Some(start + end_rel + MARKER_END.len())
+    let mut opened = false;
+    for line in contents.split_inclusive(|b| *b == b'\n') {
+        let line = trim_ascii(line);
+        if line == MARKER.as_bytes() {
+            opened = true;
+        } else if opened && line == MARKER_END.as_bytes() {
+            return true;
+        }
+    }
+    false
 }
 
 /// Remove everything this tool installs, so a caller can inspect what is
@@ -328,6 +339,29 @@ mod tests {
         assert_eq!(output, b"alias ll='ls -la'\n\nexport FOO=bar\n");
     }
 
+    /// #108: a commented-out source line / marker block is not installed.
+    #[test]
+    fn commented_out_install_is_not_detected() {
+        let commented = format!("# {BASH_SNIPPET}\n");
+        assert!(!has_source_line(Shell::Bash, commented.as_bytes()));
+        assert!(has_source_line(
+            Shell::Bash,
+            format!("{BASH_SNIPPET}\n").as_bytes()
+        ));
+        let dir = tempdir("append-commented");
+        let rc = dir.join(".bashrc");
+        std::fs::write(&rc, &commented).unwrap();
+        let snippet = source_snippet(Shell::Bash);
+        assert!(append_snippet(&rc, &|c| has_source_line(Shell::Bash, c), &snippet).unwrap());
+        assert!(has_source_line(Shell::Bash, &std::fs::read(&rc).unwrap()));
+        // Commented wrapper markers likewise do not count.
+        assert!(!has_wrapper_block(
+            format!("# {MARKER}\n# {MARKER_END}\n").as_bytes()
+        ));
+        assert!(has_wrapper_block(wrapper_snippet().as_bytes()));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// A profile that is not valid UTF-8 must survive an install untouched
     /// apart from the appended snippet.
     #[test]
@@ -338,7 +372,7 @@ mod tests {
         let original: &[u8] = b"alias caf\xe9='echo latin1'\n";
         std::fs::write(&rc, original).unwrap();
 
-        assert!(append_snippet(&rc, MARKER.as_bytes(), &wrapper_snippet()).unwrap());
+        assert!(append_snippet(&rc, &has_wrapper_block, &wrapper_snippet()).unwrap());
 
         let after = std::fs::read(&rc).unwrap();
         assert!(
@@ -356,9 +390,9 @@ mod tests {
         let dir = tempdir("append-idempotent");
         let rc = dir.join(".bashrc");
         std::fs::write(&rc, b"\xc3\x28 broken utf8\n").unwrap();
-        assert!(append_snippet(&rc, MARKER.as_bytes(), &wrapper_snippet()).unwrap());
+        assert!(append_snippet(&rc, &has_wrapper_block, &wrapper_snippet()).unwrap());
         let once = std::fs::read(&rc).unwrap();
-        assert!(!append_snippet(&rc, MARKER.as_bytes(), &wrapper_snippet()).unwrap());
+        assert!(!append_snippet(&rc, &has_wrapper_block, &wrapper_snippet()).unwrap());
         assert_eq!(std::fs::read(&rc).unwrap(), once);
         std::fs::remove_dir_all(&dir).ok();
     }

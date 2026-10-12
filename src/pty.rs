@@ -219,6 +219,9 @@ pub fn run_wrapped(
     // bash scrolls the screen, the new popup top-border is stranded
     // wherever the cursor happened to be.
     let mut submitting = false;
+    // Inside a bracketed paste (ESC[200~ .. ESC[201~) stdin bytes are
+    // literal text, never UI keys (#115). Persists across reads.
+    let mut in_bracketed_paste = false;
     // Tracks the background registry load so the first tick after it lands
     // can redraw the suggestion for text already on the line.
     let mut engine_was_ready = false;
@@ -315,7 +318,17 @@ pub fn run_wrapped(
 
         // Read PTY output if ready.
         if pty_ready {
+            // Bounded drain (#114): continuous output (`yes`) keeps the
+            // PTY always-ready, and an unbounded loop here never returns
+            // to the outer poll — stdin (Ctrl-C included) starves. The
+            // outer loop re-polls immediately, so capping chunks per
+            // tick costs no throughput.
+            let mut chunks: u32 = 0;
             loop {
+                chunks += 1;
+                if chunks > 128 {
+                    break;
+                }
                 let n = pty.read_pty(&mut pty_buf);
                 if n < 1 {
                     break;
@@ -368,6 +381,19 @@ pub fn run_wrapped(
                 // One `read` can carry several keys. Dispatch them one at a
                 // time so each is matched against the bindings on its own.
                 for bytes in split_keys(&buf) {
+                    // Bracketed paste: forward verbatim until the end
+                    // marker — no binding matching, no submitting latch,
+                    // no history tracking (#115).
+                    if in_bracketed_paste || bytes == b"\x1b[200~" {
+                        if bytes == b"\x1b[201~" {
+                            in_bracketed_paste = false;
+                        } else if bytes == b"\x1b[200~" {
+                            in_bracketed_paste = true;
+                        }
+                        renderer.clear(&mut out).ok();
+                        pty.pty_write(bytes);
+                        continue;
+                    }
                     // Track Up/Down for history-hide behavior (upstream:
                     // suggestionManager.ts:172-174).
                     last_stdin_was_history = bytes == b"\x1b[A"
@@ -950,9 +976,9 @@ fn suggestion_ghost(
     insert.extend(repl.caret_move());
     let display = if repl.tail.starts_with('\x08') || repl.had_marker {
         // Not displayable inline: show the rest of the name instead.
-        strip_control_chars(&suggestion.name)
-            .strip_prefix(partial.text.as_str())?
-            .to_string()
+        // Case-insensitive like the engine's filtering (#105): an
+        // exact-case strip_prefix lost the ghost for `git CH`.
+        crate::suggest::ci_tail(&strip_control_chars(&suggestion.name), &partial.text)?
     } else {
         repl.tail
     };
@@ -1428,6 +1454,22 @@ mod tests {
         assert_eq!(
             split_keys("aé日".as_bytes()),
             vec!["a".as_bytes(), "é".as_bytes(), "日".as_bytes()]
+        );
+    }
+
+    /// #115: bracketed-paste markers survive as single keys so the
+    /// event loop can switch to verbatim forwarding.
+    #[test]
+    fn split_keys_keeps_paste_markers_whole() {
+        assert_eq!(
+            split_keys(b"\x1b[200~a\tb\x1b[201~"),
+            vec![
+                &b"\x1b[200~"[..],
+                &b"a"[..],
+                &b"\t"[..],
+                &b"b"[..],
+                &b"\x1b[201~"[..]
+            ]
         );
     }
 

@@ -18,6 +18,11 @@ pub struct TermTracker {
     /// (0,0) when PE fires. This flag defers anchor-setting until
     /// after the next batch of bytes updates the vt100 screen.
     pending_prompt_end: bool,
+    /// Whether prompt paint bytes arrived between PromptStart and
+    /// PromptEnd. If they did, the cursor at PromptEnd is already the
+    /// post-prompt position and must be snapshotted then; deferring to
+    /// the next chunk anchors after typeahead echo (#102).
+    saw_prompt_paint: bool,
     /// `INSH_DUMP_BYTES` debug transcript, opened once at startup.
     byte_dump: Option<std::fs::File>,
 }
@@ -50,6 +55,7 @@ impl TermTracker {
             cwd: String::new(),
             state: CmdState::default(),
             pending_prompt_end: false,
+            saw_prompt_paint: false,
             byte_dump: open_byte_dump(std::env::var_os("INSH_DUMP_BYTES").as_deref()),
         }
     }
@@ -157,6 +163,9 @@ impl TermTracker {
                     .join(" ")
             );
         }
+        if self.state.in_prompt && !bytes.is_empty() {
+            self.saw_prompt_paint = true;
+        }
         self.parser.process(bytes);
         // Apply deferred PromptEnd from a PREVIOUS feed() call.
         // ConPTY sends OSC markers before screen-paint bytes, so we
@@ -176,14 +185,24 @@ impl TermTracker {
                     self.state.prompt_end_col = None;
                     self.state.command.clear();
                     self.pending_prompt_end = false;
+                    // Bytes in this same chunk are prompt paint.
+                    self.saw_prompt_paint = !bytes.is_empty();
                 }
                 IsEvent::PromptEnd => {
-                    // Always defer — on ConPTY the cursor hasn't moved
-                    // to the post-prompt position yet. On Unix, bytes
-                    // and events arrive together, so the second deferred
-                    // check below applies it in the same feed() call.
                     self.state.in_prompt = false;
-                    self.pending_prompt_end = true;
+                    if self.saw_prompt_paint {
+                        // Paint already processed: snapshot the cursor
+                        // as of PromptEnd. Deferring would anchor after
+                        // the typeahead echo in the next chunk (#102).
+                        let (r, c) = self.parser.screen().cursor_position();
+                        self.state.prompt_end_row = Some(r as usize);
+                        self.state.prompt_end_col = Some(c as usize);
+                        self.pending_prompt_end = false;
+                    } else {
+                        // ConPTY: markers arrive before the paint bytes,
+                        // so defer until the next non-empty chunk.
+                        self.pending_prompt_end = true;
+                    }
                 }
                 IsEvent::Cwd(p) => self.cwd = p.clone(),
             }
@@ -445,6 +464,23 @@ mod tests {
         // Unset: no transcript at all.
         assert!(open_byte_dump(None).is_none());
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// #102: PromptEnd in its own chunk after the paint must anchor at
+    /// the prompt end, so typeahead echo in the next chunk is tracked.
+    #[test]
+    fn typeahead_after_split_prompt_end_is_tracked() {
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.feed(b"$ ", &[IsEvent::PromptStart]);
+        tracker.feed(b"", &[IsEvent::PromptEnd]);
+        tracker.feed(b"git", &[]);
+        assert_eq!(tracker.state().command, "git");
+        // ConPTY control: markers before any paint still defer to paint.
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.feed(b"", &[IsEvent::PromptStart, IsEvent::PromptEnd]);
+        tracker.feed(b"$ ", &[]);
+        tracker.feed(b"git", &[]);
+        assert_eq!(tracker.state().command, "git");
     }
 
     #[test]

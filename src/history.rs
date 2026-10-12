@@ -11,6 +11,8 @@ use std::fs;
 use std::path::PathBuf;
 
 const MAX_ENTRIES: usize = 10_000;
+/// Cap for a single history file; a FIFO/device must never block (#103).
+const MAX_HISTORY_BYTES: u64 = 16 * 1024 * 1024;
 
 /// Load history for the detected shell.
 pub fn load() -> Vec<String> {
@@ -29,7 +31,7 @@ pub fn load_for(shell: Shell) -> Vec<String> {
         // noise, a foreign-encoding import) made read_to_string fail and
         // silently discarded the ENTIRE history (#48). Only the corrupted
         // byte becomes U+FFFD now.
-        let Ok(bytes) = fs::read(&path) else {
+        let Some(bytes) = crate::generator::read_bounded_file(&path, MAX_HISTORY_BYTES) else {
             continue;
         };
         let contents = String::from_utf8_lossy(&bytes);

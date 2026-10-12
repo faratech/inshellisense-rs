@@ -297,6 +297,16 @@ const MAX_PROBE_FILE_BYTES: u64 = 256 * 1024;
 /// checks use the opened handle, so swapping the path afterwards changes
 /// nothing.
 fn read_project_file(path: &Path, limit: u64) -> Option<String> {
+    let bytes = read_bounded_file(path, limit)?;
+    String::from_utf8(bytes).ok()
+}
+
+/// Bounded, regular-file-only read shared by user-controlled paths
+/// (spec dirs, history files — #103, extending the #87 fix). Opening a
+/// FIFO blocks forever and an unbounded read of `/dev/zero` grows until
+/// OOM, so: open non-blocking on Unix, require a regular file via the
+/// opened handle, and cap bytes read at `limit`.
+pub(crate) fn read_bounded_file(path: &Path, limit: u64) -> Option<Vec<u8>> {
     use std::io::Read;
     let mut options = std::fs::OpenOptions::new();
     options.read(true);
@@ -311,12 +321,12 @@ fn read_project_file(path: &Path, limit: u64) -> Option<String> {
         return None;
     }
     // The size can still grow between the check and the read.
-    let mut text = String::new();
-    file.take(limit + 1).read_to_string(&mut text).ok()?;
-    if text.len() as u64 > limit {
+    let mut bytes = Vec::new();
+    file.take(limit + 1).read_to_end(&mut bytes).ok()?;
+    if bytes.len() as u64 > limit {
         return None;
     }
-    Some(text)
+    Some(bytes)
 }
 
 fn project_file_suggestions(reader: ProjectFileReader, cwd: &str) -> Vec<Suggestion> {
@@ -687,11 +697,14 @@ fn run_shell_line(
     };
 
     // `by_dir: false` means the result does not depend on the directory, so it
-    // must not be keyed by it.
+    // must not be keyed by it. The separator does decide the cached values
+    // (splitting happens inside this layer), so it must be keyed (#113):
+    // two specs sharing a script with different `split_on` otherwise serve
+    // each other's split until the TTL expires.
     let key = if spec.by_dir {
-        format!("{cwd}\0{script_key}")
+        format!("{cwd}\0{script_key}\0{sep}")
     } else {
-        format!("\0{script_key}")
+        format!("\0{script_key}\0{sep}")
     };
     let ttl = Duration::from_secs(spec.ttl_secs);
 
@@ -1103,6 +1116,43 @@ fn json_value_to_suggestions(v: &serde_json::Value) -> Vec<Suggestion> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #113: same script, different separator must not share a cache entry.
+    #[cfg(unix)]
+    #[test]
+    fn cache_key_includes_separator() {
+        let cache = CacheSpec {
+            ttl_secs: 60,
+            by_dir: false,
+            ..Default::default()
+        };
+        // Unique script text so no other test's cache entry can collide.
+        let cmd = Invocation::Shell("printf 'a:b c:d' # cache-sep-test".into());
+        let by_colon = run_shell_line(&cmd, ":", None, 5000, Some(&cache), ".");
+        assert_eq!(by_colon, vec!["a", "b c", "d"]);
+        let by_space = run_shell_line(&cmd, " ", None, 5000, Some(&cache), ".");
+        assert_eq!(by_space, vec!["a:b", "c:d"]);
+    }
+
+    /// #103: a FIFO must be skipped promptly, not block the open forever;
+    /// an oversized regular file is likewise rejected.
+    #[cfg(unix)]
+    #[test]
+    fn bounded_read_skips_fifo_and_oversized() {
+        let dir = crate::test_support::unique_temp_dir("bounded");
+        let fifo = dir.join("hang.json");
+        let cpath = std::ffi::CString::new(fifo.as_os_str().as_encoded_bytes()).unwrap();
+        let rc = unsafe { libc::mkfifo(cpath.as_ptr(), 0o644) };
+        assert_eq!(rc, 0);
+        let start = std::time::Instant::now();
+        assert!(read_bounded_file(&fifo, 1024).is_none());
+        assert!(start.elapsed() < std::time::Duration::from_secs(5));
+        let big = dir.join("big");
+        std::fs::write(&big, vec![b'x'; 2048]).unwrap();
+        assert!(read_bounded_file(&big, 1024).is_none());
+        assert_eq!(read_bounded_file(&big, 4096).unwrap().len(), 2048);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     /// The `history` template must read the history file of the shell being
     /// WRAPPED (`is start --shell fish` launched from bash), not whichever

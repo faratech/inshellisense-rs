@@ -231,8 +231,10 @@ impl KeyBinding {
             "down" => bytes == b"\x1b[B" || bytes == b"\x1bOB",
             "right" => bytes == b"\x1b[C" || bytes == b"\x1bOC",
             "left" => bytes == b"\x1b[D" || bytes == b"\x1bOD",
-            "home" => bytes == b"\x1b[H" || bytes == b"\x1b[1~",
-            "end" => bytes == b"\x1b[F" || bytes == b"\x1b[4~",
+            // SS3 forms (\x1bOH/\x1bOF) are what application-cursor mode
+            // (DECCKM) terminals send, as with the arrows above (#111).
+            "home" => bytes == b"\x1b[H" || bytes == b"\x1b[1~" || bytes == b"\x1bOH",
+            "end" => bytes == b"\x1b[F" || bytes == b"\x1b[4~" || bytes == b"\x1bOF",
             "tab" => bytes == b"\t",
             "escape" | "esc" => bytes == b"\x1b",
             "return" | "enter" => bytes == b"\r" || bytes == b"\n",
@@ -286,7 +288,11 @@ impl KeyBinding {
                 // accepted as themselves.
                 if self.shift && !self.control {
                     let shifted: String = c.to_uppercase().collect();
-                    return bytes == shifted.as_bytes() || bytes == other.as_bytes();
+                    // Only the shifted character matches (#111): accepting
+                    // the unshifted byte too made `{key="a", shift=true}`
+                    // fire on plain `a`. Keys with no distinct shifted
+                    // form (`?`) have shifted == other, so they still work.
+                    return bytes == shifted.as_bytes();
                 }
                 // Ctrl+Shift+<char> has no portable encoding.
                 false
@@ -535,6 +541,11 @@ path = ["/tmp/extra"]
         assert!(KeyBinding::new("backspace").matches(b"\x7f"));
         assert!(KeyBinding::new("backspace").matches(b"\x08"));
         assert!(!KeyBinding::new("down").matches(b"\x1b[A"));
+        // #111: Home/End SS3 forms from application-cursor mode.
+        assert!(KeyBinding::new("home").matches(b"\x1bOH"));
+        assert!(KeyBinding::new("end").matches(b"\x1bOF"));
+        assert!(KeyBinding::new("home").matches(b"\x1b[H"));
+        assert!(KeyBinding::new("end").matches(b"\x1b[F"));
     }
 
     /// A terminal reports the shifted *character*, not a shift bit, so a
@@ -548,6 +559,8 @@ path = ["/tmp/extra"]
             control: false,
         };
         assert!(shift_a.matches(b"A"));
+        // #111: the unshifted key must NOT fire a shift binding.
+        assert!(!shift_a.matches(b"a"));
         assert!(!shift_a.matches(b"b"));
         // A key with no distinct shifted form still matches itself.
         let shift_question = KeyBinding {

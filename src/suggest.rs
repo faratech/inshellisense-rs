@@ -92,10 +92,9 @@ impl Engine {
         // nothing of a suggestion left to type for it (#67).
         let partial = current_partial(line, self.shell)?;
         if let Some(top) = blob.first()
-            && top.name.len() > partial.len()
-            && top.name.starts_with(&partial)
+            && let Some(tail) = ci_tail(&top.name, &partial)
         {
-            return Some(top.name[partial.len()..].to_string());
+            return Some(tail);
         }
         // Fallback to history.
         self.history_tail(line)
@@ -164,16 +163,26 @@ impl Engine {
         }
         let cmd = &tokens[0].token;
 
-        let shell_root = shell_command_override(self.shell, cmd);
-        let Some(root) = shell_root.as_ref().or_else(|| self.registry.get(cmd)) else {
-            return Vec::new();
-        };
         // PowerShell and cmd resolve names case-insensitively.
         let case_insensitive = match self.shell {
             Some(Shell::Pwsh) | Some(Shell::Powershell) => true,
             #[cfg(windows)]
             Some(Shell::Cmd) => true,
             _ => false,
+        };
+        let shell_root = shell_command_override(self.shell, cmd);
+        // The root lookup must honor that case-insensitivity too (#106):
+        // `Git ch` in pwsh found no spec at all while `git ch` worked.
+        let Some(root) = shell_root.as_ref().or_else(|| {
+            self.registry.get(cmd).or_else(|| {
+                if case_insensitive {
+                    self.registry.get(&cmd.to_lowercase())
+                } else {
+                    None
+                }
+            })
+        }) else {
+            return Vec::new();
         };
         let result =
             resolver::resolve_with_options(&self.registry, root, &tokens, case_insensitive);
@@ -186,13 +195,16 @@ impl Engine {
         let mut candidates: Vec<Suggestion> = Vec::new();
 
         // Trailing space or partial that doesn't start with '-'? Offer
-        // subcommand names.
+        // subcommand names. But while an option's argument is the active
+        // arg (`git commit -m <TAB>`), the next word is that argument's
+        // value — never a subcommand or another option (#95). The resolver
+        // already reports this as `from_option`; it was never read here.
         let trailing_space = line.ends_with(char::is_whitespace);
         let completing_option = !trailing_space
             && (partial.starts_with('-') || partial_matches_option(&result, &partial));
         let completing_name = !trailing_space && !completing_option;
 
-        if trailing_space || completing_name {
+        if !result.from_option && (trailing_space || completing_name) {
             for s in &result.subcommand.subcommands {
                 if s.hidden {
                     continue;
@@ -222,7 +234,7 @@ impl Engine {
             }
         }
 
-        if trailing_space || completing_option {
+        if !result.from_option && (trailing_space || completing_option) {
             for opt in &result.persistent_options {
                 if opt.hidden {
                     continue;
@@ -573,8 +585,14 @@ fn cmd_opt(names: &[&str], description: &str) -> Opt {
 ///
 /// Returns `None` when names is empty or no alias matches the partial.
 /// How many times `name` appears among the tokens the user has already typed.
+/// Names normalized from `--opt=PLACEHOLDER` end in `=` while the typed
+/// token does not (#99), so compare with any trailing `=` stripped.
+fn name_eq(a: &str, b: &str) -> bool {
+    a == b || a.strip_suffix('=') == Some(b) || b.strip_suffix('=') == Some(a)
+}
+
 fn count_accepted(accepted: &[String], name: &str) -> usize {
-    accepted.iter().filter(|a| a.as_str() == name).count()
+    accepted.iter().filter(|a| name_eq(a, name)).count()
 }
 
 /// Has the option *named* `wanted` been supplied, under any of its aliases?
@@ -583,17 +601,20 @@ fn count_accepted(accepted: &[String], name: &str) -> usize {
 /// the user may have typed a different alias for the same option. Resolve
 /// `wanted` back to its `Opt` and check the whole alias set.
 fn option_satisfied(result: &ResolveResult, accepted: &[String], wanted: &str) -> bool {
-    if accepted.iter().any(|a| a == wanted) {
+    if accepted.iter().any(|a| name_eq(a, wanted)) {
         return true;
     }
     let Some(target) = result
         .persistent_options
         .iter()
-        .find(|o| o.names.iter().any(|n| n == wanted))
+        .find(|o| o.names.iter().any(|n| name_eq(n, wanted)))
     else {
         return false;
     };
-    target.names.iter().any(|n| accepted.iter().any(|a| a == n))
+    target
+        .names
+        .iter()
+        .any(|n| accepted.iter().any(|a| name_eq(a, n)))
 }
 
 fn pick_primary(names: &[String], partial: &str) -> Option<String> {
@@ -639,6 +660,21 @@ fn dedup_by_name(mut v: Vec<Suggestion>) -> Vec<Suggestion> {
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     v.retain(|s| seen.len() < MAX_SUGGESTIONS && seen.insert(s.name.clone()));
     v
+}
+
+/// The remainder of `name` after `partial`, matched case-insensitively:
+/// filtering and ranking are case-insensitive, so the ghost must be too —
+/// `git CH` has a `checkout` candidate but an exact-case `starts_with`
+/// produced no tail at all (#105). Slices by char count, not bytes, so a
+/// case fold that changes byte length cannot split a char boundary.
+pub(crate) fn ci_tail(name: &str, partial: &str) -> Option<String> {
+    let n = partial.chars().count();
+    let head: String = name.chars().take(n).collect();
+    if head.chars().count() != n || head.to_lowercase() != partial.to_lowercase() {
+        return None;
+    }
+    let tail: String = name.chars().skip(n).collect();
+    if tail.is_empty() { None } else { Some(tail) }
 }
 
 /// The in-progress partial token the ghost tail must complete past.

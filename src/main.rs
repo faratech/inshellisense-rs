@@ -208,6 +208,10 @@ pub fn main() -> Result<()> {
             }
         }
         "list-specs" | "listspecs" => {
+            if has_help_flag(&rest) {
+                print_specs_list_help();
+                return Ok(());
+            }
             eprintln!("inshellisense-rs: `list-specs` is deprecated; use `is specs list` instead");
             reject_unknown_args("list-specs", &rest, &["-h", "--help"], &[])?;
             commands::specs::list(true, None)
@@ -486,11 +490,29 @@ fn reject_unknown_args(
             skip_value = false;
             continue;
         }
-        let name = arg.split('=').next().unwrap_or(arg.as_str());
-        if !allowed.contains(&name) {
+        // Attached value: `--flag=value` is only valid for flags that take a
+        // value. Splitting at `=` and checking the name alone let
+        // `--help=foo` pass as `--help` on every guarded command — including
+        // `uninstall`, which then ran (#92).
+        if let Some((name, _)) = arg.split_once('=') {
+            if !value_flags.contains(&name) {
+                anyhow::bail!("is {cmd}: unknown argument `{arg}`");
+            }
+            continue;
+        }
+        // Attached short value: `-szsh` is `-s zsh` wherever `-s` takes a
+        // value (other subcommands accept this form; #112).
+        if allowed.contains(&"-s")
+            && value_flags.contains(&"-s")
+            && arg.starts_with("-s")
+            && arg.len() > 2
+        {
+            continue;
+        }
+        if !allowed.contains(&arg.as_str()) {
             anyhow::bail!("is {cmd}: unknown argument `{arg}`");
         }
-        skip_value = value_flags.contains(&name) && !arg.contains('=');
+        skip_value = value_flags.contains(&arg.as_str());
     }
     Ok(())
 }
@@ -660,6 +682,35 @@ mod tests {
             OsString::from("git ch"),
         ];
         assert_eq!(collect_args(argv), vec!["complete", "git ch"]);
+    }
+
+    /// #92: an attached value must not turn a valueless flag into a pass.
+    /// `--help=foo` used to satisfy the `--help` allowlist entry while never
+    /// triggering help, so guarded commands (including `uninstall`) ran.
+    #[test]
+    fn reject_unknown_args_rejects_attached_value_on_valueless_flag() {
+        let args = vec!["uninstall".to_string(), "--help=foo".to_string()];
+        assert!(reject_unknown_args("uninstall", &args, &["-h", "--help"], &[]).is_err());
+        let ok = vec!["doctor".to_string(), "--help".to_string()];
+        assert!(reject_unknown_args("doctor", &ok, &["-h", "--help"], &[]).is_ok());
+    }
+
+    /// #112: `-szsh` is the attached form of a value flag and must pass
+    /// wherever `-s zsh` does; `--shell=zsh` likewise.
+    #[test]
+    fn reject_unknown_args_accepts_attached_value_flags() {
+        let allowed = &["-h", "--help", "--plain", "--shell", "-s"];
+        let values = &["--shell", "-s"];
+        for form in ["-szsh", "--shell=zsh", "-s", "--shell"] {
+            let mut args = vec!["list".to_string(), form.to_string()];
+            if form == "-s" || form == "--shell" {
+                args.push("zsh".to_string());
+            }
+            assert!(
+                reject_unknown_args("specs list", &args, allowed, values).is_ok(),
+                "{form} should be accepted"
+            );
+        }
     }
 
     /// A filename in latin-1 or quoted shell text can carry bytes that are

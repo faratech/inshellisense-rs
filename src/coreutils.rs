@@ -237,8 +237,30 @@ fn run_capture_within(binary: &Path, args: &[&str], timeout: Duration) -> Probe 
             return Probe::Timeout;
         }
     };
-    let _ = child.wait();
+    reap_within(&mut child, timeout);
     Probe::Output(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// Reap `child`, giving it at most `budget` beyond the output read.
+/// A child that printed, closed stdout, and keeps running (a daemonizing
+/// helper) must not outlive the probe: the unbounded `wait()` that used
+/// to sit here hung detection forever (#93). Output is already complete
+/// once stdout is closed, so killing the lingerer loses nothing.
+fn reap_within(child: &mut std::process::Child, budget: Duration) {
+    let start = std::time::Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) | Err(_) => return,
+            Ok(None) => {
+                if start.elapsed() >= budget {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+    }
 }
 
 impl Coreutils {
@@ -1122,6 +1144,30 @@ Options:
         assert_eq!(
             run_capture_within(&script, &["fast"], Duration::from_millis(5000)),
             Probe::Output("banner\n".into())
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// #93: a probe that prints, closes stdout, and keeps running must
+    /// still return within budget — the old unbounded wait() hung forever.
+    #[cfg(unix)]
+    #[test]
+    fn a_lingering_probe_still_returns_its_output() {
+        let dir = crate::test_support::unique_temp_dir("probe-linger");
+        let script = dir.join("linger");
+        std::fs::write(
+            &script,
+            "#!/bin/sh\nprintf 'ls\\ncat\\n'\nexec 1>&-\nsleep 30\n",
+        )
+        .unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let start = std::time::Instant::now();
+        let got = run_capture_within(&script, &[], Duration::from_millis(200));
+        assert_eq!(got, Probe::Output("ls\ncat\n".into()));
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "lingering child outlived the probe budget"
         );
         std::fs::remove_dir_all(&dir).unwrap();
     }

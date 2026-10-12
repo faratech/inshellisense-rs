@@ -77,7 +77,23 @@ fn capture_stdout(program: &str, args: &[&str], timeout: Duration) -> Option<Str
     });
     match rx.recv_timeout(timeout) {
         Ok(bytes) => {
-            let _ = child.wait();
+            // Output is complete (stdout closed) but the shell may linger —
+            // an rc file can background a long-lived process. The unbounded
+            // wait() that used to sit here hung startup forever (#93); give
+            // the child the same budget to exit, then abandon it.
+            let start = std::time::Instant::now();
+            loop {
+                match child.try_wait() {
+                    Ok(Some(_)) | Err(_) => break,
+                    Ok(None) => {
+                        if start.elapsed() >= timeout {
+                            abandon(&mut child);
+                            break;
+                        }
+                        thread::sleep(Duration::from_millis(5));
+                    }
+                }
+            }
             Some(String::from_utf8_lossy(&bytes).into_owned())
         }
         Err(_) => {
@@ -209,24 +225,9 @@ fn first_word(s: &str) -> Option<(usize, &str)> {
 }
 
 fn last_segment_start(line: &str) -> usize {
-    let bytes = line.as_bytes();
-    let mut best_idx = 0;
-    let mut i = 0;
-    while i < bytes.len() {
-        if i + 1 < bytes.len()
-            && ((bytes[i] == b'|' && bytes[i + 1] == b'|')
-                || (bytes[i] == b'&' && bytes[i + 1] == b'&'))
-        {
-            best_idx = i + 2;
-            i += 2;
-            continue;
-        }
-        if bytes[i] == b';' || bytes[i] == b'|' {
-            best_idx = i + 1;
-        }
-        i += 1;
-    }
-    best_idx
+    // Quote-aware, shared with the tokenizer (#100): a `;` inside a quoted
+    // alias argument is not a segment boundary.
+    crate::spec::parser::segment_start(line, crate::spec::ShellFlavor::Posix)
 }
 
 #[cfg(test)]
@@ -325,6 +326,23 @@ mod tests {
     fn subprocess_output_still_arrives() {
         let got = capture_stdout("sh", &["-c", "echo hello"], ALIAS_TIMEOUT);
         assert_eq!(got.as_deref(), Some("hello\n"));
+    }
+
+    /// #93: output followed by a lingering process must still arrive within
+    /// budget — stdout closing ends the output, not the child.
+    #[test]
+    fn lingering_subprocess_output_still_arrives() {
+        let start = std::time::Instant::now();
+        let got = capture_stdout(
+            "sh",
+            &["-c", "echo hello; exec 1>&-; sleep 30"],
+            Duration::from_millis(200),
+        );
+        assert_eq!(got.as_deref(), Some("hello\n"));
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "lingering child outlived the capture budget"
+        );
     }
 
     #[test]

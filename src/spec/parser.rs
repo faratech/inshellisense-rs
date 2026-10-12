@@ -78,38 +78,73 @@ pub fn parse_command(line: &str) -> Vec<CommandToken> {
 
 /// Tokenize with a specific shell's escape/quote rules (#81).
 pub fn parse_command_for(line: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
-    let last = last_segment(line).trim_start();
+    let last = last_segment(line, flavor).trim_start();
     let mut tokens = lex_with(last, flavor);
     sanitize_with(&mut tokens, flavor);
     mark_raw_after_dashdash(&mut tokens);
     tokens
 }
 
-fn last_segment(line: &str) -> &str {
-    // Split on top-level compound delimiters. We want the last segment,
-    // matching parser.ts:23-24. We deliberately avoid quoting/escaping
-    // subtleties — inshellisense itself does a naive regex split here.
-    let mut best_idx = 0;
-    let bytes = line.as_bytes();
+/// Is the char at `idx` escaped — preceded by an odd run of the shell's
+/// escape char? `"a\\"` closes in POSIX (the backslash itself is escaped);
+/// checking only the single predecessor got that wrong (#101).
+fn is_escaped(chars: &[char], idx: usize, esc: char) -> bool {
+    let mut run = 0;
+    let mut i = idx;
+    while i > 0 && chars[i - 1] == esc {
+        run += 1;
+        i -= 1;
+    }
+    run % 2 == 1
+}
+
+fn last_segment(line: &str, flavor: ShellFlavor) -> &str {
+    &line[segment_start(line, flavor)..]
+}
+
+/// Byte index just past the last top-level compound delimiter.
+pub(crate) fn segment_start(line: &str, flavor: ShellFlavor) -> usize {
+    // Split on top-level compound delimiters; the last segment is what
+    // completion works on (upstream parser.ts:23-24). Delimiters inside
+    // quotes are literal text, not separators — the naive byte scan that
+    // used to run here truncated `git commit -m "a;b" --am` at the `;`
+    // and lost the `-m` context entirely (#100).
+    let chars: Vec<char> = line.chars().collect();
+    let esc = flavor.esc();
+    let mut best = 0; // char index just past the last top-level delimiter
+    let mut quote: Option<char> = None;
     let mut i = 0;
-    while i < bytes.len() {
-        let c = bytes[i];
-        // `||` `&&`
-        if i + 1 < bytes.len()
-            && (bytes[i] == b'|' && bytes[i + 1] == b'|'
-                || bytes[i] == b'&' && bytes[i + 1] == b'&')
-        {
-            best_idx = i + 2;
-            i += 2;
+    while i < chars.len() {
+        let ch = chars[i];
+        if let Some(q) = quote {
+            if ch == q && !is_escaped(&chars, i, esc) {
+                quote = None;
+            }
+            i += 1;
             continue;
         }
-        // single `;` or `|`
-        if c == b';' || c == b'|' {
-            best_idx = i + 1;
+        if flavor.is_quote(ch) && !is_escaped(&chars, i, esc) {
+            quote = Some(ch);
+            i += 1;
+            continue;
+        }
+        if !is_escaped(&chars, i, esc) {
+            if (ch == '|' || ch == '&') && chars.get(i + 1) == Some(&ch) {
+                best = i + 2;
+                i += 2;
+                continue;
+            }
+            if ch == ';' || ch == '|' {
+                best = i + 1;
+            }
         }
         i += 1;
     }
-    &line[best_idx..]
+    // Convert the char index back to a byte index for slicing.
+    line.char_indices()
+        .nth(best)
+        .map(|(b, _)| b)
+        .unwrap_or(line.len())
 }
 
 fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
@@ -159,10 +194,9 @@ fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
             continue;
         }
 
-        let prev_char = if idx > 0 { Some(chars[idx - 1]) } else { None };
         let next_char = chars.get(idx + 1).copied();
 
-        if reading_quoted && ch == quote_char && prev_char != Some(esc) {
+        if reading_quoted && ch == quote_char && !is_escaped(&chars, idx, esc) {
             let next_is_space = next_char.map(|c| c.is_whitespace()).unwrap_or(true);
             if !next_is_space {
                 // `"hello"world` — continue reading as quote-continued
@@ -181,7 +215,7 @@ fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
                     ..Default::default()
                 });
             }
-        } else if reading_quote_continued && ch.is_whitespace() && prev_char != Some(esc) {
+        } else if reading_quote_continued && ch.is_whitespace() && !is_escaped(&chars, idx, esc) {
             reading_quote_continued = false;
             tokens.push(CommandToken {
                 token: slice(reading_idx, idx),
@@ -218,7 +252,7 @@ fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
                     ..Default::default()
                 });
             }
-        } else if reading_cmd && ch.is_whitespace() && prev_char != Some(esc) {
+        } else if reading_cmd && ch.is_whitespace() && !is_escaped(&chars, idx, esc) {
             reading_cmd = false;
             tokens.push(CommandToken {
                 token: slice(reading_idx, idx),
@@ -389,6 +423,31 @@ mod tests {
     #[test]
     fn pipe_takes_last_segment() {
         assert_eq!(toks("ls -la | grep foo"), vec!["grep", "foo"]);
+    }
+
+    /// #100: separators inside quotes are literal text, not delimiters.
+    #[test]
+    fn quoted_separator_does_not_split_segment() {
+        assert_eq!(
+            toks("git commit -m \"a;b\" --am"),
+            vec!["git", "commit", "-m", "a;b", "--am"]
+        );
+        assert_eq!(toks("echo \"a|b\" x"), vec!["echo", "a|b", "x"]);
+        // A real top-level separator still splits.
+        assert_eq!(toks("echo \"a;b\" | grep foo"), vec!["grep", "foo"]);
+    }
+
+    /// #101: `"a\\"` closes — the backslash before the quote is itself
+    /// escaped, so the following token is a new token, not string content.
+    #[test]
+    fn escaped_backslash_lets_quote_close() {
+        assert_eq!(
+            toks(r#"git commit -m "a\\" --am"#),
+            vec!["git", "commit", "-m", "a\\\\", "--am"]
+        );
+        // An odd run still escapes the quote: the string is unterminated.
+        let ts = parse_command(r#"git commit -m "a\" --am"#);
+        assert!(!ts.last().unwrap().complete);
     }
 
     #[test]
