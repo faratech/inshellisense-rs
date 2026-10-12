@@ -5,6 +5,46 @@ All notable changes to inshellisense-rs are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.7] - 2026-10-12
+
+Resolves the October 2026 audit tracked in GitHub issues #92 through #115
+(24 confirmed bugs: 2 P1, 13 P2, 9 P3) and refreshes the toolchain and
+dependencies to latest.
+
+### Fixed
+- **CLI argument guard (P1, #92)**: `--help=<value>` no longer bypasses the
+  unknown-argument guard, so `is uninstall --help=foo` is rejected instead of
+  deleting the resource tree. Attached value forms (`-szsh`, `--shell=zsh`)
+  are accepted consistently, and `is list-specs --help` prints help (#112).
+- **Probe hangs (P1, #93)**: Coreutils and alias probes reap children that
+  close stdout but keep running, within budget, instead of waiting forever.
+- **Resolver & engine (#94-#98)**: Unknown options are skipped rather than
+  aborting the line; no completions are offered past an unknown subcommand
+  word or while an option argument is pending; attached short values
+  (`ssh -p2222`) resolve; options after required positionals take effect.
+- **Specs (#99, #104)**: Option names embedding `=PLACEHOLDER` normalize to
+  `--opt=` and complete their values; `dependsOn` is no longer dropped.
+- **Tokenizer (#100, #101)**: Quoted `;`/`|`/`&&` no longer split the command,
+  and an escaped backslash lets a following quote close.
+- **Terminal & PTY (#102, #114, #115)**: Typeahead before prompt end is
+  tracked; the output drain is bounded per tick so continuous output cannot
+  starve Ctrl-C; bracketed paste is forwarded verbatim.
+- **IO bounds (#103)**: Spec-directory and history reads are bounded,
+  regular-file-only reads, so FIFOs/devices cannot hang completion.
+- **Rendering & config (#105-#111)**: Case-insensitive ghost text and
+  PowerShell root lookup; non-ASCII config colors fall back instead of
+  panicking; popup redraw signature covers type/icon/color; Above popups
+  bottom-align; commented-out shell installs are not reported as installed;
+  shift keybindings and SS3 Home/End match correctly.
+- **Generator cache (#113)**: The cache key includes the split separator.
+
+### Changed
+- **Toolchain**: Rust 1.98.1 → 1.99.0 (latest stable); declared
+  `rust-version` and CI toolchain updated to match.
+- **Dependencies**: `Cargo.lock` refreshed to latest compatible versions
+  (11 packages, including `ruzstd` 0.9.1, `serde_json` 1.0.154,
+  `toml` 1.1.8, `libc` 0.2.190, `syn` 3.0.9).
+
 ## [0.0.6] - 2026-09-27
 
 Brings inshellisense-rs to comprehensive feature and behavioral parity with
