@@ -18,6 +18,9 @@ use std::path::Path;
 const MARKER: &str = "# >>> inshellisense-rs init >>>";
 const MARKER_END: &str = "# <<< inshellisense-rs init <<<";
 
+/// Shared by profile diagnostics and editors so they accept the same inputs.
+pub(crate) const MAX_RC_BYTES: u64 = 16 * 1024 * 1024;
+
 /// rc files are edited as raw bytes, never as `String`. A shell profile is
 /// only required to be *shell*-readable, not valid UTF-8 — it may contain
 /// latin-1 aliases, mid-file binary, or any other locale's bytes. Decoding
@@ -42,7 +45,7 @@ fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
 /// than being coerced into "empty", which would make the caller overwrite a
 /// file it could not read.
 fn read_rc_bytes(rc: &Path) -> Result<Vec<u8>> {
-    match std::fs::read(rc) {
+    match crate::generator::read_bounded_file_result(rc, MAX_RC_BYTES) {
         Ok(bytes) => Ok(bytes),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
         Err(e) => Err(e).with_context(|| format!("reading {}", rc.display())),
@@ -445,6 +448,32 @@ mod tests {
             Vec::<u8>::new()
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn oversized_profile_rejection_preserves_existing_bytes_on_both_edit_paths() {
+        use std::io::{Read, Write};
+        let dir = tempdir("oversized-profile");
+        let path = dir.join("profile");
+        let mut prefix = b"# user byte: \xff\n".to_vec();
+        prefix.extend_from_slice(wrapper_snippet().as_bytes());
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(&prefix).unwrap();
+        file.set_len(MAX_RC_BYTES + 1).unwrap();
+        drop(file);
+        assert!(append_snippet(&path, &has_wrapper_block, &wrapper_snippet()).is_err());
+        let mut touched = Vec::new();
+        assert!(remove_from_rc(&path, &[], true, &mut touched).is_err());
+        assert!(touched.is_empty());
+        assert_eq!(std::fs::metadata(&path).unwrap().len(), MAX_RC_BYTES + 1);
+        let mut after = Vec::new();
+        std::fs::File::open(&path)
+            .unwrap()
+            .take(prefix.len() as u64)
+            .read_to_end(&mut after)
+            .unwrap();
+        assert_eq!(after, prefix);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     fn tempdir(tag: &str) -> std::path::PathBuf {

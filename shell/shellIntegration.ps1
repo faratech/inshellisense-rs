@@ -1,3 +1,10 @@
+# Profiles can load this before the wrapper's -Command loads it again (#116).
+# Compare the current function so a later user replacement can still be wrapped.
+if ((Test-Path variable:global:__IsPromptWrapper) -and
+    [object]::ReferenceEquals($function:Prompt, $Global:__IsPromptWrapper)) {
+    return
+}
+
 $Global:__IsOriginalPrompt = $function:Prompt
 
 function Global:__IsTestingPrompt() {
@@ -24,3 +31,5 @@ function Global:Prompt() {
     $Result += if ($pwd.Provider.Name -eq 'FileSystem') { "$([char]0x1b)]6973;CWD;$(__IS-Escape-Value $pwd.ProviderPath)`a" }
     return $Result
 }
+
+$Global:__IsPromptWrapper = $function:Prompt

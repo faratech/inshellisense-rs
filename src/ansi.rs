@@ -64,19 +64,25 @@ impl Scanner {
     }
 
     pub fn scan(&mut self, input: &[u8]) -> (Vec<u8>, Vec<IsEvent>) {
-        let data = if self.pending.is_empty() {
-            input.to_vec()
-        } else {
-            let mut data = Vec::with_capacity(self.pending.len() + input.len());
-            data.extend_from_slice(&self.pending);
-            data.extend_from_slice(input);
-            self.pending.clear();
-            data
-        };
+        let (out, events) = self.scan_ordered(input);
+        (out, events.into_iter().map(|(_, event)| event).collect())
+    }
+
+    /// Return each marker with its byte offset in the cleaned output. The
+    /// terminal tracker must apply it at that position: prompt paint and
+    /// typeahead echo can arrive in the same PTY read (#136).
+    pub fn scan_ordered(&mut self, input: &[u8]) -> (Vec<u8>, Vec<(usize, IsEvent)>) {
+        if self.pending.is_empty() {
+            // The usual path needs only the cleaned output allocation, not
+            // an additional owned copy of every incoming PTY chunk.
+            return self.scan_combined(input);
+        }
+        let mut data = std::mem::take(&mut self.pending);
+        data.extend_from_slice(input);
         self.scan_combined(&data)
     }
 
-    fn scan_combined(&mut self, input: &[u8]) -> (Vec<u8>, Vec<IsEvent>) {
+    fn scan_combined(&mut self, input: &[u8]) -> (Vec<u8>, Vec<(usize, IsEvent)>) {
         let mut out = Vec::with_capacity(input.len());
         let mut events = Vec::new();
         let mut i = 0;
@@ -110,8 +116,10 @@ impl Scanner {
                     break;
                 }
                 let payload = &input[start..end];
-                if let Ok(s) = std::str::from_utf8(payload) {
-                    parse_payload(s, &mut events);
+                if let Ok(s) = std::str::from_utf8(payload)
+                    && let Some(event) = parse_payload(s)
+                {
+                    events.push((out.len(), event));
                 }
                 i = end + term_len;
                 continue;
@@ -148,16 +156,16 @@ fn is_partial_prefix(tail: &[u8], full: &[u8]) -> bool {
     tail.len() < full.len() && full.starts_with(tail)
 }
 
-fn parse_payload(s: &str, events: &mut Vec<IsEvent>) {
+fn parse_payload(s: &str) -> Option<IsEvent> {
     let (tag, rest) = match s.find(';') {
         Some(idx) => (&s[..idx], &s[idx + 1..]),
         None => (s, ""),
     };
     match tag {
-        "PS" => events.push(IsEvent::PromptStart),
-        "PE" => events.push(IsEvent::PromptEnd),
-        "CWD" => events.push(IsEvent::Cwd(unescape(rest))),
-        _ => {}
+        "PS" => Some(IsEvent::PromptStart),
+        "PE" => Some(IsEvent::PromptEnd),
+        "CWD" => Some(IsEvent::Cwd(unescape(rest))),
+        _ => None,
     }
 }
 
@@ -266,6 +274,22 @@ mod tests {
         let (out, events) = scan(input);
         assert_eq!(out, input);
         assert!(events.is_empty());
+    }
+
+    #[test]
+    fn ordered_events_use_cleaned_byte_offsets_across_split_sequences() {
+        let mut scanner = Scanner::new();
+        let (out, events) =
+            scanner.scan_ordered(b"old\x1b[?9001h\x1b]6973;PS\x07$ \x1b]6973;PE\x1b");
+        assert_eq!(out, b"old$ ");
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].0, 3);
+        assert!(matches!(events[0].1, IsEvent::PromptStart));
+        let (out, events) = scanner.scan_ordered(b"\\git");
+        assert_eq!(out, b"git");
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].0, 0);
+        assert!(matches!(events[0].1, IsEvent::PromptEnd));
     }
 
     #[test]

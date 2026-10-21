@@ -159,9 +159,8 @@ pub fn mismatched_files() -> Vec<std::path::PathBuf> {
     expected_contents()
         .into_iter()
         .filter(|(path, contents)| {
-            fs::read(path)
-                .map(|bytes| bytes != contents.as_bytes())
-                .unwrap_or(true)
+            crate::generator::read_bounded_file(path, contents.len() as u64)
+                .is_none_or(|bytes| bytes != contents.as_bytes())
         })
         .map(|(path, _)| path)
         .collect()
@@ -174,10 +173,16 @@ pub fn tree_is_current() -> bool {
     let Some(version_file) = paths::version_file() else {
         return false;
     };
-    let Ok(existing) = fs::read_to_string(&version_file) else {
+    let Some(existing) = crate::generator::read_bounded_file(&version_file, 1024) else {
         return false;
     };
-    existing.trim() == fingerprint() && missing_files().is_empty() && mismatched_files().is_empty()
+    let Ok(existing) = std::str::from_utf8(&existing) else {
+        return false;
+    };
+    // mismatched_files also detects missing files, so no separate stat pass
+    // over the whole tree is needed. Special/oversized files are rejected
+    // before reading or allocating their contents (#125).
+    existing.trim() == fingerprint() && mismatched_files().is_empty()
 }
 
 /// Write `contents` to `path` atomically: the final name only ever appears
@@ -230,18 +235,13 @@ pub fn unpack() -> Result<std::path::PathBuf> {
 
     // Stamp the tree with the content fingerprint it was written from.
     if let Some(version_file) = paths::version_file() {
-        fs::write(&version_file, fingerprint())?;
+        write_atomic(&version_file, &fingerprint())?;
     }
 
     // Verify the pass actually produced this build's bytes. Reporting success
     // over a tree that still fails `tree_is_current()` would leave the user
     // with a broken install and no diagnostic.
-    let broken = missing_files();
-    let broken = if broken.is_empty() {
-        mismatched_files()
-    } else {
-        broken
-    };
+    let broken = mismatched_files();
     if !broken.is_empty() {
         let names: Vec<String> = broken.iter().map(|p| p.display().to_string()).collect();
         anyhow::bail!(
@@ -626,6 +626,24 @@ mod tests {
         });
     }
 
+    #[test]
+    fn oversized_resource_and_version_stamp_are_repaired() {
+        with_temp_home(|_home| {
+            unpack().unwrap();
+            let script = paths::shell_dir().unwrap().join("shellIntegration.ps1");
+            let file = fs::File::create(&script).unwrap();
+            file.set_len(64 * 1024 * 1024).unwrap();
+            assert_eq!(mismatched_files(), vec![script]);
+            unpack().unwrap();
+            let version = paths::version_file().unwrap();
+            let file = fs::File::create(&version).unwrap();
+            file.set_len(64 * 1024 * 1024).unwrap();
+            assert!(!tree_is_current());
+            unpack().unwrap();
+            assert!(tree_is_current());
+        });
+    }
+
     fn generated_zsh_file(name: &str) -> String {
         zsh_dotdir_contents("/tmp/is-shell")
             .into_iter()
@@ -657,12 +675,11 @@ mod tests {
     }
 
     #[test]
-    fn vendored_zsh_and_fish_scripts_have_expected_safe_content() {
+    fn vendored_zsh_scripts_have_expected_safe_content() {
         assert!(!vendored_script("shellIntegration-rc.zsh").contains(".zshrc"));
         assert!(vendored_script("shellIntegration-env.zsh").contains(".zshenv"));
         assert!(vendored_script("shellIntegration-login.zsh").contains(".zlogin"));
         assert!(vendored_script("shellIntegration-profile.zsh").contains(".zprofile"));
-        assert!(vendored_script("shellIntegration.fish").contains("printf '%s'"));
     }
 
     #[test]

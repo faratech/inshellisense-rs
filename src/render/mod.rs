@@ -121,13 +121,81 @@ impl Renderer {
         cursor_col: u16,
         term_cols: u16,
     ) -> io::Result<()> {
+        self.draw_popup_interactive_with_rows(
+            out,
+            tail,
+            all,
+            cursor,
+            direction,
+            cursor_col,
+            term_cols,
+            usize::MAX,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_popup_interactive_with_rows(
+        &mut self,
+        out: &mut impl io::Write,
+        tail: Option<&str>,
+        all: &[Suggestion],
+        cursor: usize,
+        direction: Direction,
+        cursor_col: u16,
+        term_cols: u16,
+        available_rows: usize,
+    ) -> io::Result<()> {
+        self.draw_popup_interactive_with_gap(
+            out,
+            tail,
+            all,
+            cursor,
+            direction,
+            cursor_col,
+            term_cols,
+            available_rows,
+            0,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_popup_interactive_with_gap(
+        &mut self,
+        out: &mut impl io::Write,
+        tail: Option<&str>,
+        all: &[Suggestion],
+        cursor: usize,
+        direction: Direction,
+        cursor_col: u16,
+        term_cols: u16,
+        available_rows: usize,
+        gap_rows: u16,
+    ) -> io::Result<()> {
         let ghost_cells = term_cols.saturating_sub(cursor_col) as usize;
         match self {
             Renderer::Ghost(g) => g.draw(out, tail, ghost_cells),
-            Renderer::Popup(p) => p.draw_full(out, all, cursor, direction, cursor_col, term_cols),
+            Renderer::Popup(p) => p.draw_full_with_gap(
+                out,
+                all,
+                cursor,
+                direction,
+                cursor_col,
+                term_cols,
+                available_rows,
+                gap_rows,
+            ),
             Renderer::Hybrid { ghost, popup } => {
                 ghost.draw(out, tail, ghost_cells)?;
-                popup.draw_full(out, all, cursor, direction, cursor_col, term_cols)
+                popup.draw_full_with_gap(
+                    out,
+                    all,
+                    cursor,
+                    direction,
+                    cursor_col,
+                    term_cols,
+                    available_rows,
+                    gap_rows,
+                )
             }
         }
     }
@@ -151,11 +219,49 @@ impl Renderer {
         }
     }
 
+    pub fn popup_visible(&self) -> bool {
+        match self {
+            Renderer::Ghost(_) => false,
+            Renderer::Popup(p) => p.is_visible(),
+            Renderer::Hybrid { popup, .. } => popup.is_visible(),
+        }
+    }
+
     pub fn clear_ghost(&mut self, out: &mut impl io::Write) -> io::Result<()> {
         match self {
             Renderer::Ghost(g) => g.clear(out),
             Renderer::Popup(_) => Ok(()),
             Renderer::Hybrid { ghost, .. } => ghost.clear(out),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hybrid_keeps_ghost_when_popup_cannot_fit_vertically() {
+        let mut renderer = Renderer::new(UiMode::Hybrid, 5, popup::IconSet::Emoji);
+        let mut out = Vec::new();
+        renderer
+            .draw_popup_interactive_with_rows(
+                &mut out,
+                Some("status"),
+                &[Suggestion {
+                    name: "status".into(),
+                    ..Default::default()
+                }],
+                0,
+                Direction::Below,
+                5,
+                80,
+                2,
+            )
+            .unwrap();
+        assert!(renderer.ghost_visible());
+        assert!(!renderer.popup_visible());
+        assert!(String::from_utf8_lossy(&out).contains("status"));
+        assert!(!String::from_utf8_lossy(&out).contains('┌'));
     }
 }

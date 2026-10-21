@@ -24,7 +24,6 @@ use crate::paths;
 use crate::resources::ALL_SHELLS;
 use crate::shell::Shell;
 use anyhow::Result;
-use std::fs;
 use std::io::IsTerminal;
 use std::sync::OnceLock;
 
@@ -340,11 +339,12 @@ enum RcFile {
 
 fn read_rc(shell: Shell) -> Option<(std::path::PathBuf, RcFile)> {
     let rc = paths::shell_rc_file(shell)?;
-    let state = match fs::read(&rc) {
-        Ok(bytes) => RcFile::Contents(bytes),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => RcFile::Missing,
-        Err(e) => RcFile::Unreadable(e),
-    };
+    let state =
+        match crate::generator::read_bounded_file_result(&rc, crate::shell_init::MAX_RC_BYTES) {
+            Ok(bytes) => RcFile::Contents(bytes),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => RcFile::Missing,
+            Err(e) => RcFile::Unreadable(e),
+        };
     Some((rc, state))
 }
 

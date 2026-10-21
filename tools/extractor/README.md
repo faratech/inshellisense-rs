@@ -55,6 +55,9 @@ See `stats` in the manifest for counts per run.
 | `parserDirectives.*` | `parser_directives.*` | |
 | `args: T \| T[]` | `args: Vec<T>` | always stored as array |
 | `generators: T \| T[]` | `generators: Vec<T>` | always stored as array |
+| `generators.cache.ttl` | `cache.ttl_ms` | Fig TTL is in milliseconds |
+| `generators.cache.cacheByDirectory` | `cache.by_dir` | preserves directory-specific results |
+| `generators.cache.strategy` | `cache.strategy` | converts hyphenated strategy names to snake_case |
 | `template: T \| T[]` | `templates: Vec<T>` | always stored as array |
 | `loadSpec: string` | `load_spec: { kind: "spec_path", name }` | function form = phase 6 |
 

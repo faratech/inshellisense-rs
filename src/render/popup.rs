@@ -160,6 +160,7 @@ pub struct PopupRenderer {
     active_bg: String,
     last_drawn_rows: u16,
     last_direction: Direction,
+    last_gap_rows: u16,
     last_signature: Option<u64>,
 }
 
@@ -182,6 +183,7 @@ impl PopupRenderer {
             active_bg,
             last_drawn_rows: 0,
             last_direction: Direction::Below,
+            last_gap_rows: 0,
             last_signature: None,
         }
     }
@@ -207,12 +209,66 @@ impl PopupRenderer {
         cursor_col: u16,
         term_cols: u16,
     ) -> io::Result<()> {
-        if all.is_empty() {
+        self.draw_full_with_rows(
+            out,
+            all,
+            cursor,
+            direction,
+            cursor_col,
+            term_cols,
+            usize::MAX,
+        )
+    }
+
+    /// Fit both boxes in the screen rows available on the chosen side of the
+    /// prompt. Page through fewer suggestions when necessary; drawing beyond
+    /// the screen clamps cursor movement and causes clear() to erase the
+    /// prompt itself (#129).
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_full_with_rows(
+        &mut self,
+        out: &mut impl Write,
+        all: &[Suggestion],
+        cursor: usize,
+        direction: Direction,
+        cursor_col: u16,
+        term_cols: u16,
+        available_rows: usize,
+    ) -> io::Result<()> {
+        self.draw_full_with_gap(
+            out,
+            all,
+            cursor,
+            direction,
+            cursor_col,
+            term_cols,
+            available_rows,
+            0,
+        )
+    }
+
+    /// Skip other rows occupied by the prompt or command between the cursor
+    /// and the popup. `available_rows` excludes both that gap and the cursor.
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_full_with_gap(
+        &mut self,
+        out: &mut impl Write,
+        all: &[Suggestion],
+        cursor: usize,
+        direction: Direction,
+        cursor_col: u16,
+        term_cols: u16,
+        available_rows: usize,
+        gap_rows: u16,
+    ) -> io::Result<()> {
+        if all.is_empty() || available_rows < BORDER_WIDTH + 1 {
             self.clear(out)?;
             return Ok(());
         }
 
-        let max = self.max_suggestions as usize;
+        let inner_rows = available_rows - BORDER_WIDTH;
+        let max = (self.max_suggestions as usize).min(inner_rows);
+        let description_height = DESCRIPTION_HEIGHT.min(inner_rows);
 
         // Paging — upstream:
         //   page = min(floor(active/max)+1, floor(len/max)+1)
@@ -254,7 +310,8 @@ impl PopupRenderer {
             self.border_style,
             &self.active_bg,
         );
-        let description_box = render_description_box(&active_desc, self.border_style);
+        let description_box =
+            render_description_box(&active_desc, self.border_style, description_height);
 
         let max_rows = suggestion_box.len().max(description_box.len());
 
@@ -325,6 +382,8 @@ impl PopupRenderer {
             swap_description,
             sug_width,
             term_cols,
+            description_height,
+            gap_rows,
         };
         let sig = signature_hash(
             visible,
@@ -350,12 +409,20 @@ impl PopupRenderer {
 
         match direction {
             Direction::Below => {
-                out.write_all(b"\x1b[E")?; // CNL with no count
+                if gap_rows > 0 {
+                    write!(out, "\x1b[{}E", usize::from(gap_rows) + 1)?;
+                } else {
+                    out.write_all(b"\x1b[E")?; // CNL with no count
+                }
             }
             Direction::Above => {
-                // Move cursor up `rows.len()` lines using repeated CPL.
-                for _ in 0..rows.len() {
-                    out.write_all(b"\x1b[F")?;
+                if gap_rows > 0 {
+                    write!(out, "\x1b[{}F", rows.len() + usize::from(gap_rows))?;
+                } else {
+                    // Preserve the upstream byte pattern for adjacent popups.
+                    for _ in 0..rows.len() {
+                        out.write_all(b"\x1b[F")?;
+                    }
                 }
             }
         }
@@ -378,6 +445,7 @@ impl PopupRenderer {
 
         self.last_drawn_rows = rows.len() as u16;
         self.last_direction = direction;
+        self.last_gap_rows = gap_rows;
         self.last_signature = Some(sig);
         Ok(())
     }
@@ -392,11 +460,23 @@ impl PopupRenderer {
         out.write_all(b"\x1b[s")?;
         match self.last_direction {
             Direction::Below => {
-                out.write_all(b"\x1b[E")?;
+                if self.last_gap_rows > 0 {
+                    write!(out, "\x1b[{}E", usize::from(self.last_gap_rows) + 1)?;
+                } else {
+                    out.write_all(b"\x1b[E")?;
+                }
             }
             Direction::Above => {
-                for _ in 0..rows {
-                    out.write_all(b"\x1b[F")?;
+                if self.last_gap_rows > 0 {
+                    write!(
+                        out,
+                        "\x1b[{}F",
+                        usize::from(rows) + usize::from(self.last_gap_rows)
+                    )?;
+                } else {
+                    for _ in 0..rows {
+                        out.write_all(b"\x1b[F")?;
+                    }
                 }
             }
         }
@@ -412,6 +492,10 @@ impl PopupRenderer {
         self.last_drawn_rows = 0;
         self.last_signature = None;
         Ok(())
+    }
+
+    pub fn is_visible(&self) -> bool {
+        self.last_drawn_rows > 0
     }
 }
 
@@ -520,7 +604,11 @@ fn render_suggestion_box(
 }
 
 /// Port of `_renderDescription` → `renderBox(truncateMultilineText(...))`.
-fn render_description_box(description: &str, border_style: BoxBorderStyle) -> Vec<String> {
+fn render_description_box(
+    description: &str,
+    border_style: BoxBorderStyle,
+    max_lines: usize,
+) -> Vec<String> {
     if description.is_empty() {
         return Vec::new();
     }
@@ -531,7 +619,7 @@ fn render_description_box(description: &str, border_style: BoxBorderStyle) -> Ve
     // wrapped; every other control character is made visible so no escape
     // sequence reaches the terminal.
     let description = super::printable(&description.replace(char::is_whitespace, " ")).into_owned();
-    let lines = wrap_multiline(&description, inner, DESCRIPTION_HEIGHT);
+    let lines = wrap_multiline(&description, inner, max_lines);
     let mut out = Vec::with_capacity(lines.len() + 2);
     let bar = repeat_bar(inner);
     out.push(format!(
@@ -561,6 +649,8 @@ struct Layout {
     swap_description: bool,
     sug_width: usize,
     term_cols: u16,
+    description_height: usize,
+    gap_rows: u16,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -592,6 +682,8 @@ fn signature_hash(
     layout.swap_description.hash(&mut h);
     layout.sug_width.hash(&mut h);
     layout.term_cols.hash(&mut h);
+    layout.description_height.hash(&mut h);
+    layout.gap_rows.hash(&mut h);
     std::mem::discriminant(&icons).hash(&mut h);
     std::mem::discriminant(&border_style).hash(&mut h);
     active_bg.hash(&mut h);
@@ -916,6 +1008,7 @@ mod tests {
         let box_ = render_description_box(
             "Switch branches or restore working tree files",
             BoxBorderStyle::Square,
+            DESCRIPTION_HEIGHT,
         );
         assert!(!box_.is_empty());
         assert!(box_[0].contains("┌"));
@@ -924,10 +1017,195 @@ mod tests {
         let rounded = render_description_box(
             "Switch branches or restore working tree files",
             BoxBorderStyle::Rounded,
+            DESCRIPTION_HEIGHT,
         );
         assert!(!rounded.is_empty());
         assert!(rounded[0].contains("╭"));
         assert!(rounded.last().unwrap().contains("╰"));
+    }
+
+    #[test]
+    fn short_terminal_popup_preserves_prompt_and_pages_every_suggestion() {
+        let suggestions: Vec<_> = (0..5)
+            .map(|i| {
+                mk(
+                    &format!("choice_{i}"),
+                    &"description ".repeat(30),
+                    SuggestionType::Arg,
+                )
+            })
+            .collect();
+        for direction in [Direction::Above, Direction::Below] {
+            for cursor in 0..suggestions.len() {
+                let mut screen = vt100::Parser::new(4, 80, 0);
+                let prompt = match direction {
+                    Direction::Above => b"\x1b[4;1H> git".as_slice(),
+                    Direction::Below => b"> git".as_slice(),
+                };
+                screen.process(prompt);
+                let before = screen.screen().contents();
+                let position = screen.screen().cursor_position();
+                let mut renderer = PopupRenderer::new(5, IconSet::Emoji);
+                let mut bytes = Vec::new();
+                renderer
+                    .draw_full_with_rows(&mut bytes, &suggestions, cursor, direction, 5, 80, 3)
+                    .unwrap();
+                assert_eq!(renderer.last_drawn_rows, 3);
+                let painted = String::from_utf8_lossy(&bytes);
+                assert!(painted.contains(&format!("choice_{cursor}")));
+                assert_eq!(painted.matches("choice_").count(), 1);
+                // vt100 implements DEC save/restore, but not the SCO aliases
+                // used by the popup. Translate only those equivalent controls
+                // so the screen assertion exercises the actual paint/clear.
+                let vt_bytes = |bytes: &[u8]| {
+                    String::from_utf8_lossy(bytes)
+                        .replace("\x1b[s", "\x1b7")
+                        .replace("\x1b[u", "\x1b8")
+                };
+                screen.process(vt_bytes(&bytes).as_bytes());
+                assert_eq!(screen.screen().cursor_position(), position);
+                assert!(screen.screen().contents().contains("> git"));
+                bytes.clear();
+                renderer.clear(&mut bytes).unwrap();
+                screen.process(vt_bytes(&bytes).as_bytes());
+                assert_eq!(screen.screen().contents(), before);
+                assert_eq!(screen.screen().cursor_position(), position);
+            }
+        }
+    }
+
+    #[test]
+    fn popup_skips_multiline_prompt_and_both_halves_of_wrapped_command() {
+        use crate::{ansi::IsEvent, term::TermTracker};
+        let suggestions = vec![mk("status", "Repository status", SuggestionType::Arg)];
+        for direction in [Direction::Above, Direction::Below] {
+            let mut tracker = TermTracker::new(12, 20);
+            let mut screen = vt100::Parser::new(12, 20, 0);
+            let paint = b"\r\n\r\n\r\n\r\nfirst prompt line\r\n> abcdefghijklmnopqrstuvwxyz0123456789abcdef\x1b[A\r\x1b[5C";
+            tracker.feed_ordered(
+                paint,
+                &[(8, IsEvent::PromptStart), (29, IsEvent::PromptEnd)],
+            );
+            screen.process(paint);
+            let protected = screen.screen().clone();
+            let before = screen.screen().contents();
+            let position = screen.screen().cursor_position();
+            let (first, last) = tracker.popup_region();
+            assert_eq!((first, last), (4, 7));
+            assert_eq!(position.0, 6);
+            let (available, gap) = match direction {
+                Direction::Above => (first, position.0 - first),
+                Direction::Below => (12 - last - 1, last - position.0),
+            };
+            let mut renderer = PopupRenderer::new(5, IconSet::Emoji);
+            let mut bytes = Vec::new();
+            renderer
+                .draw_full_with_gap(
+                    &mut bytes,
+                    &suggestions,
+                    0,
+                    direction,
+                    position.1,
+                    20,
+                    available as usize,
+                    gap,
+                )
+                .unwrap();
+            let vt_bytes = |bytes: &[u8]| {
+                String::from_utf8_lossy(bytes)
+                    .replace("\x1b[s", "\x1b7")
+                    .replace("\x1b[u", "\x1b8")
+            };
+            screen.process(vt_bytes(&bytes).as_bytes());
+            // Every protected cell survives while the popup is visible too.
+            for row in first..=last {
+                for col in 0..20 {
+                    assert_eq!(screen.screen().cell(row, col), protected.cell(row, col));
+                }
+            }
+            bytes.clear();
+            renderer.clear(&mut bytes).unwrap();
+            screen.process(vt_bytes(&bytes).as_bytes());
+            assert_eq!(screen.screen().contents(), before);
+            assert_eq!(screen.screen().cursor_position(), position);
+        }
+    }
+
+    #[test]
+    fn changed_gap_invalidates_popup_redraw_cache() {
+        let suggestions = vec![mk("status", "Repository status", SuggestionType::Arg)];
+        let mut renderer = PopupRenderer::new(5, IconSet::Emoji);
+        let mut bytes = Vec::new();
+        renderer
+            .draw_full_with_gap(&mut bytes, &suggestions, 0, Direction::Above, 5, 80, 4, 0)
+            .unwrap();
+        bytes.clear();
+        renderer
+            .draw_full_with_gap(&mut bytes, &suggestions, 0, Direction::Above, 5, 80, 4, 1)
+            .unwrap();
+        assert!(!bytes.is_empty());
+        bytes.clear();
+        renderer
+            .draw_full_with_gap(&mut bytes, &suggestions, 0, Direction::Above, 5, 80, 4, 1)
+            .unwrap();
+        assert!(bytes.is_empty());
+    }
+
+    #[test]
+    fn short_popup_emits_less_output_and_hides_without_room_for_one_row() {
+        let suggestions: Vec<_> = (0..5)
+            .map(|i| {
+                mk(
+                    &format!("choice_{i}"),
+                    &"description ".repeat(30),
+                    SuggestionType::Arg,
+                )
+            })
+            .collect();
+        let mut renderer = PopupRenderer::new(5, IconSet::Emoji);
+        let mut full = Vec::new();
+        renderer
+            .draw_full(&mut full, &suggestions, 0, Direction::Above, 5, 80)
+            .unwrap();
+        let mut compact = Vec::new();
+        let mut renderer = PopupRenderer::new(5, IconSet::Emoji);
+        renderer
+            .draw_full_with_rows(&mut compact, &suggestions, 0, Direction::Above, 5, 80, 3)
+            .unwrap();
+        assert!(
+            compact.len() * 3 < full.len() * 2,
+            "compact={} full={}",
+            compact.len(),
+            full.len()
+        );
+        let mut clear = Vec::new();
+        renderer
+            .draw_full_with_rows(&mut clear, &suggestions, 0, Direction::Above, 5, 80, 2)
+            .unwrap();
+        assert!(!renderer.is_visible());
+        assert!(!clear.is_empty(), "previous popup should be cleared");
+        clear.clear();
+        renderer
+            .draw_full_with_rows(&mut clear, &suggestions, 0, Direction::Above, 5, 80, 0)
+            .unwrap();
+        assert!(clear.is_empty());
+    }
+
+    #[test]
+    fn increased_height_redraws_a_previously_truncated_description() {
+        let suggestions = vec![mk("one", &"description ".repeat(30), SuggestionType::Arg)];
+        let mut renderer = PopupRenderer::new(5, IconSet::Emoji);
+        let mut out = Vec::new();
+        renderer
+            .draw_full_with_rows(&mut out, &suggestions, 0, Direction::Below, 0, 80, 3)
+            .unwrap();
+        assert_eq!(renderer.last_drawn_rows, 3);
+        out.clear();
+        renderer
+            .draw_full_with_rows(&mut out, &suggestions, 0, Direction::Below, 0, 80, 7)
+            .unwrap();
+        assert_eq!(renderer.last_drawn_rows, 7);
+        assert!(!out.is_empty());
     }
 
     /// #109: same name, different type/icon must force a redraw.

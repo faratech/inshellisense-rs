@@ -29,8 +29,10 @@
 
 use crate::paths;
 use serde::Deserialize;
-use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+/// Configs are normally a few KiB; reject special files and bound allocation.
+const MAX_CONFIG_BYTES: u64 = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
@@ -378,11 +380,9 @@ pub fn load() -> Config {
 pub fn diagnose() -> Vec<String> {
     let mut problems = Vec::new();
     for path in candidate_paths() {
-        if !path.exists() {
-            continue;
-        }
-        let text = match fs::read_to_string(&path) {
+        let text = match read_config_text(&path) {
             Ok(text) => text,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
             Err(e) => {
                 problems.push(format!("{}: cannot read ({e})", path.display()));
                 continue;
@@ -409,11 +409,14 @@ fn candidate_paths() -> Vec<PathBuf> {
     out
 }
 
-fn try_load(path: &PathBuf) -> Option<PartialConfig> {
-    if !path.exists() {
-        return None;
-    }
-    match fs::read_to_string(path) {
+fn read_config_text(path: &Path) -> std::io::Result<String> {
+    let bytes = crate::generator::read_bounded_file_result(path, MAX_CONFIG_BYTES)?;
+    String::from_utf8(bytes)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+}
+
+fn try_load(path: &Path) -> Option<PartialConfig> {
+    match read_config_text(path) {
         Ok(text) => match toml::from_str::<PartialConfig>(&text) {
             Ok(c) => {
                 for key in c.unknown_keys() {
@@ -426,6 +429,7 @@ fn try_load(path: &PathBuf) -> Option<PartialConfig> {
                 None
             }
         },
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => {
             eprintln!("is: failed to read {}: {}", path.display(), e);
             None
@@ -494,6 +498,59 @@ fn merge_key(base: &mut KeyBinding, override_: Option<PartialKeyBinding>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn config_reads_reject_oversized_inputs_and_preserve_read_errors() {
+        let dir = crate::test_support::unique_temp_dir("config-bounded");
+        let path = dir.join("rc.toml");
+        assert_eq!(
+            read_config_text(&path).unwrap_err().kind(),
+            std::io::ErrorKind::NotFound
+        );
+        let file = std::fs::File::create(&path).unwrap();
+        file.set_len(MAX_CONFIG_BYTES + 1).unwrap();
+        drop(file);
+        let error = read_config_text(&path).unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains("read limit"));
+        assert!(try_load(&path).is_none());
+        std::fs::write(&path, [0xff]).unwrap();
+        assert_eq!(
+            read_config_text(&path).unwrap_err().kind(),
+            std::io::ErrorKind::InvalidData
+        );
+        std::fs::write(&path, "max_suggestions = 7\n").unwrap();
+        assert_eq!(try_load(&path).unwrap().max_suggestions, Some(7));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_loader_rejects_fifos_without_waiting_for_a_writer() {
+        use std::os::unix::ffi::OsStrExt;
+        let dir = crate::test_support::unique_temp_dir("config-fifo");
+        let path = dir.join("rc.toml");
+        let name = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            tx.send(try_load(&path).is_none()).unwrap();
+        });
+        assert!(
+            rx.recv_timeout(std::time::Duration::from_secs(5))
+                .expect("config load blocked on FIFO")
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_reads_reject_devices() {
+        assert_eq!(
+            read_config_text(Path::new("/dev/zero")).unwrap_err().kind(),
+            std::io::ErrorKind::InvalidInput
+        );
+    }
 
     #[test]
     fn default_has_hybrid_ui() {

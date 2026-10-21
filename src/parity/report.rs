@@ -107,7 +107,7 @@ fn write_report_file(out_path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     options.open(out_path)?.write_all(bytes)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 

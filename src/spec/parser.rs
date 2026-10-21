@@ -16,12 +16,16 @@
 //! We take only the last segment of a compound command (split on `||`/`&&`/
 //! `;`/`|`) for suggestion purposes, matching parseCommand().
 
+use std::sync::{Arc, OnceLock};
+
 /// Which family of escape/quote rules to tokenize with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ShellFlavor {
-    /// bash/zsh/fish/xonsh/nushell: `'` `"` `` ` `` quote, `\` escapes.
+    /// bash/zsh/xonsh/nushell: `'` `"` `` ` `` quote, `\` escapes.
     #[default]
     Posix,
+    /// fish: `'` and `"` quote; backslashes can escape single quotes too.
+    Fish,
     /// pwsh/PowerShell: `'` `"` quote, `` ` `` escapes (NOT a quote char).
     PowerShell,
     /// cmd.exe: `"` quotes, `^` escapes.
@@ -31,7 +35,7 @@ pub enum ShellFlavor {
 impl ShellFlavor {
     fn esc(self) -> char {
         match self {
-            Self::Posix => '\\',
+            Self::Posix | Self::Fish => '\\',
             Self::PowerShell => '`',
             Self::Cmd => '^',
         }
@@ -40,7 +44,7 @@ impl ShellFlavor {
     fn is_quote(self, ch: char) -> bool {
         match self {
             Self::Posix => ch == '\'' || ch == '"' || ch == '`',
-            Self::PowerShell => ch == '\'' || ch == '"',
+            Self::Fish | Self::PowerShell => ch == '\'' || ch == '"',
             // cmd.exe has no single-quote string syntax; `'…'` stays literal.
             Self::Cmd => ch == '"',
         }
@@ -69,6 +73,46 @@ pub struct CommandToken {
     /// resolver must not treat as an attached value for a
     /// `requiresSeparator` option.
     pub separated: bool,
+    /// The shell word before `=` splitting. Required option arguments consume
+    /// this word as data, while ordinary options retain the split tokens.
+    pub unsplit: Option<Box<UnsplitToken>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct UnsplitToken {
+    word: Arc<str>,
+    offset: usize,
+    token_length: usize,
+    complete: bool,
+    parts: usize,
+    token: OnceLock<CommandToken>,
+}
+
+impl PartialEq for UnsplitToken {
+    fn eq(&self, other: &Self) -> bool {
+        self.word == other.word
+            && self.offset == other.offset
+            && self.token_length == other.token_length
+            && self.complete == other.complete
+            && self.parts == other.parts
+    }
+}
+
+impl Eq for UnsplitToken {}
+
+impl UnsplitToken {
+    pub(crate) fn token(&self) -> &CommandToken {
+        self.token.get_or_init(|| CommandToken {
+            token: self.word[self.offset..].to_owned(),
+            complete: self.complete,
+            token_length: self.token_length,
+            ..Default::default()
+        })
+    }
+
+    pub(crate) fn parts(&self) -> usize {
+        self.parts
+    }
 }
 
 /// Parse a command line into tokens for the *last* pipeline segment.
@@ -79,23 +123,11 @@ pub fn parse_command(line: &str) -> Vec<CommandToken> {
 /// Tokenize with a specific shell's escape/quote rules (#81).
 pub fn parse_command_for(line: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
     let last = last_segment(line, flavor).trim_start();
-    let mut tokens = lex_with(last, flavor);
+    let (mut tokens, spans) = lex_with(last, flavor);
     sanitize_with(&mut tokens, flavor);
+    retain_unsplit_words(&mut tokens, &spans, last);
     mark_raw_after_dashdash(&mut tokens);
     tokens
-}
-
-/// Is the char at `idx` escaped — preceded by an odd run of the shell's
-/// escape char? `"a\\"` closes in POSIX (the backslash itself is escaped);
-/// checking only the single predecessor got that wrong (#101).
-fn is_escaped(chars: &[char], idx: usize, esc: char) -> bool {
-    let mut run = 0;
-    let mut i = idx;
-    while i > 0 && chars[i - 1] == esc {
-        run += 1;
-        i -= 1;
-    }
-    run % 2 == 1
 }
 
 fn last_segment(line: &str, flavor: ShellFlavor) -> &str {
@@ -104,51 +136,52 @@ fn last_segment(line: &str, flavor: ShellFlavor) -> &str {
 
 /// Byte index just past the last top-level compound delimiter.
 pub(crate) fn segment_start(line: &str, flavor: ShellFlavor) -> usize {
-    // Split on top-level compound delimiters; the last segment is what
-    // completion works on (upstream parser.ts:23-24). Delimiters inside
-    // quotes are literal text, not separators — the naive byte scan that
-    // used to run here truncated `git commit -m "a;b" --am` at the `;`
-    // and lost the `-m` context entirely (#100).
-    let chars: Vec<char> = line.chars().collect();
+    // Track escape parity while walking forward. Looking backward over every
+    // preceding escape run made a long pasted run quadratic (#121).
+    let mut chars = line.char_indices().peekable();
     let esc = flavor.esc();
-    let mut best = 0; // char index just past the last top-level delimiter
+    let mut best = 0;
     let mut quote: Option<char> = None;
-    let mut i = 0;
-    while i < chars.len() {
-        let ch = chars[i];
+    let mut escaped_next = false;
+    while let Some((byte, ch)) = chars.next() {
+        let escaped = escaped_next;
+        escaped_next = ch == esc && !escaped;
         if let Some(q) = quote {
-            if ch == q && !is_escaped(&chars, i, esc) {
-                quote = None;
+            // POSIX and PowerShell single quotes treat the escape character
+            // literally. PowerShell embeds an apostrophe by doubling it.
+            if ch == q && (!escaped || (q == '\'' && flavor != ShellFlavor::Fish)) {
+                if q == '\''
+                    && flavor == ShellFlavor::PowerShell
+                    && chars.peek().is_some_and(|(_, next)| *next == '\'')
+                {
+                    chars.next();
+                    escaped_next = false;
+                } else {
+                    quote = None;
+                }
             }
-            i += 1;
             continue;
         }
-        if flavor.is_quote(ch) && !is_escaped(&chars, i, esc) {
+        if flavor.is_quote(ch) && !escaped {
             quote = Some(ch);
-            i += 1;
             continue;
         }
-        if !is_escaped(&chars, i, esc) {
-            if (ch == '|' || ch == '&') && chars.get(i + 1) == Some(&ch) {
-                best = i + 2;
-                i += 2;
-                continue;
-            }
-            if ch == ';' || ch == '|' {
-                best = i + 1;
+        if !escaped {
+            if (ch == '|' || ch == '&') && chars.peek().is_some_and(|(_, next)| *next == ch) {
+                let (next_byte, next) = chars.next().unwrap();
+                best = next_byte + next.len_utf8();
+                escaped_next = false;
+            } else if ch == ';' || ch == '|' {
+                best = byte + ch.len_utf8();
             }
         }
-        i += 1;
     }
-    // Convert the char index back to a byte index for slicing.
-    line.char_indices()
-        .nth(best)
-        .map(|(b, _)| b)
-        .unwrap_or(line.len())
+    best
 }
 
-fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
+fn lex_with(command: &str, flavor: ShellFlavor) -> (Vec<CommandToken>, Vec<(usize, usize)>) {
     let mut tokens: Vec<CommandToken> = Vec::new();
+    let mut spans = Vec::new();
     let chars: Vec<char> = command.chars().collect();
     let byte_pos: Vec<usize> = {
         // map char index -> byte index for slicing the original str
@@ -170,6 +203,8 @@ fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
     let mut quote_char: char = ' ';
 
     let esc = flavor.esc();
+    let mut escaped_next = false;
+    let mut skip_doubled_quote = false;
 
     let slice = |start_ch: usize, end_ch: usize| -> String {
         command[byte_pos[start_ch]..byte_pos[end_ch]].to_string()
@@ -177,6 +212,12 @@ fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
 
     for idx in 0..chars.len() {
         let ch = chars[idx];
+        let escaped = escaped_next;
+        escaped_next = ch == esc && !escaped;
+        if skip_doubled_quote {
+            skip_doubled_quote = false;
+            continue;
+        }
         let reading = reading_quoted || reading_quote_continued || reading_flag || reading_cmd;
 
         if !reading && flavor.is_quote(ch) {
@@ -196,7 +237,14 @@ fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
 
         let next_char = chars.get(idx + 1).copied();
 
-        if reading_quoted && ch == quote_char && !is_escaped(&chars, idx, esc) {
+        if reading_quoted
+            && ch == quote_char
+            && (!escaped || (quote_char == '\'' && flavor != ShellFlavor::Fish))
+        {
+            if quote_char == '\'' && flavor == ShellFlavor::PowerShell && next_char == Some('\'') {
+                skip_doubled_quote = true;
+                continue;
+            }
             let next_is_space = next_char.map(|c| c.is_whitespace()).unwrap_or(true);
             if !next_is_space {
                 // `"hello"world` — continue reading as quote-continued
@@ -206,7 +254,7 @@ fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
                 reading_quoted = false;
                 let complete = idx + 1 < chars.len() && chars[idx + 1].is_whitespace();
                 tokens.push(CommandToken {
-                    token: slice(reading_idx + 1, idx),
+                    token: decode_quoted(slice(reading_idx + 1, idx), flavor, quote_char),
                     complete,
                     is_option: false,
                     is_quoted: true,
@@ -214,8 +262,9 @@ fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
                     token_length: idx - reading_idx + 1,
                     ..Default::default()
                 });
+                spans.push((byte_pos[reading_idx], byte_pos[idx + 1]));
             }
-        } else if reading_quote_continued && ch.is_whitespace() && !is_escaped(&chars, idx, esc) {
+        } else if reading_quote_continued && ch.is_whitespace() && !escaped {
             reading_quote_continued = false;
             tokens.push(CommandToken {
                 token: slice(reading_idx, idx),
@@ -226,6 +275,7 @@ fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
                 token_length: idx - reading_idx,
                 ..Default::default()
             });
+            spans.push((byte_pos[reading_idx], byte_pos[idx]));
         } else if reading_flag && (ch.is_whitespace() || ch == '=') {
             // Upstream parser.ts:100 splits on an unguarded `=`, so any word
             // containing one (e.g. `FOO=bar` in `env FOO=bar git ch`) is
@@ -243,6 +293,7 @@ fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
                 separated: ch == '=',
                 ..Default::default()
             });
+            spans.push((byte_pos[reading_idx], byte_pos[idx]));
             if ch == '=' && idx + 1 == chars.len() {
                 tokens.push(CommandToken {
                     token: String::new(),
@@ -251,8 +302,9 @@ fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
                     token_length: 0,
                     ..Default::default()
                 });
+                spans.push((command.len(), command.len()));
             }
-        } else if reading_cmd && ch.is_whitespace() && !is_escaped(&chars, idx, esc) {
+        } else if reading_cmd && ch.is_whitespace() && !escaped {
             reading_cmd = false;
             tokens.push(CommandToken {
                 token: slice(reading_idx, idx),
@@ -261,15 +313,17 @@ fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
                 token_length: idx - reading_idx,
                 ..Default::default()
             });
+            spans.push((byte_pos[reading_idx], byte_pos[idx]));
         }
     }
 
     // flush trailing in-progress token
     let reading = reading_quoted || reading_quote_continued || reading_flag || reading_cmd;
     if reading {
+        spans.push((byte_pos[reading_idx], command.len()));
         if reading_quoted {
             tokens.push(CommandToken {
-                token: slice(reading_idx + 1, chars.len()),
+                token: decode_quoted(slice(reading_idx + 1, chars.len()), flavor, quote_char),
                 complete: false,
                 is_option: false,
                 is_quoted: true,
@@ -298,7 +352,64 @@ fn lex_with(command: &str, flavor: ShellFlavor) -> Vec<CommandToken> {
         }
     }
 
-    tokens
+    (tokens, spans)
+}
+
+fn retain_unsplit_words(tokens: &mut [CommandToken], spans: &[(usize, usize)], command: &str) {
+    let mut start = 0;
+    while start < tokens.len() {
+        if !tokens[start].separated {
+            start += 1;
+            continue;
+        }
+        let mut end = start;
+        let mut word = String::new();
+        loop {
+            word.push_str(&tokens[end].token);
+            if !tokens[end].separated {
+                break;
+            }
+            word.push('=');
+            if end + 1 >= tokens.len() || spans[end + 1].0 != spans[end].1 + 1 {
+                break;
+            }
+            end += 1;
+        }
+        let raw_end = spans[end].1 + usize::from(tokens[end].separated);
+        let complete = if tokens[end].separated {
+            raw_end < command.len()
+        } else {
+            tokens[end].complete
+        };
+        let mut token_length = command[spans[start].0..raw_end].chars().count();
+        let word: Arc<str> = word.into();
+        let mut offset = 0;
+        let group_len = end - start + 1;
+        for (part, token) in tokens[start..=end].iter_mut().enumerate() {
+            if token.separated {
+                token.unsplit = Some(Box::new(UnsplitToken {
+                    word: Arc::clone(&word),
+                    offset,
+                    token_length,
+                    complete,
+                    parts: group_len - part,
+                    token: OnceLock::new(),
+                }));
+            }
+            offset += token.token.len() + usize::from(token.separated);
+            token_length =
+                token_length.saturating_sub(token.token_length + usize::from(token.separated));
+        }
+        start = end + 1;
+    }
+}
+
+fn decode_quoted(token: String, flavor: ShellFlavor, quote: char) -> String {
+    if flavor == ShellFlavor::PowerShell && quote == '\'' {
+        token.replace("''", "'")
+    } else {
+        token
+    }
 }
 
 fn sanitize_with(tokens: &mut [CommandToken], flavor: ShellFlavor) {
@@ -316,9 +427,15 @@ fn sanitize_with(tokens: &mut [CommandToken], flavor: ShellFlavor) {
             let qs = quote.to_string();
             // \" → (sentinel) → "" → unchanged → (sentinel) → "
             let sentinel = '\u{1b}';
-            let replaced = t
-                .token
-                .replace(&format!("{esc}{quote}"), &sentinel.to_string())
+            let protected = if flavor == ShellFlavor::PowerShell && quote == '\'' {
+                t.token.replace("''", &sentinel.to_string())
+            } else if quote == '\'' && flavor != ShellFlavor::Fish {
+                t.token.clone()
+            } else {
+                t.token
+                    .replace(&format!("{esc}{quote}"), &sentinel.to_string())
+            };
+            let replaced = protected
                 .replace(&qs, "")
                 .replace(&sentinel.to_string(), &qs);
             t.token = replaced;
@@ -358,6 +475,39 @@ mod tests {
         assert_eq!(got, vec!["cargo", "build", "--target", "wasm32"]);
     }
 
+    #[test]
+    fn attached_word_provenance_preserves_spans_without_joining_whitespace() {
+        for (line, value, length, parts, complete) in [
+            ("cmd --flag=va", "--flag=va", 9, 2, false),
+            ("cmd --flag=\"va lue\" ", "--flag=va lue", 15, 2, true),
+            ("cmd --flag= value", "--flag=", 7, 1, true),
+            ("cmd --outer=--flag=va", "--outer=--flag=va", 17, 3, false),
+        ] {
+            let tokens = parse_command(line);
+            let word = tokens[1].unsplit.as_ref().unwrap();
+            assert_eq!(word.token().token, value, "{line}");
+            assert_eq!(word.token().token_length, length, "{line}");
+            assert_eq!(word.parts(), parts, "{line}");
+            assert_eq!(word.token().complete, complete, "{line}");
+        }
+        let tokens = parse_command("cmd --outer=--flag=va");
+        let suffix = tokens[2].unsplit.as_ref().unwrap();
+        assert_eq!(suffix.token().token, "--flag=va");
+        assert_eq!(suffix.token().token_length, 9);
+        assert_eq!(suffix.parts(), 2);
+    }
+
+    #[test]
+    fn nested_attached_words_share_provenance_storage() {
+        let line = format!("cmd {}value", "--flag=".repeat(8_000));
+        let tokens = parse_command(&line);
+        assert_eq!(tokens.len(), 8_002);
+        let first = tokens[1].unsplit.as_ref().unwrap();
+        let last = tokens[8_000].unsplit.as_ref().unwrap();
+        assert!(Arc::ptr_eq(&first.word, &last.word));
+        assert_eq!(last.token().token, "--flag=value");
+    }
+
     /// A `=` inside a plain word must NOT split it into a phantom option plus
     /// an overlapping duplicate (#53): `env FOO=bar git ch` used to tokenize
     /// as [env, FOO(option), FOO=bar, git, ch] and completion died.
@@ -392,6 +542,69 @@ mod tests {
         let tokens = parse_command_for("dir 'a b'", ShellFlavor::Cmd);
         let names: Vec<&str> = tokens.iter().map(|t| t.token.as_str()).collect();
         assert_eq!(names, vec!["dir", "'a", "b'"]);
+    }
+
+    #[test]
+    fn single_quoted_escape_char_is_literal() {
+        for (line, flavor) in [
+            (r"echo 'a\' | git ch", ShellFlavor::Posix),
+            (r"echo 'a\' ; git ch", ShellFlavor::Posix),
+            ("echo 'a`' | git ch", ShellFlavor::PowerShell),
+        ] {
+            let tokens = parse_command_for(line, flavor);
+            assert_eq!(
+                tokens.iter().map(|t| t.token.as_str()).collect::<Vec<_>>(),
+                vec!["git", "ch"],
+                "{line}"
+            );
+        }
+        assert_eq!(toks(r"echo 'a\' next"), vec!["echo", "a\\", "next"]);
+    }
+
+    #[test]
+    fn powershell_doubled_single_quotes_keep_literal_apostrophes() {
+        for (line, expected) in [
+            ("echo 'it''s | still quoted'", "it's | still quoted"),
+            ("echo 'it''s'", "it's"),
+            ("echo 'it''s", "it's"),
+            ("echo 'it''s'continued", "it'scontinued"),
+        ] {
+            let tokens = parse_command_for(line, ShellFlavor::PowerShell);
+            assert_eq!(tokens.len(), 2, "{line}");
+            assert_eq!(tokens[1].token, expected, "{line}");
+        }
+        let tokens = parse_command_for("echo 'it''s | text' | git ch", ShellFlavor::PowerShell);
+        assert_eq!(
+            tokens.iter().map(|t| t.token.as_str()).collect::<Vec<_>>(),
+            vec!["git", "ch"]
+        );
+    }
+
+    #[test]
+    fn fish_keeps_single_quote_escapes_and_literal_backticks() {
+        let tokens = parse_command_for(r"echo 'a\'|b' | git ch", ShellFlavor::Fish);
+        assert_eq!(
+            tokens.iter().map(|t| t.token.as_str()).collect::<Vec<_>>(),
+            vec!["git", "ch"]
+        );
+        let tokens = parse_command_for(r"echo 'a\' | git ch", ShellFlavor::Fish);
+        assert_eq!(tokens[0].token, "echo");
+        let tokens = parse_command_for("echo `literal | git ch", ShellFlavor::Fish);
+        assert_eq!(tokens[0].token, "git");
+    }
+
+    #[test]
+    fn long_escape_runs_preserve_separator_parity() {
+        for (esc, flavor) in [
+            ('\\', ShellFlavor::Posix),
+            ('`', ShellFlavor::PowerShell),
+            ('^', ShellFlavor::Cmd),
+        ] {
+            let even = format!("echo {}| git ch", esc.to_string().repeat(16_000));
+            assert_eq!(parse_command_for(&even, flavor)[0].token, "git");
+            let odd = format!("echo {}| git ch", esc.to_string().repeat(16_001));
+            assert_eq!(parse_command_for(&odd, flavor)[0].token, "echo");
+        }
     }
 
     #[test]

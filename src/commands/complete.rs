@@ -4,7 +4,6 @@
 //! `{"suggestions":[...],"activeToken":{...}}`
 
 use crate::{
-    history,
     render::popup::{IconSet, icon_for},
     shell::Shell,
     spec, suggest,
@@ -12,9 +11,8 @@ use crate::{
 use anyhow::Result;
 
 pub fn run(line: &str, text_mode: bool, cwd: &str, shell: Option<Shell>) -> Result<()> {
-    let hist = history::load();
     let registry = spec::Registry::new_with_defaults();
-    let mut engine = suggest::Engine::new(registry, hist);
+    let mut engine = suggest::Engine::new(registry, Vec::new());
     // Offline query: no live shell-session history (matches upstream).
     engine.set_offline(true);
     engine.set_shell(shell.unwrap_or_else(crate::shell::detect));
@@ -31,12 +29,9 @@ pub fn run(line: &str, text_mode: bool, cwd: &str, shell: Option<Shell>) -> Resu
 
     // JSON output matching upstream's schema exactly.
     let icons = IconSet::from_config(crate::config::load().use_nerd_font);
-    let blob = engine.suggest_blob(line, cwd);
-    let tokens = spec::parse_command_for(line, suggest::flavor_of(engine.shell()));
     // Upstream emits a null activeToken once the last token is complete
     // (i.e. the line ends in whitespace) — only an in-progress token counts.
-    let active_token = tokens.last().filter(|t| !t.complete);
-
+    let (blob, active_token) = engine.suggest_blob_with_token(line, cwd);
     let suggestions: Vec<serde_json::Value> = blob
         .into_iter()
         .map(|s| {
@@ -62,14 +57,7 @@ pub fn run(line: &str, text_mode: bool, cwd: &str, shell: Option<Shell>) -> Resu
         })
         .collect();
 
-    let active_token_json = active_token.map(|t| {
-        serde_json::json!({
-            "token": t.token,
-            "tokenLength": t.token_length,
-            "complete": t.complete,
-            "isOption": t.is_option,
-        })
-    });
+    let active_token_json = active_token_json(active_token);
 
     let output = serde_json::json!({
         "suggestions": suggestions,
@@ -78,4 +66,48 @@ pub fn run(line: &str, text_mode: bool, cwd: &str, shell: Option<Shell>) -> Resu
 
     println!("{}", serde_json::to_string(&output)?);
     Ok(())
+}
+
+fn active_token_json(active_token: Option<spec::CommandToken>) -> Option<serde_json::Value> {
+    active_token.map(|t| {
+        serde_json::json!({
+            "token": t.token,
+            "tokenLength": t.token_length,
+            "complete": t.complete,
+            "isOption": t.is_option,
+        })
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn json_active_token_uses_resolved_required_value_and_raw_span() {
+        let mut registry = spec::Registry::default();
+        registry.insert(spec::Subcommand {
+            names: vec!["audit".into()],
+            options: vec![spec::Opt {
+                names: vec!["-e".into()],
+                args: vec![spec::Arg::default()],
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        let engine = suggest::Engine::new(registry, Vec::new());
+        for (line, length) in [("audit -e --flag=va", 9), ("audit -e '--flag=va'", 11)] {
+            let (_, token) = engine.suggest_blob_with_token(line, ".");
+            assert_eq!(
+                active_token_json(token),
+                Some(serde_json::json!({
+                    "token": "--flag=va", "tokenLength": length,
+                    "complete": false, "isOption": false,
+                })),
+                "{line}"
+            );
+        }
+        let (_, token) = engine.suggest_blob_with_token("audit -e --flag=value ", ".");
+        assert_eq!(active_token_json(token), None);
+    }
 }

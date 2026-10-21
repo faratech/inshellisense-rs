@@ -6,14 +6,15 @@
   "type": "module",
   "scripts": {
     "extract": "tsx extract.ts",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "ts-morph": "^28.0.0",
-    "tsx": "^4.19.0",
-    "typescript": "^7.0.0"
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   },
   "devDependencies": {
-    "@types/node": "^26.6.3"
+    "@types/node": "^26.6.5"
   }
 }

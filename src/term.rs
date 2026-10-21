@@ -29,11 +29,18 @@ pub struct TermTracker {
 
 #[derive(Debug, Clone, Default)]
 pub struct CmdState {
+    /// First visible row occupied by the entire prompt, including preceding
+    /// lines of a multiline prompt. Popup rows must stay outside this region.
+    prompt_start_row: Option<u16>,
     /// Screen row where the prompt ended — our "start of command" anchor.
     /// `None` before the first prompt is observed. Screen-relative, so it is
     /// re-derived whenever the screen scrolls (see `refresh_command`).
     prompt_end_row: Option<usize>,
     prompt_end_col: Option<usize>,
+    /// Logical line containing the command anchor. A wrapped prompt can start
+    /// this line before `prompt_end_row`; that difference is not scrolling.
+    command_line_start_row: Option<u16>,
+    command_last_row: u16,
     /// True between PromptStart and PromptEnd.
     in_prompt: bool,
     /// Last snapshot of the *whole* command line, not just the part before
@@ -78,8 +85,11 @@ impl TermTracker {
     /// right after the prompt, so its position IS the prompt end.
     pub fn set_fallback_anchor(&mut self) {
         let (r, c) = self.parser.screen().cursor_position();
+        self.state.prompt_start_row = Some(logical_line_start(self.parser.screen(), r));
         self.state.prompt_end_row = Some(r as usize);
         self.state.prompt_end_col = Some(c as usize);
+        self.state.command_line_start_row = Some(logical_line_start(self.parser.screen(), r));
+        self.state.command_last_row = logical_line_end(self.parser.screen(), r, self.rows);
     }
 
     pub fn rows(&self) -> u16 {
@@ -96,6 +106,16 @@ impl TermTracker {
     pub fn remaining_lines(&self) -> u16 {
         self.rows
             .saturating_sub(self.state.cursor_row.saturating_add(1))
+    }
+
+    /// Inclusive screen rows occupied by the current prompt and whole command.
+    /// Cursor movement within a wrapped command must not expose its suffix (or
+    /// earlier prompt lines) as space that a popup can draw over and clear.
+    pub fn popup_region(&self) -> (u16, u16) {
+        let cursor = self.state.cursor_row;
+        let first = self.state.prompt_start_row.unwrap_or(cursor).min(cursor);
+        let last = self.state.command_last_row.max(cursor).min(self.rows - 1);
+        (first.min(self.rows - 1), last)
     }
 
     /// Is the cursor positioned at the end of the current command
@@ -146,10 +166,45 @@ impl TermTracker {
         self.parser.screen_mut().set_size(rows, cols);
         self.rows = rows;
         self.cols = cols;
+        let (r, c) = self.parser.screen().cursor_position();
+        self.state.cursor_row = r;
+        self.state.cursor_col = c;
+        self.state.prompt_start_row = self.state.prompt_start_row.map(|r| r.min(rows - 1));
+        self.state.command_last_row = self.state.command_last_row.min(rows - 1);
+        self.state.prompt_end_row = self
+            .state
+            .prompt_end_row
+            .map(|r| r.min((rows - 1) as usize));
+        self.state.command_line_start_row = self
+            .state
+            .prompt_end_row
+            .map(|r| logical_line_start(self.parser.screen(), r as u16));
     }
 
     /// Feed cleaned bytes (no OSC 6973) into the parser and refresh cmd state.
     pub fn feed(&mut self, bytes: &[u8], events: &[IsEvent]) {
+        self.dump_bytes(bytes);
+        self.process(bytes, events);
+        self.refresh_command();
+    }
+
+    /// Apply markers at their original positions in the cleaned stream.
+    /// Refresh the command only once after all spans, avoiding repeated full
+    /// line extraction when one read contains several prompt markers.
+    pub fn feed_ordered(&mut self, bytes: &[u8], events: &[(usize, IsEvent)]) {
+        self.dump_bytes(bytes);
+        let mut previous = 0;
+        for (offset, event) in events {
+            let offset = (*offset).clamp(previous, bytes.len());
+            self.process(&bytes[previous..offset], &[]);
+            self.process(&[], std::slice::from_ref(event));
+            previous = offset;
+        }
+        self.process(&bytes[previous..], &[]);
+        self.refresh_command();
+    }
+
+    fn dump_bytes(&mut self, bytes: &[u8]) {
         // Debug: dump bytes (INSH_DUMP_BYTES) for offline analysis.
         if let Some(f) = self.byte_dump.as_mut() {
             use std::io::Write;
@@ -163,10 +218,23 @@ impl TermTracker {
                     .join(" ")
             );
         }
+    }
+
+    fn process(&mut self, bytes: &[u8], events: &[IsEvent]) {
+        // The legacy feed API attaches PromptStart to the prompt paint itself.
+        // Capture its starting position before processing those bytes too.
+        let starts_prompt = events.iter().any(|ev| matches!(ev, IsEvent::PromptStart));
+        if starts_prompt {
+            self.state.prompt_start_row = Some(self.parser.screen().cursor_position().0);
+        }
         if self.state.in_prompt && !bytes.is_empty() {
             self.saw_prompt_paint = true;
         }
-        self.parser.process(bytes);
+        if self.state.in_prompt || starts_prompt || self.pending_prompt_end {
+            self.process_prompt_paint(bytes);
+        } else {
+            self.parser.process(bytes);
+        }
         // Apply deferred PromptEnd from a PREVIOUS feed() call.
         // ConPTY sends OSC markers before screen-paint bytes, so we
         // must wait for a feed() with actual bytes before reading the
@@ -176,6 +244,7 @@ impl TermTracker {
             let (r, c) = self.parser.screen().cursor_position();
             self.state.prompt_end_row = Some(r as usize);
             self.state.prompt_end_col = Some(c as usize);
+            self.state.command_line_start_row = Some(logical_line_start(self.parser.screen(), r));
         }
         for ev in events {
             match ev {
@@ -183,6 +252,7 @@ impl TermTracker {
                     self.state.in_prompt = true;
                     self.state.prompt_end_row = None;
                     self.state.prompt_end_col = None;
+                    self.state.command_line_start_row = None;
                     self.state.command.clear();
                     self.pending_prompt_end = false;
                     // Bytes in this same chunk are prompt paint.
@@ -197,6 +267,8 @@ impl TermTracker {
                         let (r, c) = self.parser.screen().cursor_position();
                         self.state.prompt_end_row = Some(r as usize);
                         self.state.prompt_end_col = Some(c as usize);
+                        self.state.command_line_start_row =
+                            Some(logical_line_start(self.parser.screen(), r));
                         self.pending_prompt_end = false;
                     } else {
                         // ConPTY: markers arrive before the paint bytes,
@@ -215,13 +287,49 @@ impl TermTracker {
             let (r, c) = self.parser.screen().cursor_position();
             self.state.prompt_end_row = Some(r as usize);
             self.state.prompt_end_col = Some(c as usize);
+            self.state.command_line_start_row = Some(logical_line_start(self.parser.screen(), r));
         }
-        self.refresh_command();
+    }
+
+    /// Follow prompt rows when painting at the bottom scrolls them upward.
+    /// Split only at line feeds: wrapping stays in the same logical line and
+    /// its first visible row exposes the scroll distance. A line feed at the
+    /// bottom accounts for the additional scroll into a new logical line.
+    fn process_prompt_paint(&mut self, bytes: &[u8]) {
+        for span in bytes.split_inclusive(|b| *b == b'\n') {
+            let newline = span.last() == Some(&b'\n');
+            let paint = if newline {
+                &span[..span.len() - 1]
+            } else {
+                span
+            };
+            let before = logical_line_start(
+                self.parser.screen(),
+                self.parser.screen().cursor_position().0,
+            );
+            self.parser.process(paint);
+            let after = logical_line_start(
+                self.parser.screen(),
+                self.parser.screen().cursor_position().0,
+            );
+            let mut scrolled = before.saturating_sub(after);
+            if newline {
+                let before = self.parser.screen().cursor_position().0;
+                self.parser.process(b"\n");
+                if before == self.rows - 1 && self.parser.screen().cursor_position().0 == before {
+                    scrolled = scrolled.saturating_add(1);
+                }
+            }
+            if let Some(row) = &mut self.state.prompt_start_row {
+                *row = row.saturating_sub(scrolled);
+            }
+        }
     }
 
     fn clear_anchor(&mut self) {
         self.state.prompt_end_row = None;
         self.state.prompt_end_col = None;
+        self.state.command_line_start_row = None;
         self.state.command.clear();
         self.state.cursor_offset = 0;
     }
@@ -246,14 +354,21 @@ impl TermTracker {
         // far the screen has scrolled since the prompt was drawn.
         let first_row = logical_line_start(screen, cursor_row) as usize;
 
-        let pr = if first_row < pr {
-            // The screen scrolled: the prompt moved up by `pr - first_row`
+        let line_start = self.state.command_line_start_row.unwrap_or(pr as u16) as usize;
+        let pr = if first_row < line_start {
+            // The screen scrolled: the prompt moved up by `line_start - first_row`
             // rows. The stored anchor now points at unrelated text — typing
             // past the bottom row used to reduce the tracked command to just
             // its last wrapped fragment. Re-anchor to where the line really is.
-            self.state.prompt_end_row = Some(first_row);
-            first_row
-        } else if first_row > pr {
+            let scrolled = line_start - first_row;
+            let anchor = pr.saturating_sub(scrolled);
+            self.state.prompt_end_row = Some(anchor);
+            self.state.command_line_start_row = Some(first_row as u16);
+            if let Some(row) = &mut self.state.prompt_start_row {
+                *row = row.saturating_sub(scrolled as u16);
+            }
+            anchor
+        } else if first_row > line_start {
             // The cursor is on a *different* logical line than the anchor.
             // This is the stale-anchor case: a nested shell (`sudo su`) that
             // never sourced our integration emits its own prompts, so no fresh
@@ -275,6 +390,7 @@ impl TermTracker {
 
         let cols = self.cols as usize;
         let last_row = logical_line_end(screen, pr as u16, self.rows) as usize;
+        self.state.command_last_row = last_row as u16;
 
         // Extract the whole line, not merely the part before the cursor.
         let mut cmd = String::new();
@@ -484,6 +600,60 @@ mod tests {
     }
 
     #[test]
+    fn ordered_prompt_and_typeahead_are_independent_of_read_boundaries() {
+        let wire =
+            "prior\r\n\x1b]6973;CWD;/tmp/café\x07\x1b]6973;PS\x07$ \x1b]6973;PE\x07git add café "
+                .as_bytes();
+        let check = |chunks: Vec<&[u8]>| {
+            let mut scanner = crate::ansi::Scanner::new();
+            let mut tracker = TermTracker::new(24, 80);
+            for chunk in chunks {
+                let (bytes, events) = scanner.scan_ordered(chunk);
+                tracker.feed_ordered(&bytes, &events);
+            }
+            assert_eq!(tracker.state().command, "git add café ");
+            assert_eq!(tracker.cwd(), "/tmp/café");
+            assert!(tracker.cursor_at_command_end());
+        };
+        // Covers a fully coalesced read, every possible two-read split
+        // (inside markers, their ST/BEL terminators and UTF-8), and bytewise
+        // delivery. PromptEnd must anchor before the typed echo in each case.
+        for split in 0..=wire.len() {
+            check(vec![&wire[..split], &wire[split..]]);
+        }
+        check(wire.chunks(1).collect());
+    }
+
+    #[test]
+    fn ordered_markers_preserve_conpty_deferred_paint() {
+        for coalesced_paint in [false, true] {
+            let mut scanner = crate::ansi::Scanner::new();
+            let mut tracker = TermTracker::new(24, 80);
+            let wire = if coalesced_paint {
+                b"\x1b]6973;PS\x07\x1b]6973;PE\x07$ ".as_slice()
+            } else {
+                b"\x1b]6973;PS\x07\x1b]6973;PE\x07".as_slice()
+            };
+            let (bytes, events) = scanner.scan_ordered(wire);
+            tracker.feed_ordered(&bytes, &events);
+            if !coalesced_paint {
+                tracker.feed_ordered(b"$ ", &[]);
+            }
+            tracker.feed_ordered(b"git", &[]);
+            assert_eq!(tracker.state().command, "git");
+        }
+    }
+
+    #[test]
+    fn ordered_multiple_prompts_in_one_read_track_only_the_latest_command() {
+        let mut scanner = crate::ansi::Scanner::new();
+        let mut tracker = TermTracker::new(24, 80);
+        let (bytes, events) = scanner.scan_ordered(b"\x1b]6973;PS\x07$ \x1b]6973;PE\x07old\r\noutput\r\n\x1b]6973;PS\x07$ \x1b]6973;PE\x07git");
+        tracker.feed_ordered(&bytes, &events);
+        assert_eq!(tracker.state().command, "git");
+    }
+
+    #[test]
     fn preserves_trailing_space_at_cursor() {
         let mut tracker = TermTracker::new(24, 80);
         tracker.feed(b"$ ", &[IsEvent::PromptStart, IsEvent::PromptEnd]);
@@ -561,6 +731,78 @@ mod tests {
         tracker.feed(typed.as_bytes(), &[]);
         assert_eq!(tracker.state().command, typed);
         assert!(tracker.cursor_at_command_end());
+    }
+
+    #[test]
+    fn popup_region_includes_multiline_prompt_and_command_suffix() {
+        let mut tracker = TermTracker::new(12, 10);
+        tracker.feed_ordered(b"\r\n\r\n", &[]);
+        tracker.feed_ordered(
+            b"first\r\n$ abcdefghijklmnopq",
+            &[(0, IsEvent::PromptStart), (9, IsEvent::PromptEnd)],
+        );
+        assert_eq!(tracker.state().command, "abcdefghijklmnopq");
+        assert_eq!(tracker.popup_region(), (2, 4));
+        tracker.feed(b"\x1b[A\r\x1b[4C", &[]);
+        assert_eq!(tracker.state().cursor_row, 3);
+        assert_eq!(tracker.popup_region(), (2, 4));
+        assert_eq!(tracker.state().command, "abcdefghijklmnopq");
+    }
+
+    #[test]
+    fn wrapped_prompt_is_not_mistaken_for_scrolling() {
+        let mut tracker = TermTracker::new(10, 10);
+        tracker.feed_ordered(
+            b"\r\nabcdefghijkl$ git",
+            &[(2, IsEvent::PromptStart), (16, IsEvent::PromptEnd)],
+        );
+        assert_eq!(tracker.state().command, "git");
+        assert_eq!(tracker.popup_region(), (1, 2));
+    }
+
+    #[test]
+    fn popup_region_follows_prompt_and_command_scroll() {
+        let mut tracker = TermTracker::new(5, 10);
+        tracker.feed_ordered(b"\r\n\r\n\r\n\r\n", &[]);
+        tracker.feed_ordered(
+            b"first\r\n$ ",
+            &[(0, IsEvent::PromptStart), (9, IsEvent::PromptEnd)],
+        );
+        assert_eq!(tracker.popup_region(), (3, 4));
+        tracker.feed(b"abcdefghijklmnopq", &[]);
+        assert_eq!(tracker.state().command, "abcdefghijklmnopq");
+        assert_eq!(tracker.popup_region(), (2, 4));
+        tracker.feed(b"\x1b[A\r\x1b[4C", &[]);
+        assert_eq!(tracker.popup_region(), (2, 4));
+    }
+
+    #[test]
+    fn scrolling_multiline_prompt_region_is_independent_of_read_boundaries() {
+        let wire = b"\x1b]6973;PS\x07abcdefghijklmno\r\n$ \x1b]6973;PE\x07git";
+        for split in 0..=wire.len() {
+            let mut tracker = TermTracker::new(5, 10);
+            tracker.feed(b"\r\n\r\n\r\n\r\n", &[]);
+            let mut scanner = crate::ansi::Scanner::new();
+            for chunk in [&wire[..split], &wire[split..]] {
+                let (bytes, events) = scanner.scan_ordered(chunk);
+                tracker.feed_ordered(&bytes, &events);
+            }
+            assert_eq!(tracker.state().command, "git", "split at {split}");
+            assert_eq!(tracker.popup_region(), (2, 4), "split at {split}");
+        }
+    }
+
+    #[test]
+    fn popup_region_remains_bounded_after_resize() {
+        let mut tracker = TermTracker::new(12, 10);
+        tracker.feed_ordered(
+            b"\r\n\r\nfirst\r\n$ abcdefghijklmnopq",
+            &[(4, IsEvent::PromptStart), (13, IsEvent::PromptEnd)],
+        );
+        tracker.resize(4, 20);
+        assert_eq!(tracker.popup_region(), (2, 3));
+        tracker.resize(12, 20);
+        assert_eq!(tracker.popup_region(), (2, 3));
     }
 
     /// A nested shell that never sourced our integration emits its own prompts

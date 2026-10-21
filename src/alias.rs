@@ -15,6 +15,7 @@ use std::time::Duration;
 /// user's rc files, which can block on arbitrary commands; without a bound
 /// such a file stalled every suggestion at startup.
 const ALIAS_TIMEOUT: Duration = Duration::from_secs(3);
+const MAX_ALIAS_OUTPUT: u64 = 4 * 1024 * 1024;
 
 /// Load aliases for the given shell. Returns a map of alias name → expansion.
 pub fn load(shell: Shell) -> HashMap<String, String> {
@@ -45,9 +46,12 @@ fn load_zsh() -> HashMap<String, String> {
 
 /// Run a program and capture its stdout, giving up after `timeout`.
 ///
-/// The child runs in its own process group so a timed-out shell can be killed
-/// together with any grandchild it left holding the pipe.
+/// The child runs in its own session so a timed-out shell can be killed
+/// together with any grandchild it left holding the pipe. Detaching from the
+/// controlling terminal also prevents interactive bash from stopping itself
+/// with SIGTTIN while trying to acquire the parent's foreground terminal.
 fn capture_stdout(program: &str, args: &[&str], timeout: Duration) -> Option<String> {
+    let start = std::time::Instant::now();
     let mut command = Command::new(program);
     command.args(args);
     command.stdin(Stdio::null());
@@ -57,7 +61,7 @@ fn capture_stdout(program: &str, args: &[&str], timeout: Duration) -> Option<Str
     unsafe {
         use std::os::unix::process::CommandExt;
         command.pre_exec(|| {
-            if libc::setpgid(0, 0) == 0 {
+            if libc::setsid() >= 0 {
                 Ok(())
             } else {
                 Err(std::io::Error::last_os_error())
@@ -72,16 +76,18 @@ fn capture_stdout(program: &str, args: &[&str], timeout: Duration) -> Option<Str
     let (tx, rx) = std::sync::mpsc::channel();
     thread::spawn(move || {
         let mut buf = Vec::new();
-        let _ = stdout.read_to_end(&mut buf);
-        let _ = tx.send(buf);
+        let read = stdout
+            .by_ref()
+            .take(MAX_ALIAS_OUTPUT + 1)
+            .read_to_end(&mut buf);
+        let _ = tx.send((read.is_ok() && buf.len() as u64 <= MAX_ALIAS_OUTPUT).then_some(buf));
     });
-    match rx.recv_timeout(timeout) {
-        Ok(bytes) => {
+    match rx.recv_timeout(timeout.saturating_sub(start.elapsed())) {
+        Ok(Some(bytes)) => {
             // Output is complete (stdout closed) but the shell may linger —
             // an rc file can background a long-lived process. The unbounded
             // wait() that used to sit here hung startup forever (#93); give
-            // the child the same budget to exit, then abandon it.
-            let start = std::time::Instant::now();
+            // the child the remainder of the original budget (#140).
             loop {
                 match child.try_wait() {
                     Ok(Some(_)) | Err(_) => break,
@@ -96,7 +102,7 @@ fn capture_stdout(program: &str, args: &[&str], timeout: Duration) -> Option<Str
             }
             Some(String::from_utf8_lossy(&bytes).into_owned())
         }
-        Err(_) => {
+        Ok(None) | Err(_) => {
             abandon(&mut child);
             None
         }
@@ -191,7 +197,17 @@ pub fn expand(line: &str, aliases: &HashMap<String, String>) -> String {
 /// after separators such as `&&` and `|`; this mirrors the parser's simple
 /// "last segment" model.
 pub fn expand_active_segment(line: &str, aliases: &HashMap<String, String>) -> String {
-    let segment_start = last_segment_start(line);
+    expand_active_segment_for(line, aliases, crate::spec::ShellFlavor::Posix)
+}
+
+/// Expand with the same delimiter, quote, and escape rules as the active
+/// shell's tokenizer (#134).
+pub fn expand_active_segment_for(
+    line: &str,
+    aliases: &HashMap<String, String>,
+    flavor: crate::spec::ShellFlavor,
+) -> String {
+    let segment_start = crate::spec::parser::segment_start(line, flavor);
     let leading_ws = line[segment_start..]
         .char_indices()
         .find(|(_, c)| !c.is_whitespace())
@@ -224,15 +240,113 @@ fn first_word(s: &str) -> Option<(usize, &str)> {
     }
 }
 
-fn last_segment_start(line: &str) -> usize {
-    // Quote-aware, shared with the tokenizer (#100): a `;` inside a quoted
-    // alias argument is not a segment boundary.
-    crate::spec::parser::segment_start(line, crate::spec::ShellFlavor::Posix)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Run the real alias loader from a process that has a controlling tty.
+    /// Ordinary cargo tests have piped stdio, which hid bash's SIGTTIN stop
+    /// when the loader created a background process group in that session.
+    #[cfg(unix)]
+    #[test]
+    fn aliases_load_under_a_controlling_terminal() {
+        use std::fs::File;
+        use std::os::fd::{AsRawFd, FromRawFd};
+        use std::os::unix::process::CommandExt;
+
+        let home = crate::test_support::unique_temp_dir("alias-ctty");
+        std::fs::write(home.join(".bashrc"), "alias audit_ctty='git status'\n").unwrap();
+        let mut master_fd = -1;
+        let mut slave_fd = -1;
+        // SAFETY: openpty initializes the supplied fd slots; optional name,
+        // termios and winsize pointers may be null.
+        assert_eq!(
+            unsafe {
+                libc::openpty(
+                    &mut master_fd,
+                    &mut slave_fd,
+                    std::ptr::null_mut(),
+                    std::ptr::null(),
+                    std::ptr::null(),
+                )
+            },
+            0
+        );
+        // SAFETY: these are distinct newly opened descriptors, each owned once.
+        let mut master = unsafe { File::from_raw_fd(master_fd) };
+        let slave = unsafe { File::from_raw_fd(slave_fd) };
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command
+            .args([
+                "--exact",
+                "alias::tests::controlling_terminal_alias_probe",
+                "--nocapture",
+            ])
+            .env("INSH_RS_ALIAS_CTTY_PROBE", "1")
+            .env("HOME", &home)
+            .stdin(slave.try_clone().unwrap())
+            .stdout(slave.try_clone().unwrap())
+            .stderr(slave);
+        // SAFETY: only async-signal-safe syscalls run before exec. A new
+        // session acquiring the slave becomes its foreground process group.
+        unsafe {
+            command.pre_exec(|| {
+                if libc::setsid() < 0 || libc::ioctl(0, libc::TIOCSCTTY, 0) < 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        let mut child = command.spawn().unwrap();
+        let flags = unsafe { libc::fcntl(master.as_raw_fd(), libc::F_GETFL) };
+        assert!(flags >= 0);
+        assert_eq!(
+            unsafe { libc::fcntl(master.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) },
+            0
+        );
+        let started = std::time::Instant::now();
+        let mut output = Vec::new();
+        let status = loop {
+            let mut bytes = [0; 4096];
+            while let Ok(n) = master.read(&mut bytes) {
+                if n == 0 {
+                    break;
+                }
+                output.extend_from_slice(&bytes[..n]);
+            }
+            if let Some(status) = child.try_wait().unwrap() {
+                break status;
+            }
+            if started.elapsed() > Duration::from_secs(8) {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!(
+                    "alias probe failed to exit: {}",
+                    String::from_utf8_lossy(&output)
+                );
+            }
+            thread::sleep(Duration::from_millis(5));
+        };
+        let _ = std::fs::remove_dir_all(home);
+        assert!(
+            status.success(),
+            "alias probe failed: {}",
+            String::from_utf8_lossy(&output)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn controlling_terminal_alias_probe() {
+        if std::env::var_os("INSH_RS_ALIAS_CTTY_PROBE").is_none() {
+            return;
+        }
+        assert_eq!(unsafe { libc::tcgetpgrp(0) }, unsafe { libc::getpgrp() });
+        assert_eq!(
+            load_bash().get("audit_ctty").map(String::as_str),
+            Some("git status")
+        );
+    }
 
     #[test]
     fn parse_bash_format() {
@@ -345,6 +459,28 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn oversized_alias_output_is_rejected_promptly() {
+        let start = std::time::Instant::now();
+        let got = capture_stdout("sh", &["-c", "yes noisy-startup"], Duration::from_secs(5));
+        assert!(got.is_none(), "a truncated alias list must not be used");
+        assert!(start.elapsed() < Duration::from_secs(3));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stdout_and_child_exit_share_one_deadline() {
+        let start = std::time::Instant::now();
+        let got = capture_stdout(
+            "sh",
+            &["-c", "sleep 0.4; echo hello; exec 1>&-; sleep 30"],
+            Duration::from_millis(600),
+        );
+        assert_eq!(got.as_deref(), Some("hello\n"));
+        assert!(start.elapsed() < Duration::from_millis(900));
+    }
+
     #[test]
     fn expand_no_match() {
         let aliases = HashMap::new();
@@ -356,6 +492,36 @@ mod tests {
         let mut aliases = HashMap::new();
         aliases.insert("glo".into(), "git log --oneline".into());
         assert_eq!(expand("glo --all", &aliases), "git log --oneline --all");
+    }
+
+    #[test]
+    fn active_segment_expansion_uses_the_shell_flavor() {
+        use crate::spec::ShellFlavor;
+        let aliases = [("gl".into(), "git log".into())].into_iter().collect();
+        for (line, expected, flavor) in [
+            (
+                "echo a`|b | gl --one",
+                "echo a`|b | git log --one",
+                ShellFlavor::PowerShell,
+            ),
+            (
+                "echo a^|b | gl --one",
+                "echo a^|b | git log --one",
+                ShellFlavor::Cmd,
+            ),
+            (
+                r"echo 'a\' | gl --one",
+                r"echo 'a\' | git log --one",
+                ShellFlavor::Posix,
+            ),
+            (
+                r"echo 'a\'|b' | gl --one",
+                r"echo 'a\'|b' | git log --one",
+                ShellFlavor::Fish,
+            ),
+        ] {
+            assert_eq!(expand_active_segment_for(line, &aliases, flavor), expected);
+        }
     }
 
     #[test]

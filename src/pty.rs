@@ -33,6 +33,329 @@ enum PopupMode {
     },
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum InputEffect {
+    UiOnly,
+    ForwardedRedraw,
+    Inserted(Vec<u8>),
+    Forwarded,
+    ForwardedNavigation,
+}
+
+/// Expected line-editor state after the whole forwarded burst. Keeping the
+/// characters in a Vec makes ordinary append-at-end typeahead amortized O(1).
+struct EditState {
+    command: Vec<char>,
+    cursor: usize,
+    text_hash: u64,
+}
+
+// Polynomial fingerprint permits constant-time append/pop checkpoints. These
+// identify ordinary partial echoes without storing a full line per keystroke.
+const ECHO_HASH_BASE: u64 = 0x100000001b3;
+const ECHO_HASH_INVERSE: u64 = 0xce965057aff6957b;
+const _: () = assert!(ECHO_HASH_BASE.wrapping_mul(ECHO_HASH_INVERSE) == 1);
+
+fn echo_text_hash(chars: impl Iterator<Item = char>) -> u64 {
+    chars.fold(0u64, |hash, ch| {
+        hash.wrapping_mul(ECHO_HASH_BASE)
+            .wrapping_add(ch as u64 + 1)
+    })
+}
+
+impl EditState {
+    fn from_tracker(tracker: &TermTracker) -> Self {
+        let command: Vec<_> = tracker.state().command.chars().collect();
+        Self {
+            text_hash: echo_text_hash(command.iter().copied()),
+            command,
+            cursor: tracker.state().cursor_offset,
+        }
+    }
+
+    fn matches(&self, tracker: &TermTracker) -> bool {
+        tracker.state().cursor_offset == self.cursor
+            && tracker
+                .state()
+                .command
+                .chars()
+                .eq(self.command.iter().copied())
+    }
+
+    fn apply(
+        &mut self,
+        mut bytes: &[u8],
+        checkpoints: &mut std::collections::HashSet<(u64, usize)>,
+    ) -> bool {
+        while !bytes.is_empty() {
+            // Insert contiguous text together; accepted suggestions can be
+            // long, so do not rescan/copy the whole command for each scalar.
+            let text_len = bytes
+                .iter()
+                .position(|b| *b < b' ' || *b == 0x7f)
+                .unwrap_or(bytes.len());
+            if text_len > 0 {
+                let Ok(text) = std::str::from_utf8(&bytes[..text_len]) else {
+                    return false;
+                };
+                if text.chars().any(char::is_control) {
+                    return false;
+                }
+                let suffix_len = self.command.len() - self.cursor;
+                let mut painted = 0;
+                for ch in text.chars() {
+                    if self.cursor == self.command.len() {
+                        self.command.push(ch);
+                        self.text_hash = self
+                            .text_hash
+                            .wrapping_mul(ECHO_HASH_BASE)
+                            .wrapping_add(ch as u64 + 1);
+                    } else {
+                        self.command.insert(self.cursor, ch);
+                        self.text_hash = echo_text_hash(self.command.iter().copied());
+                    }
+                    self.cursor += 1;
+                    checkpoints.insert((self.text_hash, self.command.len()));
+                    // Readline may overwrite at the insertion point before
+                    // repainting the retained suffix. That transient screen
+                    // is ordinary echo, not an abbreviation/widget rewrite.
+                    painted += 1;
+                    let overwritten = painted.min(suffix_len);
+                    if overwritten > 0 {
+                        let paint_hash = echo_text_hash(
+                            self.command[..self.cursor]
+                                .iter()
+                                .chain(self.command[self.cursor + overwritten..].iter())
+                                .copied(),
+                        );
+                        checkpoints.insert((paint_hash, self.command.len() - overwritten));
+                    }
+                }
+                bytes = &bytes[text_len..];
+                continue;
+            }
+            let len = key_len(bytes).max(1).min(bytes.len());
+            let key = &bytes[..len];
+            match key {
+                b"\x08" | b"\x7f" => {
+                    if self.cursor > 0 {
+                        self.cursor -= 1;
+                        let removed = self.command.remove(self.cursor);
+                        if self.cursor == self.command.len() {
+                            self.text_hash = self
+                                .text_hash
+                                .wrapping_sub(removed as u64 + 1)
+                                .wrapping_mul(ECHO_HASH_INVERSE);
+                        } else {
+                            self.text_hash = echo_text_hash(self.command.iter().copied());
+                        }
+                        let erased = echo_text_hash(
+                            self.command[..self.cursor]
+                                .iter()
+                                .copied()
+                                .chain(std::iter::once(' '))
+                                .chain(self.command[self.cursor..].iter().copied()),
+                        );
+                        checkpoints.insert((erased, self.command.len() + 1));
+                    }
+                }
+                b"\x04" | b"\x1b[3~" => {
+                    if self.cursor < self.command.len() {
+                        self.command.remove(self.cursor);
+                        self.text_hash = echo_text_hash(self.command.iter().copied());
+                    }
+                }
+                b"\x02" | b"\x1b[D" | b"\x1bOD" => self.cursor = self.cursor.saturating_sub(1),
+                b"\x06" | b"\x1b[C" | b"\x1bOC" => {
+                    self.cursor = (self.cursor + 1).min(self.command.len())
+                }
+                b"\x01" | b"\x1b[H" | b"\x1b[1~" | b"\x1bOH" => self.cursor = 0,
+                b"\x05" | b"\x1b[F" | b"\x1b[4~" | b"\x1bOF" => self.cursor = self.command.len(),
+                b"\x15" => {
+                    self.command.drain(..self.cursor);
+                    self.cursor = 0;
+                    self.text_hash = echo_text_hash(self.command.iter().copied());
+                }
+                b"\x0b" => {
+                    self.command.truncate(self.cursor);
+                    self.text_hash = echo_text_hash(self.command.iter().copied());
+                }
+                b"\x17" => {
+                    let end = self.cursor;
+                    while self.cursor > 0 && self.command[self.cursor - 1].is_whitespace() {
+                        self.cursor -= 1;
+                    }
+                    while self.cursor > 0 && !self.command[self.cursor - 1].is_whitespace() {
+                        self.cursor -= 1;
+                    }
+                    self.command.drain(self.cursor..end);
+                    self.text_hash = echo_text_hash(self.command.iter().copied());
+                }
+                b"\x0c" | b"\x1b[200~" | b"\x1b[201~" => {}
+                // Shell completion, history search and custom bindings can
+                // transform the line arbitrarily. Preserve their observable
+                // progress fallback instead of predicting a different shell.
+                _ => return false,
+            }
+            checkpoints.insert((self.text_hash, self.command.len()));
+            bytes = &bytes[len..];
+        }
+        true
+    }
+}
+
+struct PendingEcho {
+    before: u64,
+    expected: Option<EditState>,
+    allow_bell: bool,
+    checkpoints: std::collections::HashSet<(u64, usize)>,
+}
+
+fn input_state_signature(tracker: &TermTracker) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hash = std::collections::hash_map::DefaultHasher::new();
+    tracker.state().command.hash(&mut hash);
+    tracker.state().cursor_offset.hash(&mut hash);
+    hash.finish()
+}
+
+/// Track request identity separately from text: forwarding a key invalidates
+/// both the current results and any response still in flight, even before the
+/// shell echoes the edit (#142).
+#[derive(Default)]
+struct SuggestRequests {
+    id: u64,
+    context: Option<u64>,
+    awaiting_echo: bool,
+    echo_from: Option<PendingEcho>,
+}
+
+impl SuggestRequests {
+    fn forwarded(&mut self, tracker: &TermTracker, bytes: &[u8], allow_bell: bool) {
+        self.id = self.id.wrapping_add(1);
+        self.context = None;
+        let pending = self.echo_from.get_or_insert_with(|| {
+            let expected = EditState::from_tracker(tracker);
+            let checkpoints = [(expected.text_hash, expected.command.len())]
+                .into_iter()
+                .collect();
+            PendingEcho {
+                before: input_state_signature(tracker),
+                expected: Some(expected),
+                allow_bell,
+                checkpoints,
+            }
+        });
+        pending.allow_bell &= allow_bell;
+        if let Some(expected) = pending.expected.as_mut()
+            && !expected.apply(bytes, &mut pending.checkpoints)
+        {
+            pending.expected = None;
+        }
+        self.awaiting_echo = true;
+    }
+
+    fn observe(&mut self, tracker: &TermTracker, prompt_started: bool, bell: bool) {
+        let Some(pending) = self.echo_from.as_ref() else {
+            return;
+        };
+        let coherent = match &pending.expected {
+            Some(expected) => {
+                if expected.matches(tracker) {
+                    true
+                } else {
+                    let command = &tracker.state().command;
+                    let fingerprint = (echo_text_hash(command.chars()), command.chars().count());
+                    // Known intermediate text is still a partial echo. A
+                    // different line is a shell transformation (Fish
+                    // abbreviation, widget, quoting), so resume from that
+                    // observed line rather than wait for impossible text.
+                    !pending.checkpoints.contains(&fingerprint)
+                }
+            }
+            None => {
+                input_state_signature(tracker) != pending.before || (bell && pending.allow_bell)
+            }
+        };
+        if prompt_started || coherent {
+            self.awaiting_echo = false;
+            self.echo_from = None;
+        }
+    }
+
+    fn request(&mut self, typed: &str, cwd: &str) -> Option<u64> {
+        if self.awaiting_echo {
+            return None;
+        }
+        let context = suggestion_signature(typed, cwd);
+        if self.context == Some(context) {
+            return None;
+        }
+        self.context = Some(context);
+        self.id = self.id.wrapping_add(1);
+        Some(self.id)
+    }
+}
+
+struct SuggestResponse {
+    signature: u64,
+    typed: String,
+    ranked: Vec<Suggestion>,
+    history_tail: Option<String>,
+    partial: Partial,
+}
+
+type SuggestRequest = (u64, String, String);
+
+/// Progress that can change the suggestions, even when the terminal is idle.
+/// Publishing the registry must schedule the line typed while it was loading.
+struct SuggestionTick {
+    made_progress: bool,
+}
+
+impl SuggestionTick {
+    fn new(engine_just_loaded: bool, got_suggestions: bool) -> Self {
+        Self {
+            made_progress: engine_just_loaded || got_suggestions,
+        }
+    }
+
+    fn schedule(
+        &self,
+        requests: &mut SuggestRequests,
+        typed: &str,
+        cwd: &str,
+        sender: &std::sync::mpsc::Sender<SuggestRequest>,
+    ) -> Result<(), std::sync::mpsc::SendError<SuggestRequest>> {
+        if self.made_progress
+            && let Some(id) = requests.request(typed, cwd)
+        {
+            sender.send((id, typed.to_string(), cwd.to_string()))?;
+        }
+        Ok(())
+    }
+}
+
+impl SuggestResponse {
+    fn apply(
+        self,
+        request_signature: u64,
+        ranked: &mut Vec<Suggestion>,
+        ranked_typed: &mut String,
+        history_tail: &mut Option<String>,
+        partial: &mut Partial,
+    ) -> bool {
+        if self.signature != request_signature {
+            return false;
+        }
+        *ranked = self.ranked;
+        *ranked_typed = self.typed;
+        *history_tail = self.history_tail;
+        *partial = self.partial;
+        true
+    }
+}
+
 /// Spawn a wrapped shell.
 ///
 /// `ui_override` takes precedence over the `ui` field in the loaded
@@ -53,6 +376,8 @@ pub fn run_wrapped(
     let shell_dir = paths::shell_dir().context("no HOME directory")?;
     let zsh_dotdir = paths::zsh_dotdir().context("no HOME directory")?;
     let target = shell.spawn_target(&shell_dir, &zsh_dotdir, login);
+    let cfg = crate::config::load();
+    let effective_ui = ui_override.unwrap_or(cfg.ui);
 
     let (cols, rows) = platform::term_size().unwrap_or((80, 24));
 
@@ -67,6 +392,19 @@ pub fn run_wrapped(
     child_env.push(("TERM".into(), "xterm-256color".into()));
     for (k, v) in &target.env {
         child_env.push((k.clone(), v.clone()));
+    }
+    // Only the wrapped Fish receives this policy. Explicit false is needed
+    // for Popup to override a flag inherited from an outer Ghost session.
+    if shell == Shell::Fish {
+        child_env.push((
+            "INSH_RS_DISABLE_FISH_AUTOSUGGESTIONS".into(),
+            if matches!(effective_ui, UiMode::Ghost | UiMode::Hybrid) {
+                "1"
+            } else {
+                "0"
+            }
+            .into(),
+        ));
     }
     if let Ok(home) = std::env::var("HOME") {
         child_env.push(("HOME".into(), home));
@@ -118,8 +456,6 @@ pub fn run_wrapped(
         out.flush().ok();
     }
 
-    let cfg = crate::config::load();
-
     // Background engine load — ~500ms of zstd + JSON parse off the
     // critical path so the shell prompt appears instantly.
     let engine: std::sync::Arc<std::sync::RwLock<Option<Engine>>> =
@@ -142,11 +478,8 @@ pub fn run_wrapped(
             if let Ok(mut slot) = engine.write() {
                 *slot = Some(built);
             }
-            if use_aliases
-                && let Ok(mut guard) = engine.write()
-                && let Some(published) = guard.as_mut()
-            {
-                published.set_aliases(crate::alias::load(alias_shell));
+            if use_aliases {
+                load_engine_aliases(&engine, || crate::alias::load(alias_shell));
             }
         });
     }
@@ -155,8 +488,6 @@ pub fn run_wrapped(
     // with a 5-second default timeout, and `suggest_blob` used to run on this
     // thread — so a slow generator froze keystroke handling for as long as it
     // took. Compute suggestions off the event loop and deliver them by channel.
-    type SuggestRequest = (u64, String, String);
-    type SuggestResponse = (u64, Vec<Suggestion>, Option<String>);
     let (req_tx, req_rx) = std::sync::mpsc::channel::<SuggestRequest>();
     let (res_tx, res_rx) = std::sync::mpsc::channel::<SuggestResponse>();
     {
@@ -171,16 +502,37 @@ pub fn run_wrapped(
                 let (sig, typed, cwd) = request;
                 let Ok(guard) = engine.read() else { continue };
                 let Some(engine_ref) = guard.as_ref() else {
-                    let _ = res_tx.send((sig, Vec::new(), None));
+                    let _ = res_tx.send(SuggestResponse {
+                        signature: sig,
+                        typed,
+                        ranked: Vec::new(),
+                        history_tail: None,
+                        partial: Partial::default(),
+                    });
                     continue;
                 };
-                let ranked = engine_ref.suggest_blob(&typed, &cwd);
+                let (ranked, active_token) = engine_ref.suggest_blob_with_token(&typed, &cwd);
+                let partial = active_token
+                    .map(|token| Partial {
+                        text: token.token,
+                        consumed: token.token_length,
+                    })
+                    .unwrap_or_default();
                 // The ghost for a ranked suggestion is built on the event
                 // loop from the suggestion itself, so only the history
                 // fallback is needed from the engine. (`Engine::suggest`
                 // would also run `suggest_blob`, and every generator, again.)
                 let history_tail = engine_ref.history_tail(&typed);
-                if res_tx.send((sig, ranked, history_tail)).is_err() {
+                if res_tx
+                    .send(SuggestResponse {
+                        signature: sig,
+                        typed,
+                        ranked,
+                        history_tail,
+                        partial,
+                    })
+                    .is_err()
+                {
                     return;
                 }
             }
@@ -193,7 +545,6 @@ pub fn run_wrapped(
     let mut ansi_scanner = ansi::Scanner::new();
     // Popup / ghost dispatch: CLI --ui flag (ui_override) beats config
     // file, which beats the built-in default (Ghost).
-    let effective_ui = ui_override.unwrap_or(cfg.ui);
     let has_popup = matches!(effective_ui, UiMode::Popup | UiMode::Hybrid);
     let has_ghost = matches!(effective_ui, UiMode::Ghost | UiMode::Hybrid);
     let bindings: Bindings = cfg.bindings.clone();
@@ -227,9 +578,10 @@ pub fn run_wrapped(
     let mut engine_was_ready = false;
     // Signature of the text the outstanding request was made for, and the text
     // the suggestions currently in `ranked` were computed from.
-    let mut request_sig: u64 = 0;
+    let mut requests = SuggestRequests::default();
     let mut ranked_typed = String::new();
     let mut history_tail: Option<String> = None;
+    let mut ranked_partial = Partial::default();
 
     let mut pty_buf = [0u8; 4096];
     let mut stdin_buf = [0u8; 1024];
@@ -250,27 +602,15 @@ pub fn run_wrapped(
             // user used to freeze `is` (raw mode still on, keystrokes
             // dropped) until that job died (#52). With the master fd in
             // O_NONBLOCK mode, read_pty returns EAGAIN instead of blocking;
-            // we keep draining while data flows and stop ~500ms after it
-            // goes quiet.
-            let mut quiet_ticks: u32 = 0;
-            loop {
-                let n = pty.read_pty(&mut pty_buf);
-                if n >= 1 {
-                    quiet_ticks = 0;
-                    let bytes = &pty_buf[..n as usize];
-                    let (clean, _) = ansi_scanner.scan(bytes);
-                    out.write_all(&clean).ok();
-                    continue;
-                }
-                quiet_ticks += 1;
-                if quiet_ticks > 25 {
-                    break;
-                }
-                let (pty_ready, _) = pty.poll(20);
-                if !pty_ready && quiet_ticks > 2 {
-                    break;
-                }
-            }
+            // we drain already queued output but impose a total deadline,
+            // including while data flows. A continuously writing descendant
+            // (`yes & exit`) otherwise keeps us here forever (#139).
+            drain_exited_pty(
+                &pty,
+                &mut ansi_scanner,
+                &mut out,
+                std::time::Duration::from_millis(500),
+            );
             out.flush().ok();
             break;
         }
@@ -293,18 +633,24 @@ pub fn run_wrapped(
         // who finished typing before the load completed saw no suggestion at
         // all until the next keystroke or byte of shell output, because a bare
         // poll timeout `continue`d without ever redrawing.
-        let engine_ready = engine.read().map(|g| g.is_some()).unwrap_or(false);
+        // Readiness is monotonic after publication. Never wait on this lock:
+        // alias publication can be queued behind a worker's slow generator,
+        // and a pending writer can also block subsequent blocking readers.
+        let engine_ready =
+            engine_was_ready || engine.try_read().map(|g| g.is_some()).unwrap_or(false);
         let engine_just_loaded = engine_ready && !engine_was_ready;
         engine_was_ready = engine_ready;
 
         // Pick up anything the suggestion worker finished while we were idle.
         let mut got_suggestions = false;
-        while let Ok((sig, new_ranked, new_tail)) = res_rx.try_recv() {
-            if sig == request_sig {
-                ranked = new_ranked;
-                history_tail = new_tail;
-                got_suggestions = true;
-            }
+        while let Ok(response) = res_rx.try_recv() {
+            got_suggestions |= response.apply(
+                requests.id,
+                &mut ranked,
+                &mut ranked_typed,
+                &mut history_tail,
+                &mut ranked_partial,
+            );
         }
 
         if !pty_ready && !stdin_ready && !engine_just_loaded && !got_suggestions {
@@ -313,8 +659,7 @@ pub fn run_wrapped(
 
         // Suggestions arriving from the worker are progress too: without this
         // a tick woken only by a worker result would fall through the redraw.
-        let mut made_progress = got_suggestions;
-        let mut defer_suggestion_redraw = false;
+        let mut tick = SuggestionTick::new(engine_just_loaded, got_suggestions);
 
         // Read PTY output if ready.
         if pty_ready {
@@ -334,7 +679,10 @@ pub fn run_wrapped(
                     break;
                 }
                 let bytes = &pty_buf[..n as usize];
-                let (clean, osc_events) = ansi_scanner.scan(bytes);
+                let (clean, osc_events) = ansi_scanner.scan_ordered(bytes);
+                if !clean.is_empty() {
+                    renderer.clear(&mut out).ok();
+                }
                 out.write_all(&clean).ok();
                 out.flush().ok();
                 // A new prompt means the previous command may have been
@@ -342,7 +690,7 @@ pub fn run_wrapped(
                 // text can suggest what the user just ran.
                 if osc_events
                     .iter()
-                    .any(|e| matches!(e, ansi::IsEvent::PromptStart))
+                    .any(|(_, e)| matches!(e, ansi::IsEvent::PromptStart))
                 {
                     // `try_write`, never `write`: the suggestion worker may be
                     // holding the read lock across a slow generator, and this
@@ -353,9 +701,16 @@ pub fn run_wrapped(
                         engine.refresh_history();
                     }
                 }
-                tracker.feed(&clean, &osc_events);
+                tracker.feed_ordered(&clean, &osc_events);
+                requests.observe(
+                    &tracker,
+                    osc_events
+                        .iter()
+                        .any(|(_, e)| matches!(e, ansi::IsEvent::PromptStart)),
+                    clean.contains(&ansi::BEL),
+                );
                 pending_tail = None;
-                made_progress = true;
+                tick.made_progress = true;
                 // Check if more data without blocking.
                 let (more, _) = pty.poll(0);
                 if !more {
@@ -392,6 +747,13 @@ pub fn run_wrapped(
                         }
                         renderer.clear(&mut out).ok();
                         pty.pty_write(bytes);
+                        pending_tail = None;
+                        ranked.clear();
+                        ranked_typed.clear();
+                        history_tail = None;
+                        ranked_partial = Partial::default();
+                        popup_mode = PopupMode::Hidden;
+                        requests.forwarded(&tracker, bytes, false);
                         continue;
                     }
                     // Track Up/Down for history-hide behavior (upstream:
@@ -400,7 +762,7 @@ pub fn run_wrapped(
                         || bytes == b"\x1b[B"
                         || bytes == b"\x1bOA"
                         || bytes == b"\x1bOB";
-                    let forwarded_cursor_navigation = handle_stdin(
+                    let effect = handle_stdin(
                         bytes,
                         has_ghost,
                         has_popup,
@@ -415,20 +777,39 @@ pub fn run_wrapped(
                         &mut out,
                         &pty,
                         &mut submitting,
+                        &ranked_partial,
                     );
-                    if forwarded_cursor_navigation {
+                    let forwarded = match &effect {
+                        InputEffect::Inserted(insert) => Some(insert.as_slice()),
+                        InputEffect::Forwarded | InputEffect::ForwardedNavigation => Some(bytes),
+                        InputEffect::UiOnly | InputEffect::ForwardedRedraw => None,
+                    };
+                    if let Some(forwarded) = forwarded {
                         pending_tail = None;
-                        defer_suggestion_redraw = true;
+                        ranked.clear();
+                        ranked_typed.clear();
+                        history_tail = None;
+                        ranked_partial = Partial::default();
+                        let allow_bell = effect == InputEffect::ForwardedNavigation
+                            || (effect == InputEffect::Forwarded
+                                && bytes.len() == 1
+                                && bytes[0].is_ascii_control()
+                                && !matches!(bytes[0], b'\r' | b'\n' | 0x03));
+                        requests.forwarded(&tracker, forwarded, allow_bell);
                     }
                 }
-                made_progress = true;
+                // A modeled no-op (End at EOL, or an empty paste) may never
+                // echo. Its final state already matches the tracker, so it
+                // is safe to recover without waiting for unrelated output.
+                requests.observe(&tracker, false, false);
+                tick.made_progress = true;
             }
         }
 
-        if made_progress {
+        if tick.made_progress {
             let state = tracker.state().clone();
             let cwd = tracker.cwd().to_string();
-            if defer_suggestion_redraw {
+            if requests.awaiting_echo || in_bracketed_paste {
                 last_cmd_signature = state.command.clone();
                 out.flush().ok();
                 continue;
@@ -483,15 +864,8 @@ pub fn run_wrapped(
                 // line: with the cursor mid-word the suffix isn't typed yet
                 // from the completion engine's point of view.
                 let typed = tracker.command_before_cursor();
-                let sig = suggestion_signature(typed, &cwd);
-                if sig != request_sig {
-                    request_sig = sig;
-                    if req_tx.send((sig, typed.to_string(), cwd.clone())).is_err() {
-                        break;
-                    }
-                }
-                if got_suggestions {
-                    ranked_typed = typed.to_string();
+                if tick.schedule(&mut requests, typed, &cwd, &req_tx).is_err() {
+                    break;
                 }
                 // Results for the text on screen have not arrived yet. Leave
                 // the last coherent popup up rather than blanking the screen
@@ -519,9 +893,7 @@ pub fn run_wrapped(
                 let ghost = if has_ghost && cursor_at_end {
                     ranked
                         .get(active_cursor)
-                        .and_then(|s| {
-                            suggestion_ghost(s, typed, &current_partial(typed), Some(shell))
-                        })
+                        .and_then(|s| suggestion_ghost(s, typed, &ranked_partial, Some(shell)))
                         .or_else(|| history_tail.as_deref().and_then(history_ghost))
                 } else {
                     None
@@ -530,25 +902,12 @@ pub fn run_wrapped(
                 pending_tail = ghost;
 
                 if has_popup && popup_mode != PopupMode::Dismissed && !ranked.is_empty() {
-                    // Flipping to `Above` whenever there was not enough room
-                    // below ignored whether there was any room *above*. With
-                    // the prompt near the top of a short terminal the popup was
-                    // drawn off the top of the screen.
-                    let rows_below = tracker.remaining_lines() as usize;
-                    let rows_above = tracker.state().cursor_row as usize;
-                    let popup_direction = if rows_below > max_popup_rows {
-                        Direction::Below
-                    } else if rows_above >= max_popup_rows {
-                        Direction::Above
-                    } else if rows_below >= rows_above {
-                        Direction::Below
-                    } else {
-                        Direction::Above
-                    };
+                    let (popup_direction, available_rows, gap_rows) =
+                        popup_placement(&tracker, max_popup_rows);
                     let cursor_col = tracker.state().cursor_col;
                     let term_cols = tracker.cols();
                     renderer
-                        .draw_popup_interactive(
+                        .draw_popup_interactive_with_gap(
                             &mut out,
                             tail.as_deref(),
                             &ranked,
@@ -556,10 +915,16 @@ pub fn run_wrapped(
                             popup_direction,
                             cursor_col,
                             term_cols,
+                            available_rows,
+                            gap_rows,
                         )
                         .ok();
-                    popup_mode = PopupMode::Visible {
-                        cursor: active_cursor,
+                    popup_mode = if renderer.popup_visible() {
+                        PopupMode::Visible {
+                            cursor: active_cursor,
+                        }
+                    } else {
+                        PopupMode::Hidden
                     };
                 } else if has_popup && ranked.is_empty() {
                     popup_mode = PopupMode::Hidden;
@@ -597,6 +962,70 @@ pub fn run_wrapped(
     std::process::exit(child_exit_code);
 }
 
+fn popup_placement(tracker: &TermTracker, max_rows: usize) -> (Direction, usize, u16) {
+    let (first, last) = tracker.popup_region();
+    let rows_above = first as usize;
+    let rows_below = tracker.rows().saturating_sub(last.saturating_add(1)) as usize;
+    let cursor = tracker.state().cursor_row;
+    // Keep the whole prompt and command protected, including command rows
+    // below a cursor moved into the middle of a wrapped line (#143).
+    if rows_below > max_rows {
+        (Direction::Below, rows_below, last.saturating_sub(cursor))
+    } else if rows_above >= max_rows || rows_above > rows_below {
+        (Direction::Above, rows_above, cursor.saturating_sub(first))
+    } else {
+        (Direction::Below, rows_below, last.saturating_sub(cursor))
+    }
+}
+
+fn drain_exited_pty(
+    pty: &dyn PtyHandle,
+    scanner: &mut ansi::Scanner,
+    out: &mut impl Write,
+    budget: std::time::Duration,
+) {
+    let started = std::time::Instant::now();
+    let mut buf = [0; 4096];
+    let mut quiet_ticks = 0;
+    while started.elapsed() < budget {
+        let n = pty.read_pty(&mut buf);
+        if n > 0 {
+            quiet_ticks = 0;
+            let (clean, _) = scanner.scan(&buf[..n as usize]);
+            out.write_all(&clean).ok();
+            continue;
+        }
+        quiet_ticks += 1;
+        if quiet_ticks > 25 {
+            break;
+        }
+        let remaining = budget.saturating_sub(started.elapsed());
+        let wait_ms = remaining.as_millis().min(20) as i32;
+        if wait_ms == 0 {
+            break;
+        }
+        let (ready, _) = pty.poll(wait_ms);
+        if !ready && quiet_ticks > 2 {
+            break;
+        }
+    }
+}
+
+/// Alias discovery sources arbitrary shell startup files. Keep it outside the
+/// engine lock so the event loop and suggestion worker can use the published
+/// engine while the subprocess is running (#119).
+fn load_engine_aliases(
+    engine: &std::sync::RwLock<Option<Engine>>,
+    load: impl FnOnce() -> std::collections::HashMap<String, String>,
+) {
+    let aliases = load();
+    if let Ok(mut guard) = engine.write()
+        && let Some(published) = guard.as_mut()
+    {
+        published.set_aliases(aliases);
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn handle_stdin(
     bytes: &[u8],
@@ -617,7 +1046,8 @@ fn handle_stdin(
     out: &mut impl Write,
     pty: &dyn PtyHandle,
     submitting: &mut bool,
-) -> bool {
+    ranked_partial: &Partial,
+) -> InputEffect {
     // Ghost-accept (right / End / Ctrl-E).
     if has_ghost {
         let ghost_accept: &[&[u8]] = &[b"\x1b[C", b"\x1b[F", b"\x05"];
@@ -629,7 +1059,7 @@ fn handle_stdin(
             // quoting and the backspaces that rewrite the token.
             pty.pty_write(&ghost.insert);
             *popup_mode = PopupMode::Hidden;
-            return false;
+            return InputEffect::Inserted(ghost.insert);
         }
     }
     // Popup key interception.
@@ -641,13 +1071,13 @@ fn handle_stdin(
             *popup_mode = PopupMode::Visible {
                 cursor: (cursor + 1).min(ranked.len() - 1),
             };
-            return false;
+            return InputEffect::UiOnly;
         }
         if bindings.previous_suggestion.matches(bytes) {
             *popup_mode = PopupMode::Visible {
                 cursor: cursor.saturating_sub(1),
             };
-            return false;
+            return InputEffect::UiOnly;
         }
         if bindings.accept_suggestion.matches(bytes) {
             let typed = tracker.command_before_cursor();
@@ -657,29 +1087,30 @@ fn handle_stdin(
                 renderer.clear(out).ok();
                 *popup_mode = PopupMode::Hidden;
                 pty.pty_write(bytes);
-                return false;
+                *pending_tail = None;
+                return InputEffect::Forwarded;
             }
             let selected = &ranked[cursor.min(ranked.len() - 1)];
-            let partial = current_partial(typed);
-            let repl = replacement_tail(selected, typed, &partial, Some(shell));
+            let repl = replacement_tail(selected, typed, ranked_partial, Some(shell));
             renderer.clear(out).ok();
-            if !repl.tail.is_empty() {
-                pty.pty_write(repl.tail.as_bytes());
-            }
             // A `{cursor}` suggestion places the caret inside the
             // inserted text, so no separating space belongs after it.
             let wants_space =
                 !repl.had_marker && !matches!(selected.suggestion_type, SuggestionType::Folder);
-            if wants_space {
-                pty.pty_write(b" ");
-            }
             let caret = repl.caret_move();
-            if !caret.is_empty() {
-                pty.pty_write(&caret);
+            let mut insert = repl.tail.into_bytes();
+            if wants_space {
+                insert.push(b' ');
             }
+            insert.extend(caret);
             *popup_mode = PopupMode::Hidden;
             *pending_tail = None;
-            return false;
+            return if insert.is_empty() {
+                InputEffect::UiOnly
+            } else {
+                pty.pty_write(&insert);
+                InputEffect::Inserted(insert)
+            };
         }
         if bindings.dismiss_suggestions.matches(bytes) {
             renderer.clear(out).ok();
@@ -709,12 +1140,19 @@ fn handle_stdin(
         renderer.clear(out).ok();
     }
     let forwarded_cursor_navigation = is_cursor_navigation(bytes);
+    *pending_tail = None;
     if bytes.iter().any(|&b| b == b'\r' || b == b'\n' || b == 0x03) {
         *submitting = true;
         *popup_mode = PopupMode::Hidden;
     }
     pty.pty_write(bytes);
-    forwarded_cursor_navigation
+    if forwarded_cursor_navigation {
+        InputEffect::ForwardedNavigation
+    } else if bytes == b"\x0c" {
+        InputEffect::ForwardedRedraw
+    } else {
+        InputEffect::Forwarded
+    }
 }
 
 /// Is this stdin chunk a pure cursor-navigation key that doesn't
@@ -821,6 +1259,7 @@ struct Partial {
     consumed: usize,
 }
 
+#[cfg(test)]
 fn current_partial(command: &str) -> Partial {
     match crate::spec::parse_command(command).pop() {
         Some(token) if !token.complete => Partial {
@@ -1089,11 +1528,53 @@ fn find_shell_binary(shell: Shell) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
+
+    #[test]
+    fn slow_alias_load_leaves_published_engine_readable() {
+        use std::sync::{Arc, RwLock, mpsc};
+
+        let engine = Arc::new(RwLock::new(Some(Engine::new(
+            Registry::default(),
+            vec!["git status".into()],
+        ))));
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let loader_engine = Arc::clone(&engine);
+        let loader = thread::spawn(move || {
+            load_engine_aliases(&loader_engine, || {
+                started_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+                [("audit_alias".into(), "git status".into())]
+                    .into_iter()
+                    .collect()
+            });
+        });
+
+        // Synchronize with the blocked subprocess without a timing-dependent
+        // sleep. A held write lock would make the event loop's read block.
+        started_rx.recv().unwrap();
+        let history_while_loading = engine
+            .try_read()
+            .ok()
+            .and_then(|guard| guard.as_ref().and_then(|e| e.history_tail("git s")));
+        // Always release/join before asserting so a regression cannot strand
+        // the test's loader thread.
+        release_tx.send(()).unwrap();
+        loader.join().unwrap();
+        assert_eq!(history_while_loading.as_deref(), Some("tatus"));
+
+        let guard = engine.read().unwrap();
+        let suggestions = guard.as_ref().unwrap().suggest_blob("audit_a", "/");
+        assert!(suggestions.iter().any(|s| s.name == "audit_alias"));
+    }
 
     #[derive(Default)]
     struct FakePty {
         writes: RefCell<Vec<u8>>,
+        queued_output: RefCell<std::collections::VecDeque<Vec<u8>>>,
+        repeat_output: Cell<bool>,
+        reads: Cell<usize>,
     }
 
     impl PtyHandle for FakePty {
@@ -1123,11 +1604,23 @@ mod tests {
         }
 
         fn poll(&self, _timeout_ms: i32) -> (bool, bool) {
-            (false, false)
+            (
+                self.repeat_output.get() || !self.queued_output.borrow().is_empty(),
+                false,
+            )
         }
 
-        fn read_pty(&self, _buf: &mut [u8]) -> isize {
-            -1
+        fn read_pty(&self, buf: &mut [u8]) -> isize {
+            self.reads.set(self.reads.get() + 1);
+            if let Some(chunk) = self.queued_output.borrow_mut().pop_front() {
+                buf[..chunk.len()].copy_from_slice(&chunk);
+                chunk.len() as isize
+            } else if self.repeat_output.get() {
+                buf.fill(b'x');
+                buf.len() as isize
+            } else {
+                0
+            }
         }
 
         fn read_stdin(&self, _buf: &mut [u8]) -> isize {
@@ -1135,6 +1628,114 @@ mod tests {
         }
 
         fn close(&mut self) {}
+    }
+
+    #[test]
+    fn exit_drain_has_a_total_deadline_during_continuous_output() {
+        let pty = FakePty {
+            repeat_output: Cell::new(true),
+            ..Default::default()
+        };
+        let started = std::time::Instant::now();
+        drain_exited_pty(
+            &pty,
+            &mut ansi::Scanner::new(),
+            &mut std::io::sink(),
+            std::time::Duration::from_millis(30),
+        );
+        assert!(pty.reads.get() > 0);
+        assert!(started.elapsed() < std::time::Duration::from_secs(2));
+    }
+
+    #[test]
+    fn exit_drain_forwards_all_queued_output_without_a_chunk_cap() {
+        let chunks = 1024;
+        let pty = FakePty {
+            queued_output: RefCell::new((0..chunks).map(|_| vec![b'x'; 4096]).collect()),
+            ..Default::default()
+        };
+        let mut out = Vec::new();
+        drain_exited_pty(
+            &pty,
+            &mut ansi::Scanner::new(),
+            &mut out,
+            std::time::Duration::from_secs(10),
+        );
+        assert!(pty.queued_output.borrow().is_empty());
+        assert_eq!(out, vec![b'x'; chunks * 4096]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn real_pty_exit_drain_finishes_with_a_writing_descendant_and_preserves_status() {
+        let dir = crate::test_support::unique_temp_dir("exit-drain");
+        let pid_path = dir.join("background.pid");
+        let bash = platform::find_on_path("bash").unwrap();
+        let argv = vec![
+            bash.clone(),
+            "--noprofile".into(),
+            "--norc".into(),
+            "-i".into(),
+            "-c".into(),
+            "trap '' HUP; yes x & printf '%s' \"$!\" > \"$INSH_TEST_CHILD_PID\"; exit 42".into(),
+        ];
+        let env = vec![(
+            "INSH_TEST_CHILD_PID".into(),
+            pid_path.to_str().unwrap().into(),
+        )];
+        let mut pty = platform::UnixPty::spawn(&bash, &argv, &env, 24, 80).unwrap();
+        let started = std::time::Instant::now();
+        let mut buf = [0; 4096];
+        let mut relayed_bytes = 0;
+        let status = loop {
+            // Relay while the shell exits, like the main loop; a busy
+            // descendant can otherwise fill the PTY before bash's exit echo.
+            let n = pty.read_pty(&mut buf);
+            if n > 0 {
+                relayed_bytes += n as usize;
+            }
+            if let Some(status) = pty.try_wait() {
+                break Some(status);
+            }
+            if started.elapsed() > std::time::Duration::from_secs(5) {
+                break None;
+            }
+            thread::sleep(std::time::Duration::from_millis(5));
+        };
+        let background_pid = std::fs::read_to_string(&pid_path)
+            .ok()
+            .and_then(|s| s.parse::<i32>().ok());
+        let writer_alive_before =
+            background_pid.is_some_and(|pid| unsafe { libc::kill(pid, 0) == 0 });
+        let drain_started = std::time::Instant::now();
+        let mut queued_output = Vec::new();
+        drain_exited_pty(
+            &pty,
+            &mut ansi::Scanner::new(),
+            &mut queued_output,
+            std::time::Duration::from_millis(100),
+        );
+        let drained_in = drain_started.elapsed();
+        let writer_alive_after =
+            background_pid.is_some_and(|pid| unsafe { libc::kill(pid, 0) == 0 });
+        pty.close();
+        if let Some(pid) = background_pid {
+            // The PTY session ended; reap the fixture's background workload
+            // even if a failed assertion is about to unwind the test.
+            unsafe {
+                libc::kill(-pid, libc::SIGKILL);
+                libc::kill(pid, libc::SIGKILL);
+            }
+        }
+        let _ = std::fs::remove_dir_all(dir);
+        assert_eq!(status, Some(42));
+        assert!(background_pid.is_some());
+        assert!(writer_alive_before && writer_alive_after);
+        assert!(relayed_bytes + queued_output.len() > 0);
+        // The real writer may be descheduled long enough to hit the quiet
+        // exit first. The deterministic always-ready fake above proves the
+        // total deadline; this test proves lifecycle, output and exit status.
+        assert!(drained_in < std::time::Duration::from_secs(2));
     }
 
     /// Accept `s` against the whole line, deriving the partial the way the
@@ -1154,6 +1755,600 @@ mod tests {
             name: name.into(),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn registry_publication_schedules_an_unchanged_line_without_terminal_activity() {
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.feed(
+            b"> ",
+            &[ansi::IsEvent::PromptStart, ansi::IsEvent::PromptEnd],
+        );
+        tracker.feed(b"git ch", &[]);
+        let mut requests = SuggestRequests::default();
+        let (sender, worker) = std::sync::mpsc::channel();
+
+        // The line has already echoed while the registry is still loading.
+        // No subsequent PTY bytes, stdin, or worker responses wake the UI.
+        SuggestionTick::new(false, false)
+            .schedule(
+                &mut requests,
+                tracker.command_before_cursor(),
+                "/repo",
+                &sender,
+            )
+            .unwrap();
+        assert!(worker.try_recv().is_err());
+
+        // The first idle tick that observes publication must send that exact
+        // line to the worker, without requiring an edit or a Ctrl-L redraw.
+        SuggestionTick::new(true, false)
+            .schedule(
+                &mut requests,
+                tracker.command_before_cursor(),
+                "/repo",
+                &sender,
+            )
+            .unwrap();
+        let (id, typed, cwd) = worker
+            .try_recv()
+            .expect("publication must request suggestions");
+        assert_eq!((typed.as_str(), cwd.as_str()), ("git ch", "/repo"));
+        assert_eq!(id, requests.id);
+
+        SuggestionTick::new(false, false)
+            .schedule(
+                &mut requests,
+                tracker.command_before_cursor(),
+                "/repo",
+                &sender,
+            )
+            .unwrap();
+        assert!(
+            worker.try_recv().is_err(),
+            "idle ticks must not duplicate work"
+        );
+    }
+
+    #[test]
+    fn response_carries_resolved_literal_argument_span_through_both_accept_paths() {
+        let typed = "cmd --name --flag=va";
+        // The resolver knows this entire word is the required argument of
+        // --name. A context-free parse splits it after '=' instead.
+        assert_eq!(current_partial(typed).text, "va");
+        let resolved = Partial {
+            text: "--flag=va".into(),
+            consumed: 9,
+        };
+        let response = SuggestResponse {
+            signature: 1,
+            typed: typed.into(),
+            ranked: vec![sug("--flag=value")],
+            history_tail: None,
+            partial: resolved.clone(),
+        };
+        let mut ranked = Vec::new();
+        let mut ranked_typed = String::new();
+        let mut history_tail = None;
+        let mut partial = Partial::default();
+        assert!(response.apply(
+            1,
+            &mut ranked,
+            &mut ranked_typed,
+            &mut history_tail,
+            &mut partial,
+        ));
+        assert_eq!(partial, resolved);
+
+        let stale = SuggestResponse {
+            signature: 0,
+            typed: "old".into(),
+            ranked: vec![sug("old")],
+            history_tail: Some("old".into()),
+            partial: current_partial("old"),
+        };
+        assert!(!stale.apply(
+            1,
+            &mut ranked,
+            &mut ranked_typed,
+            &mut history_tail,
+            &mut partial,
+        ));
+        assert_eq!(
+            partial, resolved,
+            "a stale response cannot replace the span"
+        );
+        assert_eq!(ranked_typed, typed);
+
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.feed(
+            b"$ ",
+            &[ansi::IsEvent::PromptStart, ansi::IsEvent::PromptEnd],
+        );
+        tracker.feed(typed.as_bytes(), &[]);
+        for ui in [UiMode::Ghost, UiMode::Popup] {
+            let pty = FakePty::default();
+            let mut pending_tail = suggestion_ghost(&ranked[0], typed, &partial, Some(Shell::Bash));
+            assert_eq!(pending_tail.as_ref().unwrap().display, "lue");
+            let mut popup_mode = PopupMode::Visible { cursor: 0 };
+            let effect = handle_stdin(
+                if ui == UiMode::Ghost {
+                    b"\x1b[C"
+                } else {
+                    b"\t"
+                },
+                ui == UiMode::Ghost,
+                ui == UiMode::Popup,
+                &mut pending_tail,
+                &mut popup_mode,
+                &ranked,
+                &ranked_typed,
+                &Bindings::default(),
+                Shell::Bash,
+                &tracker,
+                &mut Renderer::new(ui, 5, crate::render::popup::IconSet::Emoji),
+                &mut Vec::new(),
+                &pty,
+                &mut false,
+                &partial,
+            );
+            let expected = if ui == UiMode::Ghost {
+                b"lue".as_slice()
+            } else {
+                b"lue "
+            };
+            assert_eq!(&*pty.writes.borrow(), expected);
+            assert_eq!(effect, InputEffect::Inserted(expected.to_vec()));
+        }
+    }
+
+    #[test]
+    fn response_received_before_new_echo_keeps_its_original_typed_text() {
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.feed(
+            b"$ ",
+            &[ansi::IsEvent::PromptStart, ansi::IsEvent::PromptEnd],
+        );
+        tracker.feed(b"git ", &[]);
+        let request_signature = suggestion_signature("git ", "/");
+        let response = SuggestResponse {
+            signature: request_signature,
+            typed: "git ".into(),
+            ranked: vec![sug("add")],
+            history_tail: None,
+            partial: Partial::default(),
+        };
+        let mut ranked = Vec::new();
+        let mut ranked_typed = String::new();
+        let mut history_tail = None;
+        let mut partial = Partial::default();
+        assert!(response.apply(
+            request_signature,
+            &mut ranked,
+            &mut ranked_typed,
+            &mut history_tail,
+            &mut partial
+        ));
+        // The same event-loop tick then consumes a newer PTY echo. The old
+        // response must not be relabeled with this text or accepted for it.
+        tracker.feed(b"s", &[]);
+        assert_ne!(ranked_typed, tracker.command_before_cursor());
+        let pty = FakePty::default();
+        let mut popup_mode = PopupMode::Visible { cursor: 0 };
+        handle_stdin(
+            b"\t",
+            false,
+            true,
+            &mut None,
+            &mut popup_mode,
+            &ranked,
+            &ranked_typed,
+            &Bindings::default(),
+            Shell::Bash,
+            &tracker,
+            &mut Renderer::new(UiMode::Popup, 5, crate::render::popup::IconSet::Emoji),
+            &mut Vec::new(),
+            &pty,
+            &mut false,
+            &partial,
+        );
+        assert_eq!(&*pty.writes.borrow(), b"\t", "stale add must not replace s");
+        assert_eq!(popup_mode, PopupMode::Hidden);
+
+        let stale = SuggestResponse {
+            signature: request_signature,
+            typed: "git ".into(),
+            ranked: vec![sug("branch")],
+            history_tail: Some("branch".into()),
+            partial: Partial::default(),
+        };
+        assert!(!stale.apply(
+            suggestion_signature("git s", "/"),
+            &mut ranked,
+            &mut ranked_typed,
+            &mut history_tail,
+            &mut partial
+        ));
+        assert_eq!(ranked[0].name, "add");
+        assert_eq!(ranked_typed, "git ");
+        assert!(history_tail.is_none());
+    }
+
+    #[test]
+    fn typeahead_clears_ghost_and_popup_acceptance_before_shell_echo() {
+        for (ui, keys) in [
+            (UiMode::Ghost, b"s\x1b[C".as_slice()),
+            (UiMode::Popup, b"s\t".as_slice()),
+            (UiMode::Hybrid, b"s\x1b[C".as_slice()),
+        ] {
+            let mut tracker = TermTracker::new(24, 80);
+            tracker.feed(
+                b"$ ",
+                &[ansi::IsEvent::PromptStart, ansi::IsEvent::PromptEnd],
+            );
+            tracker.feed(b"git ", &[]);
+            let has_ghost = matches!(ui, UiMode::Ghost | UiMode::Hybrid);
+            let has_popup = matches!(ui, UiMode::Popup | UiMode::Hybrid);
+            let mut pending_tail = if has_ghost {
+                history_ghost("status")
+            } else {
+                None
+            };
+            let mut popup_mode = if has_popup {
+                PopupMode::Visible { cursor: 0 }
+            } else {
+                PopupMode::Hidden
+            };
+            let pty = FakePty::default();
+            let mut renderer = Renderer::new(ui, 5, crate::render::popup::IconSet::Emoji);
+            let ranked = vec![sug("status")];
+            for key in split_keys(keys) {
+                let effect = handle_stdin(
+                    key,
+                    has_ghost,
+                    has_popup,
+                    &mut pending_tail,
+                    &mut popup_mode,
+                    &ranked,
+                    "git ",
+                    &Bindings::default(),
+                    Shell::Bash,
+                    &tracker,
+                    &mut renderer,
+                    &mut Vec::new(),
+                    &pty,
+                    &mut false,
+                    &current_partial("git "),
+                );
+                assert_ne!(effect, InputEffect::UiOnly);
+                assert!(pending_tail.is_none());
+            }
+            assert_eq!(
+                pty.writes.borrow().as_slice(),
+                keys,
+                "stale status was accepted in {ui:?}"
+            );
+            assert_eq!(popup_mode, PopupMode::Hidden);
+        }
+    }
+
+    #[test]
+    fn canceled_responses_cannot_restore_acceptance_before_echo_or_after_a_new_request() {
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.feed(
+            b"$ ",
+            &[ansi::IsEvent::PromptStart, ansi::IsEvent::PromptEnd],
+        );
+        tracker.feed(b"git ", &[]);
+        let mut requests = SuggestRequests::default();
+        let old_id = requests.request("git ", "/").unwrap();
+        assert!(requests.request("git ", "/").is_none());
+        requests.forwarded(&tracker, b"s", false);
+        assert!(requests.awaiting_echo);
+        assert!(requests.request("git ", "/").is_none());
+        // A background repaint and unrelated beep are not the edit's echo.
+        tracker.feed(b"\x1b7\x1b[10;1Hasync output\x1b8", &[]);
+        requests.observe(&tracker, false, false);
+        assert!(requests.awaiting_echo);
+        tracker.feed(b"\x07", &[]);
+        requests.observe(&tracker, false, true);
+        assert!(requests.awaiting_echo);
+        let response = |id, typed: &str| SuggestResponse {
+            signature: id,
+            typed: typed.into(),
+            ranked: vec![sug("status")],
+            history_tail: None,
+            partial: current_partial(typed),
+        };
+        let mut ranked = Vec::new();
+        let mut ranked_typed = String::new();
+        let mut history_tail = None;
+        let mut partial = Partial::default();
+        assert!(!response(old_id, "git ").apply(
+            requests.id,
+            &mut ranked,
+            &mut ranked_typed,
+            &mut history_tail,
+            &mut partial
+        ));
+        assert!(ranked.is_empty());
+
+        // Only the actual edit advances the tracked command and permits a
+        // fresh request. The old identity remains canceled after recovery.
+        tracker.feed(b"s", &[]);
+        requests.observe(&tracker, false, false);
+        assert!(!requests.awaiting_echo);
+        let new_id = requests
+            .request(tracker.command_before_cursor(), "/")
+            .unwrap();
+        assert_ne!(new_id, old_id);
+        assert!(!response(old_id, "git ").apply(
+            requests.id,
+            &mut ranked,
+            &mut ranked_typed,
+            &mut history_tail,
+            &mut partial
+        ));
+        assert!(response(new_id, "git s").apply(
+            requests.id,
+            &mut ranked,
+            &mut ranked_typed,
+            &mut history_tail,
+            &mut partial
+        ));
+        let mut pending_tail =
+            suggestion_ghost(&ranked[0], &ranked_typed, &partial, Some(Shell::Bash));
+        let pty = FakePty::default();
+        let effect = handle_stdin(
+            b"\x1b[C",
+            true,
+            false,
+            &mut pending_tail,
+            &mut PopupMode::Hidden,
+            &ranked,
+            &ranked_typed,
+            &Bindings::default(),
+            Shell::Bash,
+            &tracker,
+            &mut Renderer::new(UiMode::Ghost, 5, crate::render::popup::IconSet::Emoji),
+            &mut Vec::new(),
+            &pty,
+            &mut false,
+            &partial,
+        );
+        assert_eq!(effect, InputEffect::Inserted(b"tatus".to_vec()));
+        assert_eq!(pty.writes.borrow().as_slice(), b"tatus");
+
+        // A no-op navigation key may report a bell without changing text.
+        requests.forwarded(&tracker, b"\x1b[C", true);
+        requests.observe(&tracker, false, true);
+        assert!(requests.request("git s", "/").is_some());
+    }
+
+    #[test]
+    fn redraw_only_input_preserves_outstanding_suggestion_request() {
+        let tracker = TermTracker::new(24, 80);
+        let mut requests = SuggestRequests::default();
+        let id = requests.request("git s", "/").unwrap();
+        let pty = FakePty::default();
+        let effect = handle_stdin(
+            b"\x0c",
+            true,
+            false,
+            &mut None,
+            &mut PopupMode::Hidden,
+            &[],
+            "git s",
+            &Bindings::default(),
+            Shell::Bash,
+            &tracker,
+            &mut Renderer::new(UiMode::Ghost, 5, crate::render::popup::IconSet::Emoji),
+            &mut Vec::new(),
+            &pty,
+            &mut false,
+            &current_partial("git s"),
+        );
+        assert_eq!(effect, InputEffect::ForwardedRedraw);
+        assert_eq!(pty.writes.borrow().as_slice(), b"\x0c");
+        assert!(!requests.awaiting_echo);
+        assert_eq!(requests.id, id);
+        assert!(requests.request("git s", "/").is_none());
+    }
+
+    #[test]
+    fn partial_echo_of_a_forwarded_burst_cannot_reactivate_suggestions() {
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.feed(
+            b"$ ",
+            &[ansi::IsEvent::PromptStart, ansi::IsEvent::PromptEnd],
+        );
+        tracker.feed(b"git ", &[]);
+        let mut requests = SuggestRequests::default();
+        let old = requests.request("git ", "/").unwrap();
+        requests.forwarded(&tracker, b"s", false);
+        requests.forwarded(&tracker, b"t", false);
+        tracker.feed(b"s", &[]);
+        requests.observe(&tracker, false, false);
+        assert!(requests.awaiting_echo);
+        assert!(requests.request("git s", "/").is_none());
+        let mut ranked = Vec::new();
+        let mut typed = String::new();
+        let mut partial = Partial::default();
+        let mut tail = None;
+        assert!(
+            !SuggestResponse {
+                signature: old,
+                typed: "git ".into(),
+                ranked: vec![sug("status")],
+                history_tail: None,
+                partial: Partial::default(),
+            }
+            .apply(
+                requests.id,
+                &mut ranked,
+                &mut typed,
+                &mut tail,
+                &mut partial
+            )
+        );
+        assert!(ranked.is_empty());
+
+        tracker.feed(b"t", &[]);
+        requests.observe(&tracker, false, false);
+        assert!(!requests.awaiting_echo);
+        let fresh = requests
+            .request(tracker.command_before_cursor(), "/")
+            .unwrap();
+        assert!(
+            SuggestResponse {
+                signature: fresh,
+                typed: "git st".into(),
+                ranked: vec![sug("status")],
+                history_tail: None,
+                partial: current_partial("git st"),
+            }
+            .apply(
+                requests.id,
+                &mut ranked,
+                &mut typed,
+                &mut tail,
+                &mut partial
+            )
+        );
+        assert_eq!(
+            suggestion_ghost(&ranked[0], &typed, &partial, Some(Shell::Bash))
+                .unwrap()
+                .insert,
+            b"atus"
+        );
+    }
+
+    #[test]
+    fn expected_echo_tracks_navigation_and_inserted_text_as_one_burst() {
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.feed(
+            b"$ ",
+            &[ansi::IsEvent::PromptStart, ansi::IsEvent::PromptEnd],
+        );
+        tracker.feed(b"git s", &[]);
+        let mut requests = SuggestRequests::default();
+        requests.forwarded(&tracker, b"\x1b[D", true);
+        requests.forwarded(&tracker, b"t", false);
+        tracker.feed(b"\x1b[D", &[]);
+        requests.observe(&tracker, false, false);
+        assert!(requests.awaiting_echo);
+        // Readline paints the inserted character and retained suffix, then
+        // moves back over the suffix to restore the insertion caret.
+        tracker.feed(b"t", &[]);
+        requests.observe(&tracker, false, false);
+        assert!(requests.awaiting_echo);
+        tracker.feed(b"s\x08", &[]);
+        requests.observe(&tracker, false, false);
+        assert_eq!(tracker.state().command, "git ts");
+        assert!(!requests.awaiting_echo);
+
+        requests.forwarded(&tracker, b"\x15echo", false);
+        tracker.feed(b"\r$ echos\x1b[K\x08", &[]);
+        requests.observe(&tracker, false, false);
+        assert_eq!(tracker.state().command, "echos");
+        assert!(!requests.awaiting_echo);
+    }
+
+    #[test]
+    fn shell_abbreviation_rewrite_recovers_and_accepts_normal_following_completion() {
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.feed(
+            b"$ ",
+            &[ansi::IsEvent::PromptStart, ansi::IsEvent::PromptEnd],
+        );
+        let mut requests = SuggestRequests::default();
+        requests.forwarded(&tracker, b"zzabbr ", false);
+        tracker.feed(b"zzabbr", &[]);
+        requests.observe(&tracker, false, false);
+        assert!(
+            requests.awaiting_echo,
+            "ordinary partial echo must stay blocked"
+        );
+        // Fish's abbreviation expansion erases the literal word and paints
+        // a different command. Waiting for the literal zzabbr would stall.
+        tracker.feed(b"\r$ git \x1b[K", &[]);
+        requests.observe(&tracker, false, false);
+        assert!(!requests.awaiting_echo);
+        assert!(requests.request("git ", "/").is_some());
+        requests.forwarded(&tracker, b"ch", false);
+        tracker.feed(b"ch", &[]);
+        requests.observe(&tracker, false, false);
+        assert!(!requests.awaiting_echo);
+        let id = requests.request("git ch", "/").unwrap();
+        let mut ranked = Vec::new();
+        let mut typed = String::new();
+        let mut partial = Partial::default();
+        assert!(
+            SuggestResponse {
+                signature: id,
+                typed: "git ch".into(),
+                ranked: vec![sug("checkout")],
+                history_tail: None,
+                partial: current_partial("git ch"),
+            }
+            .apply(
+                requests.id,
+                &mut ranked,
+                &mut typed,
+                &mut None,
+                &mut partial
+            )
+        );
+        let mut pending = suggestion_ghost(&ranked[0], &typed, &partial, Some(Shell::Fish));
+        let pty = FakePty::default();
+        handle_stdin(
+            b"\x1b[C",
+            true,
+            false,
+            &mut pending,
+            &mut PopupMode::Hidden,
+            &ranked,
+            &typed,
+            &Bindings::default(),
+            Shell::Fish,
+            &tracker,
+            &mut Renderer::new(UiMode::Ghost, 5, crate::render::popup::IconSet::Emoji),
+            &mut Vec::new(),
+            &pty,
+            &mut false,
+            &partial,
+        );
+        assert_eq!(pty.writes.borrow().as_slice(), b"eckout");
+    }
+
+    #[test]
+    fn popup_placement_excludes_every_prompt_and_wrapped_command_row() {
+        let mut tracker = TermTracker::new(12, 10);
+        tracker.feed_ordered(b"\r\n\r\n", &[]);
+        tracker.feed_ordered(
+            b"first\r\n$ abcdefghijklmnopq",
+            &[
+                (0, ansi::IsEvent::PromptStart),
+                (9, ansi::IsEvent::PromptEnd),
+            ],
+        );
+        tracker.feed_ordered(b"\x1b[A\r\x1b[4C", &[]);
+        assert_eq!(tracker.popup_region(), (2, 4));
+        assert_eq!(popup_placement(&tracker, 8), (Direction::Below, 7, 1));
+
+        // Near the bottom, above placement must skip all earlier prompt rows,
+        // not merely take the raw cursor row as free space.
+        let mut tracker = TermTracker::new(5, 10);
+        tracker.feed_ordered(b"\r\n\r\n\r\n", &[]);
+        tracker.feed_ordered(
+            b"first\r\n$ git",
+            &[
+                (0, ansi::IsEvent::PromptStart),
+                (9, ansi::IsEvent::PromptEnd),
+            ],
+        );
+        assert_eq!(tracker.popup_region(), (3, 4));
+        assert_eq!(popup_placement(&tracker, 8), (Direction::Above, 3, 1));
     }
 
     #[test]
@@ -1509,9 +2704,13 @@ mod tests {
             &mut out,
             &pty,
             &mut submitting,
+            &current_partial(""),
         );
 
-        assert!(forwarded_cursor_navigation);
+        assert_eq!(
+            forwarded_cursor_navigation,
+            InputEffect::ForwardedNavigation
+        );
         assert_eq!(pty.writes.borrow().as_slice(), b"\x1b[D");
         assert!(!renderer.ghost_visible());
         assert!(String::from_utf8_lossy(&out).contains(crate::ansi::ERASE_LINE_RIGHT));
@@ -1554,6 +2753,11 @@ mod tests {
             &mut out,
             &pty,
             &mut submitting,
+            &current_partial(
+                // An empty tracker reports an empty line; the suggestions were
+                // computed for it.
+                "",
+            ),
         );
         pty.writes.into_inner()
     }
@@ -1696,9 +2900,13 @@ mod tests {
             &mut out,
             &pty,
             &mut submitting,
+            &current_partial(""),
         );
 
-        assert!(forwarded_cursor_navigation);
+        assert_eq!(
+            forwarded_cursor_navigation,
+            InputEffect::ForwardedNavigation
+        );
         assert_eq!(pty.writes.borrow().as_slice(), b"\x1b[C");
     }
 }
