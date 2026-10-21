@@ -231,9 +231,13 @@ struct SuggestRequests {
 }
 
 impl SuggestRequests {
-    fn forwarded(&mut self, tracker: &TermTracker, bytes: &[u8], allow_bell: bool) {
+    fn invalidate(&mut self) {
         self.id = self.id.wrapping_add(1);
         self.context = None;
+    }
+
+    fn forwarded(&mut self, tracker: &TermTracker, bytes: &[u8], allow_bell: bool) {
+        self.invalidate();
         let pending = self.echo_from.get_or_insert_with(|| {
             let expected = EditState::from_tracker(tracker);
             let checkpoints = [(expected.text_hash, expected.command.len())]
@@ -318,6 +322,26 @@ impl SuggestionTick {
         Self {
             made_progress: engine_just_loaded || got_suggestions,
         }
+    }
+
+    fn aliases_published(
+        &mut self,
+        requests: &mut SuggestRequests,
+        ranked: &mut Vec<Suggestion>,
+        ranked_typed: &mut String,
+        history_tail: &mut Option<String>,
+        partial: &mut Partial,
+        pending_tail: &mut Option<GhostTail>,
+    ) {
+        // Results computed before the new alias map are stale even when the
+        // line and cwd match. Preserve pending shell-echo acknowledgments.
+        requests.invalidate();
+        ranked.clear();
+        ranked_typed.clear();
+        *history_tail = None;
+        *partial = Partial::default();
+        *pending_tail = None;
+        self.made_progress = true;
     }
 
     fn schedule(
@@ -460,6 +484,7 @@ pub fn run_wrapped(
     // critical path so the shell prompt appears instantly.
     let engine: std::sync::Arc<std::sync::RwLock<Option<Engine>>> =
         std::sync::Arc::new(std::sync::RwLock::new(None));
+    let (aliases_tx, aliases_rx) = std::sync::mpsc::channel::<()>();
     {
         let engine = engine.clone();
         let alias_shell = shell;
@@ -478,8 +503,8 @@ pub fn run_wrapped(
             if let Ok(mut slot) = engine.write() {
                 *slot = Some(built);
             }
-            if use_aliases {
-                load_engine_aliases(&engine, || crate::alias::load(alias_shell));
+            if use_aliases && load_engine_aliases(&engine, || crate::alias::load(alias_shell)) {
+                let _ = aliases_tx.send(());
             }
         });
     }
@@ -641,6 +666,24 @@ pub fn run_wrapped(
         let engine_just_loaded = engine_ready && !engine_was_ready;
         engine_was_ready = engine_ready;
 
+        let mut tick = SuggestionTick::new(engine_just_loaded, false);
+        // The one-shot alias load changes completions for unchanged text.
+        // Consume publication before worker responses so old IDs are rejected.
+        if aliases_rx.try_recv().is_ok() {
+            tick.aliases_published(
+                &mut requests,
+                &mut ranked,
+                &mut ranked_typed,
+                &mut history_tail,
+                &mut ranked_partial,
+                &mut pending_tail,
+            );
+            renderer.clear(&mut out).ok();
+            if popup_mode != PopupMode::Dismissed {
+                popup_mode = PopupMode::Hidden;
+            }
+        }
+
         // Pick up anything the suggestion worker finished while we were idle.
         let mut got_suggestions = false;
         while let Ok(response) = res_rx.try_recv() {
@@ -653,13 +696,10 @@ pub fn run_wrapped(
             );
         }
 
-        if !pty_ready && !stdin_ready && !engine_just_loaded && !got_suggestions {
+        tick.made_progress |= got_suggestions;
+        if !pty_ready && !stdin_ready && !tick.made_progress {
             continue;
         }
-
-        // Suggestions arriving from the worker are progress too: without this
-        // a tick woken only by a worker result would fall through the redraw.
-        let mut tick = SuggestionTick::new(engine_just_loaded, got_suggestions);
 
         // Read PTY output if ready.
         if pty_ready {
@@ -1017,13 +1057,18 @@ fn drain_exited_pty(
 fn load_engine_aliases(
     engine: &std::sync::RwLock<Option<Engine>>,
     load: impl FnOnce() -> std::collections::HashMap<String, String>,
-) {
+) -> bool {
     let aliases = load();
+    if aliases.is_empty() {
+        return false;
+    }
     if let Ok(mut guard) = engine.write()
         && let Some(published) = guard.as_mut()
     {
         published.set_aliases(aliases);
+        return true;
     }
+    false
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1569,6 +1614,25 @@ mod tests {
         assert!(suggestions.iter().any(|s| s.name == "audit_alias"));
     }
 
+    #[test]
+    fn alias_load_reports_only_nonempty_maps_published_to_an_engine() {
+        let aliases = || [("g".into(), "git".into())].into_iter().collect();
+        assert!(!load_engine_aliases(&std::sync::RwLock::new(None), aliases));
+        let engine = std::sync::RwLock::new(Some(Engine::new(Registry::default(), vec![])));
+        assert!(!load_engine_aliases(&engine, Default::default));
+        assert!(load_engine_aliases(&engine, aliases));
+        assert!(
+            engine
+                .read()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .suggest_blob("g", "/")
+                .iter()
+                .any(|suggestion| suggestion.name == "g")
+        );
+    }
+
     #[derive(Default)]
     struct FakePty {
         writes: RefCell<Vec<u8>>,
@@ -1808,6 +1872,94 @@ mod tests {
             worker.try_recv().is_err(),
             "idle ticks must not duplicate work"
         );
+    }
+
+    #[test]
+    fn alias_publication_replaces_same_line_requests_without_acknowledging_pending_edits() {
+        for pending_edit in [false, true] {
+            let mut tracker = TermTracker::new(24, 80);
+            tracker.feed(
+                b"> ",
+                &[ansi::IsEvent::PromptStart, ansi::IsEvent::PromptEnd],
+            );
+            tracker.feed(b"g ch", &[]);
+            let mut requests = SuggestRequests::default();
+            let (sender, worker) = std::sync::mpsc::channel();
+            SuggestionTick::new(true, false)
+                .schedule(&mut requests, "g ch", "/repo", &sender)
+                .unwrap();
+            let (old_id, old_typed, _) = worker.try_recv().unwrap();
+            let old_response = SuggestResponse {
+                signature: old_id,
+                typed: old_typed.clone(),
+                ranked: vec![sug("old")],
+                history_tail: Some("old".into()),
+                partial: current_partial(&old_typed),
+            };
+            let mut ranked = vec![sug("old")];
+            let mut ranked_typed = old_typed.clone();
+            let mut history_tail = Some("old".into());
+            let mut partial = current_partial(&old_typed);
+            let mut pending_tail = history_ghost("old");
+            if pending_edit {
+                requests.forwarded(&tracker, b"e", false);
+            }
+            let previous_id = requests.id;
+            let mut tick = SuggestionTick::new(false, false);
+            tick.aliases_published(
+                &mut requests,
+                &mut ranked,
+                &mut ranked_typed,
+                &mut history_tail,
+                &mut partial,
+                &mut pending_tail,
+            );
+            assert_ne!(requests.id, previous_id);
+            assert!(ranked.is_empty());
+            assert!(ranked_typed.is_empty());
+            assert!(history_tail.is_none());
+            assert_eq!(partial, Partial::default());
+            assert!(pending_tail.is_none());
+            assert!(!old_response.apply(
+                requests.id,
+                &mut ranked,
+                &mut ranked_typed,
+                &mut history_tail,
+                &mut partial,
+            ));
+            tick.schedule(&mut requests, "g ch", "/repo", &sender)
+                .unwrap();
+            if pending_edit {
+                assert!(requests.awaiting_echo);
+                assert!(
+                    worker.try_recv().is_err(),
+                    "publication cannot acknowledge an edit"
+                );
+                requests.observe(&tracker, false, false);
+                assert!(requests.awaiting_echo);
+                tracker.feed(b"e", &[]);
+                requests.observe(&tracker, false, false);
+                assert!(!requests.awaiting_echo);
+                tick.schedule(
+                    &mut requests,
+                    tracker.command_before_cursor(),
+                    "/repo",
+                    &sender,
+                )
+                .unwrap();
+            }
+            let (new_id, new_typed, cwd) =
+                worker.try_recv().expect("new alias map must be queried");
+            assert_ne!(new_id, old_id);
+            assert_eq!(new_typed, if pending_edit { "g che" } else { "g ch" });
+            assert_eq!(cwd, "/repo");
+            tick.schedule(&mut requests, &new_typed, &cwd, &sender)
+                .unwrap();
+            assert!(
+                worker.try_recv().is_err(),
+                "publication schedules only once"
+            );
+        }
     }
 
     #[test]

@@ -26,7 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   markers retain their byte order, and popups fit around multiline prompts
   and wrapped command text (#129, #133, #136, #142, #143).
 - Text entered while the completion engine loads receives suggestions as
-  soon as it is ready, without requiring another key or redraw (#149).
+  soon as it is ready, without requiring another key or redraw. Aliases
+  published later also refresh the current completion context (#149, #150).
 - Absolute root paths complete independently of the working directory (#123).
 - Wrapped Fish disables its native autosuggestions in ghost and hybrid modes
   so they cannot hide completions; popup mode retains them. Multiline Fish
