@@ -38,6 +38,17 @@ use std::time::Duration;
 
 /// How long any single `coreutils` probe may take before we give up on it.
 const PROBE_TIMEOUT: Duration = Duration::from_millis(750);
+/// Lists and help are small; reject noisy/unrelated programs before their
+/// output can exhaust memory, including output retained by descendants.
+const MAX_PROBE_OUTPUT_BYTES: u64 = 4 * 1024 * 1024;
+
+fn read_cache_text(path: &Path) -> Option<String> {
+    String::from_utf8(crate::generator::read_bounded_file(
+        path,
+        MAX_PROBE_OUTPUT_BYTES,
+    )?)
+    .ok()
+}
 
 /// An installed multi-call coreutils binary and the utilities it provides.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,7 +88,7 @@ fn probe() -> Option<Coreutils> {
 fn list_utils(binary: &Path) -> Option<Vec<String>> {
     let cache = cache_dir(binary).map(|d| d.join("list.txt"));
     if let Some(path) = &cache
-        && let Ok(text) = std::fs::read_to_string(path)
+        && let Some(text) = read_cache_text(path)
     {
         let utils = parse_list(&text);
         if !utils.is_empty() {
@@ -163,14 +174,14 @@ fn remember(cache: Option<&Path>, resolved: &str, verdict: Option<bool>) -> bool
 
 /// `~/.inshellisense/coreutils/<fingerprint>/`, keyed by the binary's identity
 /// so an upgraded coreutils re-probes instead of serving a stale utility list.
-fn cache_dir(binary: &Path) -> Option<PathBuf> {
+fn binary_fingerprint(binary: &Path) -> Option<String> {
     let meta = std::fs::metadata(binary).ok()?;
     let mtime = meta
         .modified()
         .ok()?
         .duration_since(std::time::UNIX_EPOCH)
         .ok()?
-        .as_secs();
+        .as_nanos();
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for bytes in [
         binary.to_string_lossy().as_bytes(),
@@ -182,10 +193,14 @@ fn cache_dir(binary: &Path) -> Option<PathBuf> {
             hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
         }
     }
+    Some(format!("{hash:016x}"))
+}
+
+fn cache_dir(binary: &Path) -> Option<PathBuf> {
     Some(
         crate::paths::resource_root()?
             .join("coreutils")
-            .join(format!("{hash:016x}")),
+            .join(binary_fingerprint(binary)?),
     )
 }
 
@@ -208,37 +223,104 @@ enum Probe {
 }
 
 fn run_capture_within(binary: &Path, args: &[&str], timeout: Duration) -> Probe {
-    let mut child = match Command::new(binary)
+    let mut command = Command::new(binary);
+    command
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-    {
+        .stderr(Stdio::null());
+    #[cfg(unix)]
+    unsafe {
+        use std::os::unix::process::CommandExt;
+        command.pre_exec(|| {
+            if libc::setpgid(0, 0) == 0 {
+                Ok(())
+            } else {
+                Err(std::io::Error::last_os_error())
+            }
+        });
+    }
+    let start = std::time::Instant::now();
+    let mut child = match command.spawn() {
         Ok(child) => child,
         Err(_) => return Probe::Failed,
     };
     let Some(mut stdout) = child.stdout.take() else {
-        let _ = child.kill();
+        kill_probe(&mut child);
         let _ = child.wait();
         return Probe::Failed;
     };
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
+        use std::io::Read;
         let mut buf = Vec::new();
-        let _ = std::io::Read::read_to_end(&mut stdout, &mut buf);
-        let _ = tx.send(buf);
+        let read = stdout
+            .by_ref()
+            .take(MAX_PROBE_OUTPUT_BYTES + 1)
+            .read_to_end(&mut buf);
+        let bytes = (read.is_ok() && buf.len() as u64 <= MAX_PROBE_OUTPUT_BYTES).then_some(buf);
+        let _ = tx.send(bytes);
     });
-    let bytes = match rx.recv_timeout(timeout) {
-        Ok(bytes) => bytes,
-        Err(_) => {
-            let _ = child.kill();
+    loop {
+        // Wake immediately for complete output; periodically inspect the
+        // child's status when a descendant keeps the pipe open.
+        let interval = timeout
+            .saturating_sub(start.elapsed())
+            .min(Duration::from_millis(5));
+        match rx.recv_timeout(interval) {
+            Ok(bytes) => {
+                if bytes.is_some() {
+                    reap_within(&mut child, timeout.saturating_sub(start.elapsed()));
+                }
+                kill_probe(&mut child);
+                let _ = child.wait();
+                return captured_output(bytes);
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                kill_probe(&mut child);
+                let _ = child.wait();
+                return Probe::Failed;
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+        }
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                // A background descendant may hold stdout after the probe
+                // exits. End its process group before awaiting EOF (#127).
+                kill_probe(&mut child);
+                return match rx.recv_timeout(timeout.saturating_sub(start.elapsed())) {
+                    Ok(bytes) => captured_output(bytes),
+                    Err(_) => Probe::Timeout,
+                };
+            }
+            Err(_) => {
+                kill_probe(&mut child);
+                let _ = child.wait();
+                return Probe::Failed;
+            }
+            Ok(None) => {}
+        }
+        if start.elapsed() >= timeout {
+            kill_probe(&mut child);
             let _ = child.wait();
             return Probe::Timeout;
         }
-    };
-    reap_within(&mut child, timeout);
-    Probe::Output(String::from_utf8_lossy(&bytes).into_owned())
+    }
+}
+
+fn captured_output(bytes: Option<Vec<u8>>) -> Probe {
+    match bytes {
+        Some(bytes) => Probe::Output(String::from_utf8_lossy(&bytes).into_owned()),
+        None => Probe::Failed,
+    }
+}
+
+fn kill_probe(child: &mut std::process::Child) {
+    #[cfg(unix)]
+    unsafe {
+        let _ = libc::kill(-(child.id() as libc::pid_t), libc::SIGKILL);
+    }
+    let _ = child.kill();
 }
 
 /// Reap `child`, giving it at most `budget` beyond the output read.
@@ -253,7 +335,7 @@ fn reap_within(child: &mut std::process::Child, budget: Duration) {
             Ok(Some(_)) | Err(_) => return,
             Ok(None) => {
                 if start.elapsed() >= budget {
-                    let _ = child.kill();
+                    kill_probe(child);
                     let _ = child.wait();
                     return;
                 }
@@ -307,9 +389,17 @@ impl Coreutils {
         let Some(resolved) = crate::platform::find_on_path(util) else {
             return false;
         };
-        let cache = cache_dir(&self.binary).map(|d| d.join("owned").join(sanitize(util)));
+        // Replacing a utility in place changes its implementation while its
+        // PATH resolution stays the same. Key the ownership verdict by both
+        // executables, including their precise timestamps (#132).
+        let cache = cache_dir(&self.binary)
+            .zip(binary_fingerprint(Path::new(&resolved)))
+            .map(|(dir, fingerprint)| {
+                dir.join("owned")
+                    .join(format!("{}-{fingerprint}", sanitize(util)))
+            });
         if let Some(path) = &cache
-            && let Ok(text) = std::fs::read_to_string(path)
+            && let Some(text) = read_cache_text(path)
             && let Some((cached_path, flag)) = text.split_once('\n')
             && cached_path == resolved
         {
@@ -365,7 +455,7 @@ impl Coreutils {
         }
         let cache = cache_dir(&self.binary).map(|d| d.join(format!("{}.json", sanitize(util))));
         if let Some(path) = &cache
-            && let Ok(bytes) = std::fs::read(path)
+            && let Some(bytes) = crate::generator::read_bounded_file(path, MAX_PROBE_OUTPUT_BYTES)
             && let Ok(spec) = serde_json::from_slice::<Subcommand>(&bytes)
         {
             return Some(spec);
@@ -1088,6 +1178,32 @@ Options:
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    /// #132: coarse second timestamps made equal-size replacements reuse
+    /// stale help and ownership verdicts for the old executable.
+    #[test]
+    fn binary_fingerprints_preserve_subsecond_modification_times() {
+        use std::fs::{File, FileTimes};
+        let dir = crate::test_support::unique_temp_dir("binary-fingerprint");
+        let binary = dir.join("coreutils");
+        let stamp = std::time::UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+        std::fs::write(&binary, b"first").unwrap();
+        File::open(&binary)
+            .unwrap()
+            .set_times(FileTimes::new().set_modified(stamp + Duration::from_millis(100)))
+            .unwrap();
+        let first = binary_fingerprint(&binary).unwrap();
+        std::fs::write(&binary, b"other").unwrap();
+        File::open(&binary)
+            .unwrap()
+            .set_times(FileTimes::new().set_modified(stamp + Duration::from_millis(200)))
+            .unwrap();
+        let second = binary_fingerprint(&binary).unwrap();
+        assert_ne!(first, second);
+        // Stable metadata must still hit the same disk cache.
+        assert_eq!(second, binary_fingerprint(&binary).unwrap());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
     /// A verdict that was not measured must not be cached: a probe that timed
     /// out would otherwise be remembered forever as owns() == false, disabling
     /// option augmentation until the coreutils binary changed (#70).
@@ -1170,5 +1286,71 @@ Options:
             "lingering child outlived the probe budget"
         );
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// #127: a probe exiting before its background work must release the
+    /// inherited output pipe promptly and stop the leftover work.
+    #[cfg(unix)]
+    #[test]
+    fn an_exited_probe_stops_background_descendants() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = crate::test_support::unique_temp_dir("probe-descendant");
+        let marker = dir.join("leaked");
+        let script = dir.join("probe");
+        std::fs::write(
+            &script,
+            format!(
+                "#!/bin/sh\n(sleep 0.3; printf leaked > '{}') & printf 'ls\\n'\n",
+                marker.display()
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let start = std::time::Instant::now();
+        assert_eq!(
+            run_capture_within(&script, &[], Duration::from_secs(2)),
+            Probe::Output("ls\n".into())
+        );
+        assert!(start.elapsed() < Duration::from_secs(1));
+        std::thread::sleep(Duration::from_millis(400));
+        assert!(!marker.exists(), "probe descendant survived capture");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// #127: timeout alone does not limit how much output a probe can retain.
+    #[cfg(unix)]
+    #[test]
+    fn probe_output_and_cached_text_are_bounded() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = crate::test_support::unique_temp_dir("probe-cap");
+        let script = dir.join("probe");
+        std::fs::write(
+            &script,
+            "#!/bin/sh\nif [ \"$1\" = endless ]; then yes; else head -c \"$1\" /dev/zero; fi\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let at_cap = MAX_PROBE_OUTPUT_BYTES.to_string();
+        let Probe::Output(bytes) = run_capture_within(&script, &[&at_cap], Duration::from_secs(5))
+        else {
+            panic!("output exactly at the cap was rejected");
+        };
+        assert_eq!(bytes.len() as u64, MAX_PROBE_OUTPUT_BYTES);
+        let over_cap = (MAX_PROBE_OUTPUT_BYTES + 1).to_string();
+        assert_eq!(
+            run_capture_within(&script, &[&over_cap], Duration::from_secs(5)),
+            Probe::Failed
+        );
+        let start = std::time::Instant::now();
+        assert_eq!(
+            run_capture_within(&script, &["endless"], Duration::from_secs(30)),
+            Probe::Failed
+        );
+        assert!(start.elapsed() < Duration::from_secs(5));
+
+        let cache = dir.join("list.txt");
+        std::fs::write(&cache, vec![b'x'; MAX_PROBE_OUTPUT_BYTES as usize + 1]).unwrap();
+        assert!(read_cache_text(&cache).is_none());
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

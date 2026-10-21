@@ -86,11 +86,14 @@ impl Engine {
         if line.trim().is_empty() {
             return None;
         }
-        let blob = self.suggest_blob(line, cwd);
-        // Some(partial) = a token is in progress (possibly empty, after a
-        // trailing space); None = the last token is complete, so there is
-        // nothing of a suggestion left to type for it (#67).
-        let partial = current_partial(line, self.shell)?;
+        let (blob, active_token) = self.suggest_blob_with_token(line, cwd);
+        // Use the resolver's whole required value, including any `=` parts.
+        // Trailing whitespace starts a new, empty word to complete.
+        let partial = match active_token {
+            Some(token) => token.token,
+            None if line.ends_with(char::is_whitespace) => String::new(),
+            None => return None,
+        };
         if let Some(top) = blob.first()
             && let Some(tail) = ci_tail(&top.name, &partial)
         {
@@ -119,7 +122,30 @@ impl Engine {
 
     /// Full suggestion blob — sorted and filtered.
     pub fn suggest_blob(&self, line: &str, cwd: &str) -> Vec<Suggestion> {
-        let original_tokens = spec::parse_command(line);
+        self.suggest_blob_with_token(line, cwd).0
+    }
+
+    /// Suggestions and the resolved incomplete word used for replacement.
+    /// A trailing complete word has no active token. Unknown commands and
+    /// first-word completion retain the shell-aware parser's partial token.
+    pub fn suggest_blob_with_token(
+        &self,
+        line: &str,
+        cwd: &str,
+    ) -> (Vec<Suggestion>, Option<CommandToken>) {
+        let mut active_token = None;
+        let suggestions = self.suggest_blob_inner(line, cwd, &mut active_token);
+        (suggestions, active_token)
+    }
+
+    fn suggest_blob_inner(
+        &self,
+        line: &str,
+        cwd: &str,
+        active_token: &mut Option<CommandToken>,
+    ) -> Vec<Suggestion> {
+        let original_tokens = spec::parse_command_for(line, flavor_of(self.shell));
+        *active_token = original_tokens.last().filter(|t| !t.complete).cloned();
         if original_tokens.is_empty() {
             return Vec::new();
         }
@@ -156,8 +182,13 @@ impl Engine {
         // Expand aliases before resolving — if the first word in the active
         // command segment is an alias, suggestions should reflect the expanded
         // command (upstream: runtime.ts:110).
-        let expanded = crate::alias::expand_active_segment(line, &self.aliases);
-        let tokens = spec::parse_command_for(&expanded, flavor_of(self.shell));
+        let expanded =
+            crate::alias::expand_active_segment_for(line, &self.aliases, flavor_of(self.shell));
+        let tokens = if expanded == line {
+            original_tokens
+        } else {
+            spec::parse_command_for(&expanded, flavor_of(self.shell))
+        };
         if tokens.is_empty() {
             return Vec::new();
         }
@@ -186,6 +217,9 @@ impl Engine {
         };
         let result =
             resolver::resolve_with_options(&self.registry, root, &tokens, case_insensitive);
+        if let Some(partial) = result.active_partial {
+            *active_token = Some(partial.clone());
+        }
 
         let partial = result
             .active_partial
@@ -698,6 +732,7 @@ fn current_partial(line: &str, shell: Option<Shell>) -> Option<String> {
 /// Map a wrapped shell to the tokenizer rule set its command lines follow.
 pub(crate) fn flavor_of(shell: Option<Shell>) -> spec::ShellFlavor {
     match shell {
+        Some(Shell::Fish) => spec::ShellFlavor::Fish,
         Some(Shell::Pwsh | Shell::Powershell) => spec::ShellFlavor::PowerShell,
         #[cfg(windows)]
         Some(Shell::Cmd) => spec::ShellFlavor::Cmd,
@@ -718,7 +753,100 @@ fn _first_arg(s: &Subcommand) -> Option<&crate::spec::model::Arg> {
 
 #[cfg(test)]
 mod pick_primary_tests {
-    use super::pick_primary;
+    use super::{Engine, Registry, Subcommand, pick_primary};
+    use crate::shell::Shell;
+
+    #[test]
+    fn required_attached_equals_value_drives_suggestions_ghost_and_replacement() {
+        let mut registry = Registry::default();
+        registry.insert(Subcommand {
+            names: vec!["audit".into()],
+            options: vec![crate::spec::Opt {
+                names: vec!["-e".into()],
+                args: vec![crate::spec::Arg {
+                    suggestions: vec![crate::spec::Suggestion {
+                        name: "--flag=value".into(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        let engine = Engine::new(registry, Vec::new());
+        for (line, length) in [
+            ("audit -e --flag=va", 9),
+            ("audit -e '--flag=va'", 11),
+            ("audit -e=--flag=va", 9),
+        ] {
+            let (blob, active) = engine.suggest_blob_with_token(line, ".");
+            assert_eq!(
+                blob.first().map(|s| s.name.as_str()),
+                Some("--flag=value"),
+                "{line}"
+            );
+            let active = active.unwrap();
+            assert_eq!(active.token, "--flag=va", "{line}");
+            assert_eq!(active.token_length, length, "{line}");
+            assert!(!active.is_option, "{line}");
+            assert_eq!(engine.suggest(line, ".").as_deref(), Some("lue"), "{line}");
+        }
+        assert!(
+            engine
+                .suggest_blob_with_token("audit -e --flag=value ", ".")
+                .1
+                .is_none()
+        );
+        let (_, unknown) = engine.suggest_blob_with_token("unknown tail", ".");
+        assert_eq!(unknown.unwrap().token, "tail");
+        let (_, first_word) = engine.suggest_blob_with_token("au", ".");
+        assert_eq!(first_word.unwrap().token, "au");
+    }
+
+    #[test]
+    fn powershell_alias_expansion_uses_shell_segment_rules() {
+        let mut registry = Registry::default();
+        registry.insert(Subcommand {
+            names: vec!["git".into()],
+            subcommands: vec![Subcommand {
+                names: vec!["log".into()],
+                options: vec![crate::spec::Opt {
+                    names: vec!["--oneline".into()],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        let mut engine = Engine::new(registry, Vec::new());
+        engine.set_shell(Shell::Pwsh);
+        engine.set_aliases([("gl".into(), "git log".into())].into_iter().collect());
+        let blob = engine.suggest_blob("echo a`|b | gl --one", ".");
+        assert!(blob.iter().any(|s| s.name == "--oneline"));
+    }
+
+    #[test]
+    fn first_command_completion_uses_shell_escape_rules() {
+        let mut registry = Registry::default();
+        registry.insert(Subcommand::new("my command"));
+        let mut engine = Engine::new(registry, Vec::new());
+        engine.set_shell(Shell::Pwsh);
+        for line in ["my` co", "echo done | my` co"] {
+            let blob = engine.suggest_blob(line, ".");
+            assert!(
+                blob.iter().any(|s| s.name == "my command"),
+                "{line}: {blob:?}"
+            );
+        }
+        engine.set_shell(Shell::Bash);
+        assert!(
+            engine
+                .suggest_blob("my\\ co", ".")
+                .iter()
+                .any(|s| s.name == "my command")
+        );
+    }
 
     #[test]
     fn flag_partial_is_case_insensitive() {

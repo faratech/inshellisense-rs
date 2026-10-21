@@ -154,7 +154,7 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
 /// set so the sample isn't biased toward names starting with `a`.
 fn sample_stride(total: usize) -> usize {
     const MAX_CONTENT_SAMPLE: usize = 25;
-    (total / MAX_CONTENT_SAMPLE).max(1)
+    total.div_ceil(MAX_CONTENT_SAMPLE).max(1)
 }
 
 /// The set of suggestion names each binary offers for `<spec> ` — i.e. the
@@ -286,6 +286,19 @@ fn list_specs_upstream(
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn content_sample_never_exceeds_the_subprocess_budget() {
+        // In particular, 26..49 shared names used to sample every name.
+        for total in 0..=10_000 {
+            let sampled = (0..total).step_by(sample_stride(total)).count();
+            assert!(sampled <= 25, "{total} specs produced {sampled} probes");
+            assert_eq!(sampled == 0, total == 0);
+            if total <= 25 {
+                assert_eq!(sampled, total);
+            }
+        }
+    }
 
     /// Scratch HOME handed to [`super::deterministic`] for stub children.
     #[cfg(unix)]

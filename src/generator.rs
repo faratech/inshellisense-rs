@@ -9,23 +9,67 @@
 
 use crate::shell::Shell;
 use crate::spec::model::{
-    Arg, CacheSpec, Generator, PostProcess, PostProcessKind, ProjectFileReader, ScriptInput,
-    Subcommand, Suggestion, SuggestionType, Template,
+    Arg, CacheSpec, CacheStrategy, Generator, PostProcess, PostProcessKind, ProjectFileReader,
+    ScriptInput, Subcommand, Suggestion, SuggestionType, Template,
 };
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::sync::LazyLock;
-use std::sync::Mutex;
+use std::sync::{Arc, Condvar, LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
+/// Successful outputs are shared between the cached snapshot and any callers
+/// awaiting the same execution. `None` means the subprocess failed.
+type ScriptOutput = Option<Arc<Vec<String>>>;
+
+#[derive(Default)]
 struct CacheEntry {
-    at: Instant,
-    ttl: Duration,
-    values: Vec<Suggestion>,
+    state: Mutex<CacheState>,
 }
 
-static CACHE: LazyLock<Mutex<HashMap<String, CacheEntry>>> =
+#[derive(Default)]
+struct CacheState {
+    cached: Option<CachedOutput>,
+    // A timeout governs execution, not the cached output. Calls with different
+    // budgets share successful snapshots but must not inherit another run's
+    // shorter deadline or extend a shorter caller's deadline.
+    in_flight: HashMap<u32, Arc<CacheFlight>>,
+}
+
+struct CachedOutput {
+    at: Instant,
+    values: Arc<Vec<String>>,
+}
+
+#[derive(Default)]
+struct CacheFlight {
+    // Outer None: still running. Inner None: completed unsuccessfully.
+    result: Mutex<Option<ScriptOutput>>,
+    done: Condvar,
+}
+
+impl CacheFlight {
+    fn wait(&self, timeout_ms: u32) -> ScriptOutput {
+        let result = self.result.lock().unwrap_or_else(|e| e.into_inner());
+        // Sharing a longer-running invocation must not extend this caller's
+        // timeout. The grace matches the subprocess reader's shutdown grace.
+        let wait = Duration::from_millis(u64::from(timeout_ms.max(1)) + 50);
+        let (result, _) = self
+            .done
+            .wait_timeout_while(result, wait, |result| result.is_none())
+            .unwrap_or_else(|e| e.into_inner());
+        result.as_ref().cloned().flatten()
+    }
+}
+
+#[derive(Hash, PartialEq, Eq)]
+struct CacheKey {
+    command: Invocation,
+    cwd: Option<String>,
+    separator: String,
+}
+
+static CACHE: LazyLock<Mutex<HashMap<CacheKey, Arc<CacheEntry>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// `help_subcommands` are the subcommands of the command this arg belongs to.
@@ -307,7 +351,13 @@ fn read_project_file(path: &Path, limit: u64) -> Option<String> {
 /// OOM, so: open non-blocking on Unix, require a regular file via the
 /// opened handle, and cap bytes read at `limit`.
 pub(crate) fn read_bounded_file(path: &Path, limit: u64) -> Option<Vec<u8>> {
-    use std::io::Read;
+    read_bounded_file_result(path, limit).ok()
+}
+
+/// Preserve I/O errors for configuration diagnostics and profile editors:
+/// only NotFound may mean an absent file, never a rejected existing input.
+pub(crate) fn read_bounded_file_result(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
+    use std::io::{Error, ErrorKind, Read};
     let mut options = std::fs::OpenOptions::new();
     options.read(true);
     #[cfg(unix)]
@@ -315,18 +365,30 @@ pub(crate) fn read_bounded_file(path: &Path, limit: u64) -> Option<Vec<u8>> {
         use std::os::unix::fs::OpenOptionsExt;
         options.custom_flags(libc::O_NONBLOCK);
     }
-    let file = options.open(path).ok()?;
-    let meta = file.metadata().ok()?;
-    if !meta.is_file() || meta.len() > limit {
-        return None;
+    let file = options.open(path)?;
+    let meta = file.metadata()?;
+    if !meta.is_file() {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "expected a regular file",
+        ));
+    }
+    let too_large = || {
+        Error::new(
+            ErrorKind::InvalidData,
+            format!("file exceeds {limit} byte read limit"),
+        )
+    };
+    if meta.len() > limit {
+        return Err(too_large());
     }
     // The size can still grow between the check and the read.
     let mut bytes = Vec::new();
-    file.take(limit + 1).read_to_end(&mut bytes).ok()?;
+    file.take(limit.saturating_add(1)).read_to_end(&mut bytes)?;
     if bytes.len() as u64 > limit {
-        return None;
+        return Err(too_large());
     }
-    Some(bytes)
+    Ok(bytes)
 }
 
 fn project_file_suggestions(reader: ProjectFileReader, cwd: &str) -> Vec<Suggestion> {
@@ -513,7 +575,9 @@ fn split_path_prefix(prefix: &str) -> (&str, &str) {
         prefix.rfind('/')
     };
     match sep {
-        Some(idx) => (&prefix[..idx], &prefix[idx + 1..]),
+        // Keep the separator so `/foo` retains its filesystem root and
+        // `C:\foo` retains the drive root on Windows (#123).
+        Some(idx) => (&prefix[..=idx], &prefix[idx + 1..]),
         None => ("", prefix),
     }
 }
@@ -558,11 +622,15 @@ fn list_paths(cwd: &str, prefix: &str, dirs_only: bool, add_parent: bool) -> Vec
         if !name.to_lowercase().contains(&needle) {
             continue;
         }
-        // `entry.file_type()` does not follow symlinks, so a symlink to a
-        // directory reported `is_dir() == false` and was dropped by `cd`.
-        let is_dir = std::fs::metadata(entry.path())
-            .map(|m| m.is_dir())
-            .unwrap_or(false);
+        // Directory entries normally carry their type already. Only symlinks
+        // need a metadata lookup to follow their target (otherwise `cd`
+        // drops directory links). Avoid a stat for every ordinary entry.
+        let is_dir = match entry.file_type() {
+            Ok(kind) if !kind.is_symlink() => kind.is_dir(),
+            _ => std::fs::metadata(entry.path())
+                .map(|m| m.is_dir())
+                .unwrap_or(false),
+        };
         if dirs_only && !is_dir {
             continue;
         }
@@ -590,7 +658,7 @@ fn list_paths(cwd: &str, prefix: &str, dirs_only: bool, add_parent: bool) -> Vec
         let joined = if dir.is_empty() {
             name
         } else {
-            format!("{dir}/{name}")
+            format!("{dir}{name}")
         };
         // Upstream emits directory names WITHOUT a trailing slash (`adir`,
         // not `adir/`); the Folder type still suppresses the post-accept
@@ -623,7 +691,7 @@ fn list_paths(cwd: &str, prefix: &str, dirs_only: bool, add_parent: bool) -> Vec
 
 fn glob_paths(pattern: &str, cwd: &str) -> Vec<Suggestion> {
     let script_str = format!("ls -d {} 2>/dev/null", pattern);
-    run_shell_line(&Invocation::Shell(script_str), "\n", None, 5000, None, cwd)
+    run_shell_line(&Invocation::Shell(script_str), "\n", 5000, None, cwd)
         .into_iter()
         .map(|name| Suggestion {
             name,
@@ -647,13 +715,13 @@ fn run_script(
     // into a shell string changed its semantics (a literal `*` would glob, a
     // literal `$X` would expand) and could not run at all on native Windows,
     // where there is no `sh`.
-    let (cmd_key, command) = match input {
-        ScriptInput::Shell { script } => (script.clone(), Invocation::Shell(script.clone())),
-        ScriptInput::Argv { argv } => (argv.join(" "), Invocation::Argv(argv.clone())),
+    let command = match input {
+        ScriptInput::Shell { script } => Invocation::Shell(script.clone()),
+        ScriptInput::Argv { argv } => Invocation::Argv(argv.clone()),
         ScriptInput::FnTemplate { template } => {
             // Phase 4 will expand {tokens[N]} placeholders. For now treat as
             // a literal shell command.
-            (template.clone(), Invocation::Shell(template.clone()))
+            Invocation::Shell(template.clone())
         }
     };
     // `PostProcess::Split { sep }` documents that it *overrides* the
@@ -662,12 +730,12 @@ fn run_script(
         PostProcess::Split { sep } => sep.as_str(),
         _ => split_on.unwrap_or("\n"),
     };
-    let raw = run_shell_line(&command, sep, Some(&cmd_key), timeout_ms, cache, cwd);
+    let raw = run_shell_line(&command, sep, timeout_ms, cache, cwd);
     apply_post_process(raw, post)
 }
 
 /// How a generator's script is executed.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 enum Invocation {
     /// A shell fragment; needs a shell to interpret it.
     Shell(String),
@@ -678,74 +746,123 @@ enum Invocation {
 fn run_shell_line(
     command: &Invocation,
     sep: &str,
-    cache_key: Option<&str>,
     timeout_ms: u32,
     cache: Option<&CacheSpec>,
     cwd: &str,
 ) -> Vec<String> {
-    let fallback_key = match command {
-        Invocation::Shell(script) => script.as_str(),
-        Invocation::Argv(_) => "",
-    };
-    let script_key = cache_key.unwrap_or(fallback_key);
-
-    // A generator that requests no caching must not be cached. Defaulting to a
-    // 30-second TTL made `cd <TAB>` keep serving a directory listing from the
-    // previous directory, and `git branch` keep branches that had been deleted.
-    let Some(spec) = cache else {
-        return run_and_split(command, sep, timeout_ms, cwd);
+    let timeout_ms = timeout_ms.max(1);
+    // No policy, or a zero TTL, bypasses both cache reads and cache writes.
+    // In particular another generator's longer TTL cannot override this call.
+    let Some(spec) = cache.filter(|spec| !spec.ttl().is_zero()) else {
+        return run_and_split(command, sep, timeout_ms, cwd).unwrap_or_default();
     };
 
-    // `by_dir: false` means the result does not depend on the directory, so it
-    // must not be keyed by it. The separator does decide the cached values
-    // (splitting happens inside this layer), so it must be keyed (#113):
-    // two specs sharing a script with different `split_on` otherwise serve
-    // each other's split until the TTL expires.
-    let key = if spec.by_dir {
-        format!("{cwd}\0{script_key}\0{sep}")
-    } else {
-        format!("\0{script_key}\0{sep}")
+    // Cache values depend on invocation kind, argv boundaries, separator and
+    // (when requested) cwd (#113/#117). Freshness belongs to the caller's
+    // policy, rather than whichever generator populated the shared snapshot.
+    let key = CacheKey {
+        command: command.clone(),
+        cwd: spec.by_dir.then(|| cwd.to_string()),
+        separator: sep.to_string(),
     };
-    let ttl = Duration::from_secs(spec.ttl_secs);
-
+    let entry = CACHE
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .entry(key)
+        .or_default()
+        .clone();
+    let mut state = entry.state.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(cached) = &state.cached
+        && cached.at.elapsed() < spec.ttl()
     {
-        let c = CACHE.lock().unwrap();
-        if let Some(entry) = c.get(&key)
-            && entry.at.elapsed() < entry.ttl
-        {
-            return entry.values.iter().map(|s| s.name.clone()).collect();
-        }
+        return (*cached.values).clone();
     }
 
-    let values = run_and_split(command, sep, timeout_ms, cwd);
+    let stale = match spec.strategy {
+        CacheStrategy::StaleWhileRevalidate => {
+            state.cached.as_ref().map(|cached| cached.values.clone())
+        }
+        CacheStrategy::MaxAge => None,
+    };
+    if let Some(stale) = &stale
+        && !state.in_flight.is_empty()
+    {
+        // One ongoing execution is enough for stale callers, regardless of
+        // its timeout. Their next request can retry if that refresh fails.
+        return (**stale).clone();
+    }
+    if let Some(flight) = state.in_flight.get(&timeout_ms).cloned() {
+        drop(state);
+        // Cold and max-age callers with the same timeout share this result,
+        // including a failure, without launching one subprocess per request.
+        return flight
+            .wait(timeout_ms)
+            .map(|v| (*v).clone())
+            .unwrap_or_default();
+    }
+    let flight = Arc::new(CacheFlight::default());
+    state.in_flight.insert(timeout_ms, flight.clone());
+    drop(state);
 
-    let mut c = CACHE.lock().unwrap();
-    c.insert(
-        key,
-        CacheEntry {
-            at: Instant::now(),
-            ttl,
-            values: values
-                .iter()
-                .map(|v| Suggestion {
-                    name: v.clone(),
-                    ..Default::default()
-                })
-                .collect(),
-        },
-    );
-    values
+    if let Some(stale) = stale {
+        let entry_for_thread = entry.clone();
+        let flight_for_thread = flight.clone();
+        let command = command.clone();
+        let sep = sep.to_string();
+        let cwd = cwd.to_string();
+        if std::thread::Builder::new()
+            .name("is-cache-refresh".into())
+            .spawn(move || {
+                let output = run_and_split(&command, &sep, timeout_ms, &cwd).map(Arc::new);
+                finish_cache_run(&entry_for_thread, &flight_for_thread, timeout_ms, output);
+            })
+            .is_err()
+        {
+            // A failed thread spawn must not leave the entry permanently busy.
+            finish_cache_run(&entry, &flight, timeout_ms, None);
+        }
+        return (*stale).clone();
+    }
+
+    let output = run_and_split(command, sep, timeout_ms, cwd).map(Arc::new);
+    finish_cache_run(&entry, &flight, timeout_ms, output.clone());
+    output.map(|v| (*v).clone()).unwrap_or_default()
 }
 
-fn run_and_split(command: &Invocation, sep: &str, timeout_ms: u32, cwd: &str) -> Vec<String> {
-    match run_command_with_timeout(command, cwd, timeout_ms) {
-        Some(bytes) => String::from_utf8_lossy(&bytes)
+fn finish_cache_run(
+    entry: &CacheEntry,
+    flight: &CacheFlight,
+    timeout_ms: u32,
+    output: ScriptOutput,
+) {
+    let mut state = entry.state.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(values) = &output {
+        state.cached = Some(CachedOutput {
+            at: Instant::now(),
+            values: values.clone(),
+        });
+    }
+    // Failure preserves the previous successful snapshot for stale callers,
+    // and leaves cold callers free to retry on their next request.
+    state.in_flight.remove(&timeout_ms);
+    drop(state);
+    *flight.result.lock().unwrap_or_else(|e| e.into_inner()) = Some(output);
+    flight.done.notify_all();
+}
+
+fn run_and_split(
+    command: &Invocation,
+    sep: &str,
+    timeout_ms: u32,
+    cwd: &str,
+) -> Option<Vec<String>> {
+    run_command_with_timeout(command, cwd, timeout_ms).map(|bytes| {
+        String::from_utf8_lossy(&bytes)
             .split(sep)
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
-            .collect(),
-        None => Vec::new(),
-    }
+            .collect()
+    })
 }
 
 /// Build the `Command` for an invocation. Argv generators are spawned
@@ -842,6 +959,10 @@ fn run_command_with_timeout(
         }
         match child.try_wait() {
             Ok(Some(status)) => {
+                // The shell may have exited while a background descendant
+                // still owns stdout. End that process group before waiting
+                // for EOF, preserving the output already written (#118).
+                kill_generator_child(&mut child);
                 // Killing the process group closes any inherited write end, so
                 // the reader unblocks; the deadline covers the case where a
                 // descendant escaped the group.
@@ -1117,6 +1238,383 @@ fn json_value_to_suggestions(v: &serde_json::Value) -> Vec<Suggestion> {
 mod tests {
     use super::*;
 
+    /// #123: a leading separator is meaningful even when it is the only one.
+    #[test]
+    fn path_prefix_retains_directory_separator() {
+        assert_eq!(split_path_prefix("/"), ("/", ""));
+        assert_eq!(split_path_prefix("/tmp"), ("/", "tmp"));
+        assert_eq!(split_path_prefix("nested/file"), ("nested/", "file"));
+        #[cfg(windows)]
+        {
+            assert_eq!(split_path_prefix("C:\\"), ("C:\\", ""));
+            assert_eq!(split_path_prefix("C:\\temp"), ("C:\\", "temp"));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn absolute_root_paths_and_directory_symlinks_complete() {
+        let dir = crate::test_support::unique_temp_dir("root-path");
+        std::fs::write(dir.join("only-in-cwd"), "").unwrap();
+        std::fs::create_dir(dir.join("folder")).unwrap();
+        std::fs::write(dir.join("folder").join("child"), "").unwrap();
+        std::os::unix::fs::symlink("folder", dir.join("link")).unwrap();
+        std::os::unix::fs::symlink("missing", dir.join("broken")).unwrap();
+        let cwd = dir.to_str().unwrap();
+
+        // Root entries retain `/` and are independent of the current dir.
+        let root = list_paths(cwd, "/", false, false);
+        assert!(!root.is_empty());
+        assert!(root.iter().all(|s| s.name.starts_with('/')));
+        assert!(!root.iter().any(|s| s.name == "/only-in-cwd"));
+        assert_eq!(
+            list_paths(cwd, "/", false, false)
+                .into_iter()
+                .map(|s| s.name)
+                .collect::<Vec<_>>(),
+            list_paths("/", "", false, false)
+                .into_iter()
+                .map(|s| format!("/{}", s.name))
+                .collect::<Vec<_>>()
+        );
+
+        // The file-type fast path still follows links for folder completion.
+        let folders = list_paths(cwd, "", true, false);
+        assert_eq!(
+            folders.into_iter().map(|s| s.name).collect::<Vec<_>>(),
+            ["folder", "link"]
+        );
+        let nested = list_paths(cwd, "folder/", false, false);
+        assert_eq!(
+            nested.into_iter().map(|s| s.name).collect::<Vec<_>>(),
+            ["folder/child"]
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    fn expire_cached_output(command: &Invocation, cwd: &str) -> Arc<CacheEntry> {
+        let key = CacheKey {
+            command: command.clone(),
+            cwd: Some(cwd.into()),
+            separator: "\n".into(),
+        };
+        let entry = CACHE.lock().unwrap().get(&key).unwrap().clone();
+        entry.state.lock().unwrap().cached.as_mut().unwrap().at =
+            Instant::now() - Duration::from_secs(60);
+        entry
+    }
+
+    #[cfg(unix)]
+    fn wait_for_cache_refresh(entry: &CacheEntry) {
+        let start = Instant::now();
+        while !entry.state.lock().unwrap().in_flight.is_empty() {
+            assert!(
+                start.elapsed() < Duration::from_secs(3),
+                "cache refresh did not finish"
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_138_stale_refresh_is_asynchronous_and_shared() {
+        let dir = scratch_dir("cache-138-stale");
+        let cwd = dir.to_str().unwrap();
+        let command = Invocation::Shell(
+            "printf x >> runs; if test -e slow; then printf yes > started; while ! test -e release; do sleep 0.01; done; fi; cat value".into()
+        );
+        let cache = CacheSpec {
+            strategy: CacheStrategy::StaleWhileRevalidate,
+            ..Default::default()
+        };
+        std::fs::write(dir.join("value"), "old").unwrap();
+        assert_eq!(
+            run_shell_line(&command, "\n", 2000, Some(&cache), cwd),
+            ["old"]
+        );
+        let entry = expire_cached_output(&command, cwd);
+        std::fs::write(dir.join("value"), "new").unwrap();
+        std::fs::write(dir.join("slow"), "").unwrap();
+        let start = Instant::now();
+        assert_eq!(
+            run_shell_line(&command, "\n", 2000, Some(&cache), cwd),
+            ["old"]
+        );
+        assert!(
+            start.elapsed() < Duration::from_millis(500),
+            "stale return waited for revalidation"
+        );
+        while !dir.join("started").exists() {
+            assert!(start.elapsed() < Duration::from_secs(2));
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let barrier = std::sync::Barrier::new(8);
+        std::thread::scope(|scope| {
+            let handles = (0..8)
+                .map(|_| {
+                    scope.spawn(|| {
+                        barrier.wait();
+                        run_shell_line(&command, "\n", 2000, Some(&cache), cwd)
+                    })
+                })
+                .collect::<Vec<_>>();
+            for handle in handles {
+                assert_eq!(handle.join().unwrap(), ["old"]);
+            }
+        });
+        assert_eq!(std::fs::read_to_string(dir.join("runs")).unwrap(), "xx");
+        std::fs::write(dir.join("release"), "").unwrap();
+        wait_for_cache_refresh(&entry);
+        assert_eq!(
+            run_shell_line(&command, "\n", 2000, Some(&cache), cwd),
+            ["new"]
+        );
+        assert_eq!(std::fs::read_to_string(dir.join("runs")).unwrap(), "xx");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_138_refresh_failure_preserves_stale_output_and_allows_retry() {
+        let dir = scratch_dir("cache-138-refresh-failure");
+        let cwd = dir.to_str().unwrap();
+        let command = Invocation::Shell(
+            "printf x >> runs; if test -e fail; then exit 1; fi; cat value".into(),
+        );
+        let cache = CacheSpec {
+            strategy: CacheStrategy::StaleWhileRevalidate,
+            ..Default::default()
+        };
+        std::fs::write(dir.join("value"), "old").unwrap();
+        assert_eq!(
+            run_shell_line(&command, "\n", 1000, Some(&cache), cwd),
+            ["old"]
+        );
+        let entry = expire_cached_output(&command, cwd);
+        let cached_at = entry.state.lock().unwrap().cached.as_ref().unwrap().at;
+        std::fs::write(dir.join("fail"), "").unwrap();
+        assert_eq!(
+            run_shell_line(&command, "\n", 1000, Some(&cache), cwd),
+            ["old"]
+        );
+        wait_for_cache_refresh(&entry);
+        {
+            let state = entry.state.lock().unwrap();
+            let cached = state.cached.as_ref().unwrap();
+            assert_eq!(*cached.values, ["old"]);
+            assert_eq!(cached.at, cached_at, "failure must not renew the stale TTL");
+        }
+        std::fs::remove_file(dir.join("fail")).unwrap();
+        std::fs::write(dir.join("value"), "recovered").unwrap();
+        assert_eq!(
+            run_shell_line(&command, "\n", 1000, Some(&cache), cwd),
+            ["old"]
+        );
+        wait_for_cache_refresh(&entry);
+        assert_eq!(
+            run_shell_line(&command, "\n", 1000, Some(&cache), cwd),
+            ["recovered"]
+        );
+        assert_eq!(std::fs::read_to_string(dir.join("runs")).unwrap(), "xxx");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_138_current_caller_ttl_and_zero_bypass() {
+        let dir = scratch_dir("cache-138-ttl");
+        let cwd = dir.to_str().unwrap();
+        let command = Invocation::Shell("cat value".into());
+        let long = CacheSpec::default();
+        std::fs::write(dir.join("value"), "old").unwrap();
+        assert_eq!(
+            run_shell_line(&command, "\n", 1000, Some(&long), cwd),
+            ["old"]
+        );
+        std::fs::write(dir.join("value"), "new").unwrap();
+        let zero = CacheSpec {
+            ttl_secs: 0,
+            ..Default::default()
+        };
+        assert_eq!(
+            run_shell_line(&command, "\n", 1000, Some(&zero), cwd),
+            ["new"]
+        );
+        // Bypassing the cache must not replace another caller's cached value.
+        assert_eq!(
+            run_shell_line(&command, "\n", 1000, Some(&long), cwd),
+            ["old"]
+        );
+        std::thread::sleep(Duration::from_millis(30));
+        let short = CacheSpec {
+            ttl_ms: Some(10),
+            ..Default::default()
+        };
+        assert_eq!(
+            run_shell_line(&command, "\n", 1000, Some(&short), cwd),
+            ["new"]
+        );
+        std::fs::write(dir.join("value"), "newer").unwrap();
+        let zero_ms = CacheSpec {
+            ttl_ms: Some(0),
+            ..Default::default()
+        };
+        assert_eq!(
+            run_shell_line(&command, "\n", 1000, Some(&zero_ms), cwd),
+            ["newer"]
+        );
+        std::thread::sleep(Duration::from_millis(30));
+        assert_eq!(
+            run_shell_line(&command, "\n", 1000, Some(&long), cwd),
+            ["new"]
+        );
+        assert_eq!(
+            run_shell_line(&command, "\n", 1000, Some(&short), cwd),
+            ["newer"]
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_138_failures_are_retried_but_successful_empty_output_is_cached() {
+        let dir = scratch_dir("cache-138-failure");
+        let cwd = dir.to_str().unwrap();
+        let cache = CacheSpec::default();
+        let fails = Invocation::Shell("if test -e value; then cat value; else exit 1; fi".into());
+        assert!(run_shell_line(&fails, "\n", 1000, Some(&cache), cwd).is_empty());
+        std::fs::write(dir.join("value"), "recovered").unwrap();
+        assert_eq!(
+            run_shell_line(&fails, "\n", 1000, Some(&cache), cwd),
+            ["recovered"]
+        );
+        let empty = Invocation::Shell(
+            "printf x >> runs; test -e empty-value && cat empty-value; exit 0".into(),
+        );
+        assert!(run_shell_line(&empty, "\n", 1000, Some(&cache), cwd).is_empty());
+        std::fs::write(dir.join("empty-value"), "later").unwrap();
+        assert!(run_shell_line(&empty, "\n", 1000, Some(&cache), cwd).is_empty());
+        assert_eq!(std::fs::read_to_string(dir.join("runs")).unwrap(), "x");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_138_long_caller_does_not_inherit_a_short_producers_failure() {
+        let dir = scratch_dir("cache-138-producer-timeout");
+        let cwd = dir.to_str().unwrap();
+        let command =
+            Invocation::Shell("printf started > started; sleep 0.15; printf result".into());
+        let cache = CacheSpec::default();
+        std::thread::scope(|scope| {
+            let producer = scope.spawn(|| run_shell_line(&command, "\n", 30, Some(&cache), cwd));
+            let start = Instant::now();
+            while !dir.join("started").exists() {
+                assert!(start.elapsed() < Duration::from_secs(2));
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert_eq!(
+                run_shell_line(&command, "\n", 1000, Some(&cache), cwd),
+                ["result"]
+            );
+            assert!(producer.join().unwrap().is_empty());
+        });
+        // The output remains shared across timeout policies after success.
+        assert_eq!(
+            run_shell_line(&command, "\n", 1, Some(&cache), cwd),
+            ["result"]
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_138_waiting_caller_keeps_its_timeout() {
+        let dir = scratch_dir("cache-138-wait-timeout");
+        let cwd = dir.to_str().unwrap();
+        let command = Invocation::Shell(
+            "while ! test -e release; do printf started > started; sleep 0.01; done; printf result"
+                .into(),
+        );
+        let cache = CacheSpec::default();
+        let (started, short_output, owner_pending, released, waiter, owner) =
+            std::thread::scope(|scope| {
+                let owner =
+                    scope.spawn(|| run_shell_line(&command, "\n", 30_000, Some(&cache), cwd));
+                let start = Instant::now();
+                while !dir.join("started").exists() && start.elapsed() < Duration::from_secs(5) {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                let started = dir.join("started").exists();
+                let (tx, rx) = std::sync::mpsc::channel();
+                let waiter_command = &command;
+                let waiter_cache = &cache;
+                let waiter = scope.spawn(move || {
+                    let output = run_shell_line(waiter_command, "\n", 20, Some(waiter_cache), cwd);
+                    let _ = tx.send(output.clone());
+                    output
+                });
+                let short_output = rx.recv_timeout(Duration::from_secs(5));
+                let owner_pending = !owner.is_finished();
+                // Release and join even when the short caller missed its outer
+                // deadline, so an assertion cannot strand either subprocess.
+                let released = std::fs::write(dir.join("release"), "");
+                let waiter = waiter.join();
+                let owner = owner.join();
+                (
+                    started,
+                    short_output,
+                    owner_pending,
+                    released,
+                    waiter,
+                    owner,
+                )
+            });
+        let cached = run_shell_line(&command, "\n", 20, Some(&cache), cwd);
+        let removed = std::fs::remove_dir_all(dir);
+        assert!(started, "producer did not reach the release gate");
+        released.unwrap();
+        removed.unwrap();
+        assert!(
+            owner_pending,
+            "producer finished before the gate was released"
+        );
+        assert!(
+            short_output
+                .expect("short caller waited for the gated producer")
+                .is_empty()
+        );
+        assert!(waiter.unwrap().is_empty());
+        assert_eq!(owner.unwrap(), ["result"]);
+        assert_eq!(cached, ["result"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_138_concurrent_cold_calls_share_one_execution() {
+        let dir = scratch_dir("cache-138-concurrent");
+        let command = Invocation::Shell("printf x >> runs; sleep 0.15; printf result".into());
+        let cache = CacheSpec::default();
+        let barrier = std::sync::Barrier::new(8);
+        std::thread::scope(|scope| {
+            let handles = (0..8)
+                .map(|_| {
+                    scope.spawn(|| {
+                        barrier.wait();
+                        run_shell_line(&command, "\n", 1000, Some(&cache), dir.to_str().unwrap())
+                    })
+                })
+                .collect::<Vec<_>>();
+            for handle in handles {
+                assert_eq!(handle.join().unwrap(), ["result"]);
+            }
+        });
+        assert_eq!(std::fs::read_to_string(dir.join("runs")).unwrap(), "x");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
     /// #113: same script, different separator must not share a cache entry.
     #[cfg(unix)]
     #[test]
@@ -1128,10 +1626,45 @@ mod tests {
         };
         // Unique script text so no other test's cache entry can collide.
         let cmd = Invocation::Shell("printf 'a:b c:d' # cache-sep-test".into());
-        let by_colon = run_shell_line(&cmd, ":", None, 5000, Some(&cache), ".");
+        let by_colon = run_shell_line(&cmd, ":", 5000, Some(&cache), ".");
         assert_eq!(by_colon, vec!["a", "b c", "d"]);
-        let by_space = run_shell_line(&cmd, " ", None, 5000, Some(&cache), ".");
+        let by_space = run_shell_line(&cmd, " ", 5000, Some(&cache), ".");
         assert_eq!(by_space, vec!["a:b", "c:d"]);
+    }
+
+    /// #117: the same joined argv text can represent different programs.
+    #[cfg(unix)]
+    #[test]
+    fn cache_key_preserves_argv_boundaries_and_invocation_kind() {
+        let cache = CacheSpec {
+            ttl_secs: 60,
+            ..Default::default()
+        };
+        let run = |command| run_shell_line(&command, "\n", 5000, Some(&cache), ".");
+        let combined = Invocation::Argv(vec![
+            "printf".into(),
+            "%s\\n".into(),
+            "cache-argv-117 a".into(),
+        ]);
+        let separate = Invocation::Argv(vec![
+            "printf".into(),
+            "%s\\n".into(),
+            "cache-argv-117".into(),
+            "a".into(),
+        ]);
+        assert_eq!(run(combined), ["cache-argv-117 a"]);
+        assert_eq!(run(separate), ["cache-argv-117", "a"]);
+
+        // Shell parsing discards a comment that direct argv passes literally.
+        assert!(run(Invocation::Shell("printf %s #cache-kind-117".into())).is_empty());
+        assert_eq!(
+            run(Invocation::Argv(vec![
+                "printf".into(),
+                "%s".into(),
+                "#cache-kind-117".into(),
+            ])),
+            ["#cache-kind-117"]
+        );
     }
 
     /// #103: a FIFO must be skipped promptly, not block the open forever;
@@ -1209,13 +1742,38 @@ mod tests {
         let got = run_shell_line(
             &Invocation::Shell("sleep 2; echo late".into()),
             "\n",
-            None,
             50,
             None,
             ".",
         );
         assert!(got.is_empty());
         assert!(start.elapsed() < Duration::from_secs(1));
+    }
+
+    /// #118: an exited shell must not leave a background process holding the
+    /// output pipe, discarding complete output and consuming the full timeout.
+    #[cfg(unix)]
+    #[test]
+    fn exited_generator_stops_background_descendants_and_preserves_output() {
+        let dir = crate::test_support::unique_temp_dir("generator-descendant");
+        let marker = dir.join("leaked");
+        let script = "(sleep 0.3; printf leaked > leaked) & printf ready";
+        let start = Instant::now();
+        let got = run_shell_line(
+            &Invocation::Shell(script.into()),
+            "\n",
+            2000,
+            None,
+            dir.to_str().unwrap(),
+        );
+        assert_eq!(got, ["ready"]);
+        assert!(start.elapsed() < Duration::from_secs(1));
+        std::thread::sleep(Duration::from_millis(400));
+        assert!(
+            !marker.exists(),
+            "background descendant survived completion"
+        );
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     /// Generator output and project-file values are data, not spec text, so

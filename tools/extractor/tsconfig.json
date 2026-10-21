@@ -7,5 +7,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["extract.ts"]
+  "include": ["extract.ts", "test/**/*.ts"]
 }

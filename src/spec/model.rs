@@ -281,8 +281,24 @@ pub struct CacheSpec {
     pub strategy: CacheStrategy,
     #[serde(alias = "ttlSecs", alias = "ttlSeconds")]
     pub ttl_secs: u64,
-    #[serde(alias = "byDir")]
+    /// Fig expresses TTL in milliseconds. Keep second-based config compatible
+    /// while preserving short TTLs exactly rather than rounding up (#137).
+    #[serde(
+        alias = "ttl",
+        alias = "ttlMillis",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ttl_ms: Option<u64>,
+    #[serde(alias = "byDir", alias = "cacheByDirectory")]
     pub by_dir: bool,
+}
+
+impl CacheSpec {
+    pub fn ttl(&self) -> std::time::Duration {
+        self.ttl_ms
+            .map(std::time::Duration::from_millis)
+            .unwrap_or_else(|| std::time::Duration::from_secs(self.ttl_secs))
+    }
 }
 
 impl Default for CacheSpec {
@@ -290,6 +306,7 @@ impl Default for CacheSpec {
         Self {
             strategy: CacheStrategy::MaxAge,
             ttl_secs: 30,
+            ttl_ms: None,
             by_dir: true,
         }
     }
@@ -299,9 +316,9 @@ impl Default for CacheSpec {
 #[serde(rename_all = "snake_case")]
 pub enum CacheStrategy {
     #[default]
-    #[serde(alias = "maxAge")]
+    #[serde(alias = "maxAge", alias = "max-age")]
     MaxAge,
-    #[serde(alias = "staleWhileRevalidate")]
+    #[serde(alias = "staleWhileRevalidate", alias = "stale-while-revalidate")]
     StaleWhileRevalidate,
 }
 
@@ -559,14 +576,30 @@ mod tests {
         assert!(run.args[0].is_command);
     }
 
-    /// Upstream spells the cache fields `ttlSeconds`/`byDir`.
+    /// Keep the second-based compatibility spellings accepted by older builds.
     #[test]
-    fn cache_spec_accepts_upstream_field_names() {
+    fn cache_spec_accepts_second_based_compatibility_field_names() {
         let json = r#"{ "strategy": "staleWhileRevalidate", "ttlSeconds": 60, "byDir": true }"#;
         let cache: CacheSpec = serde_json::from_str(json).expect("upstream cache shape");
         assert_eq!(cache.ttl_secs, 60);
         assert!(cache.by_dir);
         assert_eq!(cache.strategy, CacheStrategy::StaleWhileRevalidate);
+        assert_eq!(cache.ttl(), std::time::Duration::from_secs(60));
+    }
+
+    #[test]
+    fn cache_spec_preserves_fig_millisecond_ttl_and_directory_policy() {
+        let cache: CacheSpec =
+            serde_json::from_str(r#"{"strategy":"max-age","ttl":125,"cacheByDirectory":false}"#)
+                .unwrap();
+        assert_eq!(cache.ttl(), std::time::Duration::from_millis(125));
+        assert!(!cache.by_dir);
+        assert_eq!(cache.strategy, CacheStrategy::MaxAge);
+        let json = serde_json::to_value(&cache).unwrap();
+        assert_eq!(json["ttl_ms"], 125);
+        assert_eq!(json["by_dir"], false);
+        let canonical: CacheSpec = serde_json::from_value(json).unwrap();
+        assert_eq!(canonical.ttl(), cache.ttl());
     }
 
     /// Our canonical (extractor/bundle) format is snake_case and stays the

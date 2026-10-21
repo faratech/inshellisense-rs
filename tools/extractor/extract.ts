@@ -911,6 +911,7 @@ function toRustGenerator(g: any): any {
   const ppDesc = pp && typeof pp === "object" && pp.__post_process_kind
     ? pp.__post_process_kind
     : { kind: "none" };
+  const cache = toRustCache(g.cache);
 
   if (g.script != null && !g.__fn) {
     if (typeof g.script === "string") {
@@ -920,6 +921,7 @@ function toRustGenerator(g: any): any {
         split_on: typeof g.splitOn === "string" ? g.splitOn : "\n",
         post_process: ppDesc,
         timeout_ms: typeof g.scriptTimeout === "number" ? g.scriptTimeout : 5000,
+        cache,
       };
     }
     if (Array.isArray(g.script) && g.script.every((s: any) => typeof s === "string")) {
@@ -929,12 +931,38 @@ function toRustGenerator(g: any): any {
         split_on: typeof g.splitOn === "string" ? g.splitOn : "\n",
         post_process: ppDesc,
         timeout_ms: typeof g.scriptTimeout === "number" ? g.scriptTimeout : 5000,
+        cache,
       };
     }
   }
 
   // Custom/complex postProcess closures: mark requiring JS — phase 6.
   return null;
+}
+
+function toRustCache(cache: any): any {
+  if (!cache || typeof cache !== "object" || Array.isArray(cache)) return undefined;
+  const out: any = {};
+  // Fig's ttl is in milliseconds; keep it exact rather than rounding up to
+  // whole seconds. ttlSeconds/byDir remain accepted for older spec fixtures.
+  if (typeof cache.ttl === "number" && Number.isFinite(cache.ttl) && cache.ttl >= 0) {
+    out.ttl_ms = Math.floor(cache.ttl);
+  } else if (typeof cache.ttlSeconds === "number" && Number.isSafeInteger(cache.ttlSeconds) && cache.ttlSeconds >= 0) {
+    out.ttl_secs = cache.ttlSeconds;
+  }
+  if (typeof cache.cacheByDirectory === "boolean") out.by_dir = cache.cacheByDirectory;
+  else if (typeof cache.byDir === "boolean") out.by_dir = cache.byDir;
+  switch (cache.strategy) {
+    case "max-age":
+    case "max_age":
+      out.strategy = "max_age";
+      break;
+    case "stale-while-revalidate":
+    case "stale_while_revalidate":
+      out.strategy = "stale_while_revalidate";
+      break;
+  }
+  return out;
 }
 
 function mapTemplate(t: string): string | null {

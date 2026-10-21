@@ -59,13 +59,17 @@ pub fn load_for(shell: Shell) -> Vec<String> {
 /// bash: one command per line, `\` continues onto the next line. Lines
 /// starting with `#` are timestamps written by `HISTTIMEFORMAT`.
 fn parse_posix(contents: &str) -> Vec<String> {
+    parse_posix_lines(contents.lines())
+}
+
+fn parse_posix_lines<'a>(lines: impl IntoIterator<Item = &'a str>) -> Vec<String> {
     let mut out = Vec::new();
     let mut pending: Option<String> = None;
-    for line in contents.lines() {
+    for line in lines {
         if pending.is_none() && (line.trim().is_empty() || line.starts_with('#')) {
             continue;
         }
-        let continues = line.ends_with('\\');
+        let continues = line.bytes().rev().take_while(|b| *b == b'\\').count() % 2 == 1;
         let piece = if continues {
             &line[..line.len() - 1]
         } else {
@@ -92,15 +96,12 @@ fn parse_posix(contents: &str) -> Vec<String> {
 /// zsh extended history: `: <start>:<elapsed>;<command>`, with `\`
 /// continuations. Plain (non-extended) lines are passed through.
 fn parse_zsh(contents: &str) -> Vec<String> {
-    let stripped: String = contents
-        .lines()
-        .map(|line| match line.strip_prefix(':') {
-            Some(rest) => rest.split_once(';').map(|(_, cmd)| cmd).unwrap_or(line),
-            None => line,
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-    parse_posix(&stripped)
+    // Borrow each command directly instead of constructing a second copy of
+    // the full history file and an intermediate vector of line slices.
+    parse_posix_lines(contents.lines().map(|line| match line.strip_prefix(':') {
+        Some(rest) => rest.split_once(';').map(|(_, cmd)| cmd).unwrap_or(line),
+        None => line,
+    }))
 }
 
 /// fish stores YAML-ish records; the command lives on a `- cmd:` line and may
@@ -182,6 +183,22 @@ mod parse_tests {
     fn posix_skips_histtimeformat_stamps() {
         let text = "#1700000000\nls -la\n#1700000001\ngit status\n";
         assert_eq!(parse_posix(text), vec!["ls -la", "git status"]);
+    }
+
+    #[test]
+    fn continuations_require_an_odd_trailing_backslash_run() {
+        for count in 1..=4 {
+            let command = format!("echo path{}", "\\".repeat(count));
+            let text = format!("{command}\ngit status\n");
+            let expected = if count % 2 == 1 {
+                vec![format!("{} git status", &command[..command.len() - 1])]
+            } else {
+                vec![command.clone(), "git status".into()]
+            };
+            assert_eq!(parse_posix(&text), expected, "backslashes={count}");
+            let zsh = format!(": 1700000000:0;{command}\ngit status\n");
+            assert_eq!(parse_zsh(&zsh), expected, "zsh backslashes={count}");
+        }
     }
 
     /// zsh's extended format prefixes each entry with `: <start>:<elapsed>;`.

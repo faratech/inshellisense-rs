@@ -18,7 +18,7 @@ pub use model::{
 pub use parser::{CommandToken, ShellFlavor, parse_command, parse_command_for};
 pub use resolver::{ResolveResult, resolve};
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 
 /// Cap for a single on-disk spec file read from a user spec dir (#103).
@@ -234,17 +234,47 @@ impl Registry {
     }
 
     fn load_disk_specs(&mut self, root: &std::path::Path) {
-        Self::walk_disk(root, root, self);
+        Self::walk_disk(root, root, self, &mut BTreeSet::new());
     }
 
-    fn walk_disk(root: &std::path::Path, dir: &std::path::Path, reg: &mut Registry) {
+    fn walk_disk(
+        root: &std::path::Path,
+        dir: &std::path::Path,
+        reg: &mut Registry,
+        ancestors: &mut BTreeSet<std::path::PathBuf>,
+    ) {
+        let Ok(identity) = std::fs::canonicalize(dir) else {
+            return;
+        };
+        // Track only the current branch: different legitimate symlinks to a
+        // directory still get their own LoadSpec paths, while self/ancestor
+        // cycles never re-read or re-parse the same tree (#124).
+        if !ancestors.insert(identity.clone()) {
+            return;
+        }
+        Self::walk_disk_entries(root, dir, reg, ancestors);
+        ancestors.remove(&identity);
+    }
+
+    fn walk_disk_entries(
+        root: &std::path::Path,
+        dir: &std::path::Path,
+        reg: &mut Registry,
+        ancestors: &mut BTreeSet<std::path::PathBuf>,
+    ) {
         let Ok(entries) = std::fs::read_dir(dir) else {
             return;
         };
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_dir() {
-                Self::walk_disk(root, &path, reg);
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            // DirEntry caches the ordinary file type on common platforms;
+            // follow symlink metadata only when needed, rather than statting
+            // every JSON file just to decide whether it is a directory.
+            if file_type.is_dir() || (file_type.is_symlink() && path.is_dir()) {
+                Self::walk_disk(root, &path, reg, ancestors);
             } else if path.extension().and_then(|e| e.to_str()) == Some("json") {
                 // #103: a FIFO/device in a spec dir blocked forever.
                 let Some(raw) = crate::generator::read_bounded_file(&path, MAX_DISK_SPEC_BYTES)
@@ -447,6 +477,21 @@ mod tests {
         reg
     }
 
+    #[test]
+    fn embedded_generator_cache_metadata_survives_extraction() {
+        let mut reg = Registry::default();
+        reg.load_embedded_lazy();
+        let ant = reg.get("ant").unwrap();
+        let Generator::Script {
+            cache: Some(cache), ..
+        } = &ant.args[0].generators[0]
+        else {
+            panic!("the shipped ant generator lost its requested cache");
+        };
+        assert_eq!(cache.strategy, CacheStrategy::StaleWhileRevalidate);
+        assert!(cache.by_dir);
+    }
+
     /// `get()` hands out `&Subcommand` borrowed from inside the map. Parsing
     /// a *different* spec afterwards inserts into that same map, which
     /// rebalances its nodes. Boxing the values keeps earlier references
@@ -560,5 +605,35 @@ mod tests {
         );
 
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn disk_spec_cycles_stop_but_valid_symlink_paths_are_loaded() {
+        use std::os::unix::fs::symlink;
+
+        let root = unique_tmp_dir("spec-cycle");
+        let specs = root.join("specs");
+        let shared = root.join("shared");
+        std::fs::create_dir_all(specs.join("real")).unwrap();
+        std::fs::create_dir_all(&shared).unwrap();
+        std::fs::write(specs.join("real/one.json"), r#"{"names":["one"]}"#).unwrap();
+        std::fs::write(shared.join("two.json"), r#"{"names":["two"]}"#).unwrap();
+        symlink(".", specs.join("self")).unwrap();
+        symlink("..", specs.join("real/parent")).unwrap();
+        symlink(&shared, specs.join("external")).unwrap();
+        symlink(&shared, specs.join("external-again")).unwrap();
+        symlink("real/one.json", specs.join("linked.json")).unwrap();
+
+        let mut reg = Registry::default();
+        reg.load_spec_dir(&specs);
+        assert_eq!(
+            reg.names(),
+            ["external-again/two", "external/two", "one", "real/one"]
+        );
+        for key in ["external/two", "external-again/two"] {
+            assert_eq!(reg.get(key).unwrap().name(), "two");
+        }
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

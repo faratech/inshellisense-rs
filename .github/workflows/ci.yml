@@ -23,16 +23,19 @@ jobs:
     name: Build + test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
+
+      - name: Install Fish for shell integration regressions
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fish
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.99.0"
+          toolchain: "1.99.1"
           components: clippy, rustfmt
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -44,7 +47,7 @@ jobs:
         run: cargo build --release --locked
 
       - name: Run unit + parity tests
-        run: cargo test --release --locked -- --nocapture
+        run: cargo test --release --all-targets --locked -- --nocapture
 
       - name: Check release binary size
         run: |
@@ -62,7 +65,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: clippy
-        run: cargo clippy --release --all-targets -- -D warnings
+        run: cargo clippy --release --all-targets --locked -- -D warnings
 
       - name: Smoke test binary
         run: |
@@ -95,20 +98,24 @@ jobs:
     name: Extractor regression
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.1.0
         with:
-          node-version: "20"
+          node-version: "26.12.0"
 
       - name: Install extractor deps
         working-directory: tools/extractor
-        run: npm install
+        run: npm ci
 
       - name: Type check extractor
         working-directory: tools/extractor
         run: npm run check
+
+      - name: Test extractor
+        working-directory: tools/extractor
+        run: npm test
 
       - name: Run extractor against latest @withfig/autocomplete
         run: |

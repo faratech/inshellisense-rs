@@ -86,7 +86,6 @@ pub fn main() -> Result<()> {
                 return Ok(());
             }
             let start_opts = parse_start_args(&rest, shell, login, verbose, test)?;
-            resources::unpack()?;
             let shell = start_opts
                 .shell
                 .unwrap_or_else(inshellisense_rs::shell::detect);
@@ -161,10 +160,7 @@ pub fn main() -> Result<()> {
             // `is complete "ls " --shell pwsh` — the shell flag may appear
             // after the subcommand, where the root parser never sees it.
             // It used to be appended to the completion line instead.
-            let shell = match parse_optional_shell_flag(&rest, "--shell")? {
-                Some(explicit) => Some(explicit),
-                None => shell,
-            };
+            let shell = opts.shell.or(shell);
             commands::complete::run(&opts.line, opts.text_mode, &opts.cwd, shell)
         }
         "specs" => {
@@ -400,18 +396,24 @@ fn parse_init_args(args: &[String], root_shell: Option<Shell>) -> Result<InitArg
 
 #[derive(Debug, Clone)]
 struct CompleteArgs {
+    shell: Option<Shell>,
     text_mode: bool,
     cwd: String,
     line: String,
 }
 
 fn parse_complete_args(args: &[String]) -> Result<CompleteArgs> {
+    let mut shell = None;
     let mut text_mode = false;
     let mut cwd = ".".to_string();
     let mut line_parts: Vec<String> = Vec::new();
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
+            "--" => {
+                line_parts.extend_from_slice(&args[i + 1..]);
+                break;
+            }
             "--text" => text_mode = true,
             "--json" => {}
             "--cwd" | "--shell" | "-s" => {
@@ -424,16 +426,16 @@ fn parse_complete_args(args: &[String]) -> Result<CompleteArgs> {
                 if flag == "--cwd" {
                     cwd = value;
                 } else {
-                    // Validate here; the value is consumed, not treated as
-                    // part of the completion line.
-                    parse_shell_value(&value)?;
+                    shell = Some(parse_shell_value(&value)?);
                 }
             }
             other => {
                 if let Some(value) = other.strip_prefix("--cwd=") {
                     cwd = value.to_string();
                 } else if let Some(value) = other.strip_prefix("--shell=") {
-                    parse_shell_value(value)?;
+                    shell = Some(parse_shell_value(value)?);
+                } else if let Some(value) = other.strip_prefix("-s") {
+                    shell = Some(parse_shell_value(value)?);
                 } else {
                     line_parts.push(other.to_string());
                 }
@@ -442,6 +444,7 @@ fn parse_complete_args(args: &[String]) -> Result<CompleteArgs> {
         i += 1;
     }
     Ok(CompleteArgs {
+        shell,
         text_mode,
         cwd,
         line: line_parts.join(" "),
@@ -452,6 +455,9 @@ fn parse_complete_args(args: &[String]) -> Result<CompleteArgs> {
 fn parse_optional_shell_flag(args: &[String], flag: &str) -> Result<Option<Shell>> {
     let mut it = args.iter();
     while let Some(a) = it.next() {
+        if a == "--" {
+            break;
+        }
         if a == flag || a == "-s" {
             let value = it
                 .next()
@@ -517,12 +523,21 @@ fn reject_unknown_args(
     Ok(())
 }
 
-/// True if any arg after the subcommand name itself is `-h` or `--help`.
-/// Skips the first element so the subcommand token (e.g. `start`) doesn't
-/// trigger when it happens to equal `-h` (it can't, but the skip keeps
-/// callers symmetric).
+/// Recognize help before `--`, excluding values consumed by known flags.
+/// The first element is the subcommand name, so only later args are flags.
 fn has_help_flag(args: &[String]) -> bool {
-    args.iter().skip(1).any(|a| a == "-h" || a == "--help")
+    let mut args = args.iter().skip(1);
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--" => break,
+            "--cwd" | "--shell" | "-s" | "--ui" => {
+                args.next();
+            }
+            "-h" | "--help" => return true,
+            _ => {}
+        }
+    }
+    false
 }
 
 fn print_help() {
@@ -627,6 +642,8 @@ Options:
   --text          Print only the ghost-tail text instead of the default JSON
   --json          Accepted as a no-op for backwards compatibility
   --cwd <DIR>     Resolve files/dirs relative to DIR (default: current directory)
+  -s, --shell <SHELL>  Use shell-specific parsing and completion
+  --              Treat remaining arguments as literal completion text
   -h, --help      Print this help"
     );
 }
@@ -673,6 +690,68 @@ Options:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn completion_shell_forms_are_consumed_once() {
+        for flags in [
+            vec!["-spwsh"],
+            vec!["-s", "pwsh"],
+            vec!["--shell=pwsh"],
+            vec!["--shell", "pwsh"],
+        ] {
+            let args = [vec!["complete"], flags, vec!["ls -"]]
+                .concat()
+                .into_iter()
+                .map(str::to_string)
+                .collect::<Vec<_>>();
+            let options = parse_complete_args(&args).unwrap();
+            assert_eq!(options.shell, Some(Shell::Pwsh));
+            assert_eq!(options.line, "ls -");
+        }
+    }
+
+    #[test]
+    fn completion_delimiter_keeps_literal_flags_in_the_line() {
+        let args = [
+            "complete",
+            "-spwsh",
+            "--",
+            "ls -",
+            "--shell",
+            "not-a-shell",
+            "--help",
+        ]
+        .into_iter()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+        let options = parse_complete_args(&args).unwrap();
+        assert_eq!(options.shell, Some(Shell::Pwsh));
+        assert_eq!(options.line, "ls - --shell not-a-shell --help");
+        assert!(!has_help_flag(&args));
+        let literal = ["complete", "--", "--shell", "not-a-shell", "-h"]
+            .into_iter()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            parse_optional_shell_flag(&literal, "--shell").unwrap(),
+            None
+        );
+        assert!(!has_help_flag(&literal));
+    }
+
+    #[test]
+    fn help_detection_skips_option_values() {
+        let args = ["complete", "--cwd", "--help", "ls"]
+            .into_iter()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        assert!(!has_help_flag(&args));
+        let args = ["complete", "--text", "--help"]
+            .into_iter()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        assert!(has_help_flag(&args));
+    }
 
     #[test]
     fn collect_args_skips_the_program_name() {

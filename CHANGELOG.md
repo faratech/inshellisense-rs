@@ -5,6 +5,53 @@ All notable changes to inshellisense-rs are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.0.8] - 2026-10-21
+
+Resolves 35 audit findings tracked in GitHub issues #116 through #150 and
+updates Rust to 1.99.1 alongside project dependencies and CI tooling.
+
+### Fixed
+- PowerShell and Fish prompt integration can be sourced repeatedly without
+  recursive prompt calls (#116, #147).
+- Completion retains positional progress across flags, consumes required
+  option values literally, and honors shell-specific quotes, aliases, and
+  attached CLI shell flags (#120-#122, #131, #134, #141, #144).
+- Generator caches preserve argv boundaries and each caller's TTL, coalesce
+  concurrent executions, retry failures, and refresh stale results in the
+  background. Extraction retains requested cache settings and millisecond
+  TTLs; coreutils caches notice in-place binary replacement (#117, #132,
+  #137, #138).
+- Alias discovery stays outside the engine lock and detaches from the
+  controlling terminal. Probe output, resource reads, and total shutdown
+  draining are bounded; cyclic spec directories stop at ancestors
+  (#118, #119, #124-#127, #139, #140, #145).
+- Async responses and typeahead cannot accept stale completions. Prompt
+  markers retain their byte order, and popups fit around multiline prompts
+  and wrapped command text (#129, #133, #136, #142, #143).
+- Text entered while the completion engine loads receives suggestions as
+  soon as it is ready, without requiring another key or redraw. Aliases
+  published later also refresh the current completion context (#149, #150).
+- Absolute root paths complete independently of the working directory (#123).
+- Wrapped Fish disables its native autosuggestions in ghost and hybrid modes
+  so they cannot hide completions; popup mode retains them. Multiline Fish
+  prompts preserve their line breaks (#146, #148).
+
+### Performance
+- Escape parsing runs in linear time; resolver traversal uses a constant
+  stack and moves its context instead of repeatedly cloning it (#121, #128).
+- Ordinary directory entries avoid a metadata syscall per match. PTY scanning
+  avoids copying each incoming chunk, offline completion skips unused history,
+  and parity content sampling respects its subprocess budget
+  (#123, #130, #135, #136).
+
+### Changed
+- Pin Rust 1.99.1 for development and CI; refresh Cargo and extractor
+  dependencies and lockfiles, GitHub Actions, and the CI Node.js runtime.
+- Run extractor fixture and Fish integration tests in CI alongside corpus
+  extraction.
+
 ## [0.0.7] - 2026-10-12
 
 Resolves the October 2026 audit tracked in GitHub issues #92 through #115

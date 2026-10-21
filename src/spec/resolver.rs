@@ -85,8 +85,9 @@ pub fn resolve<'a>(root: &'a Subcommand, tokens: &'a [CommandToken]) -> ResolveR
         end_of_options: false,
         case_insensitive: false,
         parent: None,
+        positional_args: &root.args,
     };
-    run_subcommand(rest, root, ctx, false, false)
+    resolve_loop(Transition::Subcommand(rest, root, ctx, false, false))
 }
 
 /// Resolve with a registry reference — enables `LoadSpec::SpecPath` lookups
@@ -120,11 +121,11 @@ pub fn resolve_with_options<'a>(
         end_of_options: false,
         case_insensitive,
         parent: None,
+        positional_args: &root.args,
     };
-    run_subcommand(rest, root, ctx, false, false)
+    resolve_loop(Transition::Subcommand(rest, root, ctx, false, false))
 }
 
-#[derive(Clone)]
 struct Ctx<'a> {
     persistent: Vec<&'a Opt>,
     accepted_options: Vec<String>,
@@ -139,6 +140,17 @@ struct Ctx<'a> {
     /// The subcommand we descended *from*. The `help` template completes its
     /// siblings: `git help <TAB>` lists `git`'s subcommands, not `help`'s.
     parent: Option<&'a Subcommand>,
+    /// Remaining command positionals. Option arguments use a separate slice,
+    /// so returning from an option cannot restart the command's argument list.
+    positional_args: &'a [Arg],
+}
+
+/// The tokenizer marks every word after `--` raw without knowing whether an
+/// option consumed that `--` as its required value. Only the resolver knows
+/// when option parsing actually ended (#141).
+fn is_option_token(token: &CommandToken, ctx: &Ctx<'_>) -> bool {
+    !ctx.end_of_options
+        && (token.is_option || (token.is_raw && !token.is_quoted && token.token.starts_with('-')))
 }
 
 /// If `sub` has a `load_spec: SpecPath`, resolve it against the registry and
@@ -152,43 +164,75 @@ fn maybe_substitute<'a>(sub: &'a Subcommand, ctx: &Ctx<'a>) -> &'a Subcommand {
     sub
 }
 
-fn run_subcommand<'a>(
+/// Explicit resolver continuations keep token traversal on a constant stack
+/// (#128). A pasted argument list must not overflow the completion worker.
+enum Transition<'a> {
+    Subcommand(&'a [CommandToken], &'a Subcommand, Ctx<'a>, bool, bool),
+    Option(&'a [CommandToken], &'a Opt, &'a Subcommand, Ctx<'a>),
+    Arg(
+        &'a [CommandToken],
+        &'a [Arg],
+        &'a Subcommand,
+        Ctx<'a>,
+        bool,
+        bool,
+    ),
+    Finished(ResolveResult<'a>),
+}
+
+fn resolve_loop(mut next: Transition<'_>) -> ResolveResult<'_> {
+    loop {
+        next = match next {
+            Transition::Subcommand(tokens, sub, ctx, args_depleted, args_used) => {
+                step_subcommand(tokens, sub, ctx, args_depleted, args_used)
+            }
+            Transition::Option(tokens, opt, sub, ctx) => step_option(tokens, opt, sub, ctx),
+            Transition::Arg(tokens, args, sub, ctx, from_option, from_variadic) => {
+                step_arg(tokens, args, sub, ctx, from_option, from_variadic)
+            }
+            Transition::Finished(result) => return result,
+        };
+    }
+}
+
+fn step_subcommand<'a>(
     tokens: &'a [CommandToken],
     sub: &'a Subcommand,
     ctx: Ctx<'a>,
     args_depleted: bool,
     _args_used: bool,
-) -> ResolveResult<'a> {
+) -> Transition<'a> {
+    let args_depleted = args_depleted || (!sub.args.is_empty() && ctx.positional_args.is_empty());
     // Base case: no tokens left — suggest at this subcommand's level.
     if tokens.is_empty() {
-        return ResolveResult {
+        return Transition::Finished(ResolveResult {
             subcommand: surface(&ctx, sub),
             parent_subcommand: ctx.parent,
-            active_arg: sub.args.first(),
+            active_arg: ctx.positional_args.first(),
             persistent_options: visible_options(&ctx, &sub.options),
             args_depleted,
             active_partial: None,
             from_option: false,
-            accepted_option_tokens: ctx.accepted_options.clone(),
+            accepted_option_tokens: ctx.accepted_options,
             positional_args_consumed: ctx.positional_args_consumed,
             end_of_options: ctx.end_of_options,
-        };
+        });
     }
 
     // If the first token is incomplete, that's the partial the user is typing.
     if !tokens[0].complete {
-        return ResolveResult {
+        return Transition::Finished(ResolveResult {
             subcommand: surface(&ctx, sub),
             parent_subcommand: ctx.parent,
-            active_arg: sub.args.first(),
+            active_arg: ctx.positional_args.first(),
             persistent_options: visible_options(&ctx, &sub.options),
             args_depleted,
             active_partial: Some(&tokens[0]),
             from_option: false,
-            accepted_option_tokens: ctx.accepted_options.clone(),
+            accepted_option_tokens: ctx.accepted_options,
             positional_args_consumed: ctx.positional_args_consumed,
             end_of_options: ctx.end_of_options,
-        };
+        });
     }
 
     let active = &tokens[0];
@@ -203,18 +247,18 @@ fn run_subcommand<'a>(
     // tokens *after* it as raw but leaves `--` itself flagged as an option, so
     // it fell into the unknown-option branch below and stopped resolution —
     // `git log -- <TAB>` offered nothing instead of completing file paths.
-    if active.is_option && !active.is_raw && active.token == "--" && active.complete {
-        let mut new_ctx = ctx.clone();
+    if is_option_token(active, &ctx) && active.token == "--" && active.complete {
+        let mut new_ctx = ctx;
         new_ctx.end_of_options = true;
-        return run_subcommand(&tokens[1..], sub, new_ctx, args_depleted, false);
+        return Transition::Subcommand(&tokens[1..], sub, new_ctx, args_depleted, false);
     }
 
     // Option?
-    if active.is_option && !active.is_raw {
+    if is_option_token(active, &ctx) {
         if let Some(opt) = find_option(&all_opts, &active.token, ctx.case_insensitive) {
-            let mut new_ctx = ctx.clone();
+            let mut new_ctx = ctx;
             new_ctx.accepted_options.push(active.token.clone());
-            return run_option(tokens, opt, sub, new_ctx);
+            return Transition::Option(tokens, opt, sub, new_ctx);
         }
         // `--opt<sep>value` where `<sep>` is not `=`. The tokenizer only ever
         // splits on `=`, so such an option never matched at all and its value
@@ -222,15 +266,15 @@ fn run_subcommand<'a>(
         if let Some((opt, _value)) =
             find_separated_option(&all_opts, &active.token, ctx.case_insensitive)
         {
-            let mut new_ctx = ctx.clone();
+            let mut new_ctx = ctx;
             new_ctx.accepted_options.push(opt.names[0].clone());
-            return run_subcommand(&tokens[1..], sub, new_ctx, false, false);
+            return Transition::Subcommand(&tokens[1..], sub, new_ctx, false, false);
         }
 
         // Clustered short flags: `-abc` means `-a -b -c`. Each letter is
         // recorded as accepted so `exclusiveOn`/`dependsOn` see them.
         if let Some((cluster, attached_value)) = expand_short_cluster(&all_opts, &active.token) {
-            let mut new_ctx = ctx.clone();
+            let mut new_ctx = ctx;
             for opt in &cluster {
                 new_ctx.accepted_options.push(opt.names[0].clone());
             }
@@ -240,25 +284,24 @@ fn run_subcommand<'a>(
                 && !last.args.is_empty()
                 && !attached_value
             {
-                return run_arg(&tokens[1..], &last.args, sub, new_ctx, true, false);
+                return Transition::Arg(&tokens[1..], &last.args, sub, new_ctx, true, false);
             }
-            return run_subcommand(&tokens[1..], sub, new_ctx, false, false);
+            return Transition::Subcommand(&tokens[1..], sub, new_ctx, false, false);
         }
 
         // Unknown option — skip it and keep resolving the rest of the line
         // (#94). Returning here with no partial used to discard a valid
         // subcommand and the token being typed, dumping the unfiltered
         // top-level list; the flag simply is not ours to complete.
-        return run_subcommand(&tokens[1..], sub, ctx.clone(), args_depleted, false);
+        return Transition::Subcommand(&tokens[1..], sub, ctx, args_depleted, false);
     }
 
-    // Raw tokens (after `--`) only match positional args. The end-of-options
-    // guard keeps the rule even if a token slipped through unmarked: past a
-    // bare `--` nothing may resolve as a subcommand or an option.
-    if !active.is_raw && !ctx.end_of_options {
+    // Past an actual separator, nothing may resolve as a subcommand. A raw
+    // tokenizer hint alone is insufficient: `--` may have been option data.
+    if !ctx.end_of_options {
         // Subcommand?
         if let Some(next) = find_subcommand(sub, &active.token, ctx.case_insensitive) {
-            let mut new_ctx = ctx.clone();
+            let mut new_ctx = ctx;
             for opt in &sub.options {
                 if opt.is_persistent && !new_ctx.persistent.iter().any(|o| opts_eq(o, opt)) {
                     new_ctx.persistent.push(opt);
@@ -268,20 +311,21 @@ fn run_subcommand<'a>(
             // just a stub pointing to another spec, load it lazily.
             new_ctx.parent = Some(sub);
             let resolved = maybe_substitute(next, &new_ctx);
-            return run_subcommand(&tokens[1..], resolved, new_ctx, false, false);
+            new_ctx.positional_args = &resolved.args;
+            return Transition::Subcommand(&tokens[1..], resolved, new_ctx, false, false);
         }
     }
 
     // Positional arg?
-    if !sub.args.is_empty() {
-        return run_arg(tokens, &sub.args, sub, ctx, false, false);
+    if !ctx.positional_args.is_empty() {
+        return Transition::Arg(tokens, ctx.positional_args, sub, ctx, false, false);
     }
 
     // Nothing matched — an unknown command word cannot be completed past
     // (#98). Skipping it used to restart completion at this level, so
     // `git chekout ` offered every git subcommand and accepting one
     // produced `git chekout archive`.
-    ResolveResult {
+    Transition::Finished(ResolveResult {
         subcommand: &EMPTY_SUBCOMMAND,
         parent_subcommand: ctx.parent,
         active_arg: None,
@@ -289,18 +333,18 @@ fn run_subcommand<'a>(
         args_depleted: true,
         active_partial: None,
         from_option: false,
-        accepted_option_tokens: ctx.accepted_options.clone(),
+        accepted_option_tokens: ctx.accepted_options,
         positional_args_consumed: ctx.positional_args_consumed,
         end_of_options: ctx.end_of_options,
-    }
+    })
 }
 
-fn run_option<'a>(
+fn step_option<'a>(
     tokens: &'a [CommandToken],
     opt: &'a Opt,
     sub: &'a Subcommand,
     ctx: Ctx<'a>,
-) -> ResolveResult<'a> {
+) -> Transition<'a> {
     // If the option takes args, the next token(s) feed them.
     if !opt.args.is_empty() {
         if opt.requires_separator.is_some() && !tokens[0].separated {
@@ -308,7 +352,7 @@ fn run_option<'a>(
             // unattached option means none was given.
             if tokens.len() <= 1 {
                 // `-i ` — upstream suppresses all suggestions.
-                return ResolveResult {
+                return Transition::Finished(ResolveResult {
                     subcommand: &EMPTY_SUBCOMMAND,
                     parent_subcommand: ctx.parent,
                     active_arg: None,
@@ -316,37 +360,37 @@ fn run_option<'a>(
                     args_depleted: true,
                     active_partial: None,
                     from_option: true,
-                    accepted_option_tokens: ctx.accepted_options.clone(),
+                    accepted_option_tokens: ctx.accepted_options,
                     positional_args_consumed: ctx.positional_args_consumed,
                     end_of_options: false,
-                };
+                });
             }
             // `-i val` — `val` belongs to the command, not to this option.
             // Consuming it as the option's value invented an argument the
             // shell would never pass.
-            return run_subcommand(&tokens[1..], sub, ctx, false, false);
+            return Transition::Subcommand(&tokens[1..], sub, ctx, false, false);
         }
-        return run_arg(&tokens[1..], &opt.args, sub, ctx, true, false);
+        return Transition::Arg(&tokens[1..], &opt.args, sub, ctx, true, false);
     }
     // No args — consume the option token and continue at subcommand level.
-    run_subcommand(&tokens[1..], sub, ctx, false, false)
+    Transition::Subcommand(&tokens[1..], sub, ctx, false, false)
 }
 
-fn run_arg<'a>(
+fn step_arg<'a>(
     tokens: &'a [CommandToken],
     args: &'a [Arg],
     sub: &'a Subcommand,
     ctx: Ctx<'a>,
     from_option: bool,
-    _from_variadic: bool,
-) -> ResolveResult<'a> {
+    from_variadic: bool,
+) -> Transition<'a> {
     if args.is_empty() {
-        return run_subcommand(tokens, sub, ctx, true, !from_option);
+        return Transition::Subcommand(tokens, sub, ctx, !from_option, !from_option);
     }
 
     // No tokens left → suggest for the first remaining arg.
     if tokens.is_empty() {
-        return ResolveResult {
+        return Transition::Finished(ResolveResult {
             subcommand: surface(&ctx, sub),
             parent_subcommand: ctx.parent,
             active_arg: Some(&args[0]),
@@ -354,29 +398,51 @@ fn run_arg<'a>(
             args_depleted: false,
             active_partial: None,
             from_option,
-            accepted_option_tokens: ctx.accepted_options.clone(),
+            accepted_option_tokens: ctx.accepted_options,
             positional_args_consumed: ctx.positional_args_consumed,
             end_of_options: ctx.end_of_options,
-        };
+        });
     }
 
-    // First token incomplete → active partial.
-    if !tokens[0].complete {
-        return ResolveResult {
+    // Required option values are whole shell words, even when the parser
+    // split a flag-looking value at `=` (#141). Source spans distinguish
+    // attached fragments from the next whitespace-separated argument.
+    let required_option_value = from_option && !args[0].is_optional && !from_variadic;
+    let (active, consumed) = if required_option_value {
+        tokens[0]
+            .unsplit
+            .as_ref()
+            .map(|word| (word.token(), word.parts()))
+            .unwrap_or((&tokens[0], 1))
+    } else {
+        (&tokens[0], 1)
+    };
+    // First word incomplete → active partial.
+    if !active.complete {
+        return Transition::Finished(ResolveResult {
             subcommand: surface(&ctx, sub),
             parent_subcommand: ctx.parent,
             active_arg: Some(&args[0]),
             persistent_options: visible_options(&ctx, &sub.options),
             args_depleted: false,
-            active_partial: Some(&tokens[0]),
+            active_partial: Some(active),
             from_option,
-            accepted_option_tokens: ctx.accepted_options.clone(),
+            accepted_option_tokens: ctx.accepted_options,
             positional_args_consumed: ctx.positional_args_consumed,
             end_of_options: ctx.end_of_options,
-        };
+        });
     }
 
-    let active = &tokens[0];
+    // A required option value is data even when it spells a known flag or
+    // `--` (e.g. `grep -e -- file`). Once a variadic arg has received its
+    // required first value, retain the usual option-breaking behavior.
+    // A separator does not consume a positional slot, including when we are
+    // already partway through the command's argument list (#120).
+    if !required_option_value && is_option_token(active, &ctx) && active.token == "--" {
+        let mut new_ctx = ctx;
+        new_ctx.end_of_options = true;
+        return Transition::Arg(&tokens[1..], args, sub, new_ctx, from_option, false);
+    }
     // An option token is an option wherever it appears — including after a
     // required positional (`grep foo -l`, #97). Checking only when every
     // remaining arg was optional swallowed such flags as positional values,
@@ -388,14 +454,21 @@ fn run_arg<'a>(
         .copied()
         .chain(sub.options.iter())
         .collect();
-    if active.is_option && !active.is_raw && !ctx.end_of_options {
+    if !required_option_value && is_option_token(active, &ctx) {
         if let Some(opt) = find_option(&all_opts, &active.token, ctx.case_insensitive) {
-            let mut new_ctx = ctx.clone();
+            let mut new_ctx = ctx;
             new_ctx.accepted_options.push(active.token.clone());
-            return run_option(tokens, opt, sub, new_ctx);
+            return Transition::Option(tokens, opt, sub, new_ctx);
+        }
+        if let Some((opt, _value)) =
+            find_separated_option(&all_opts, &active.token, ctx.case_insensitive)
+        {
+            let mut new_ctx = ctx;
+            new_ctx.accepted_options.push(opt.names[0].clone());
+            return Transition::Subcommand(&tokens[1..], sub, new_ctx, false, false);
         }
         if let Some((cluster, attached_value)) = expand_short_cluster(&all_opts, &active.token) {
-            let mut new_ctx = ctx.clone();
+            let mut new_ctx = ctx;
             for opt in &cluster {
                 new_ctx.accepted_options.push(opt.names[0].clone());
             }
@@ -403,12 +476,12 @@ fn run_arg<'a>(
                 && !last.args.is_empty()
                 && !attached_value
             {
-                return run_arg(&tokens[1..], &last.args, sub, new_ctx, true, false);
+                return Transition::Arg(&tokens[1..], &last.args, sub, new_ctx, true, false);
             }
-            return run_subcommand(&tokens[1..], sub, new_ctx, false, false);
+            return Transition::Subcommand(&tokens[1..], sub, new_ctx, false, false);
         }
         if args.iter().all(|a| a.is_optional) {
-            return ResolveResult {
+            return Transition::Finished(ResolveResult {
                 subcommand: surface(&ctx, sub),
                 parent_subcommand: ctx.parent,
                 active_arg: Some(&args[0]),
@@ -416,10 +489,10 @@ fn run_arg<'a>(
                 args_depleted: false,
                 active_partial: None,
                 from_option,
-                accepted_option_tokens: ctx.accepted_options.clone(),
+                accepted_option_tokens: ctx.accepted_options,
                 positional_args_consumed: ctx.positional_args_consumed,
                 end_of_options: ctx.end_of_options,
-            };
+            });
         }
         // Unknown dash-token with required args outstanding: fall through
         // and let it be consumed as a positional value (e.g. a pattern).
@@ -427,14 +500,13 @@ fn run_arg<'a>(
     // If all remaining args are optional, the user may be skipping to a
     // subcommand instead.
     if args.iter().all(|a| a.is_optional)
-        && !active.is_raw
         && !ctx.end_of_options
         && let Some(next) = find_subcommand(sub, &active.token, ctx.case_insensitive)
     {
         // Inherit this level's persistent options, exactly as
         // `run_subcommand` does. Omitting it meant `cmd --optWithOptionalArg
         // subcmd` dropped every parent `isPersistent` option.
-        let mut new_ctx = ctx.clone();
+        let mut new_ctx = ctx;
         for opt in &sub.options {
             if opt.is_persistent && !new_ctx.persistent.iter().any(|o| opts_eq(o, opt)) {
                 new_ctx.persistent.push(opt);
@@ -442,7 +514,8 @@ fn run_arg<'a>(
         }
         new_ctx.parent = Some(sub);
         let resolved = maybe_substitute(next, &new_ctx);
-        return run_subcommand(&tokens[1..], resolved, new_ctx, false, false);
+        new_ctx.positional_args = &resolved.args;
+        return Transition::Subcommand(&tokens[1..], resolved, new_ctx, false, false);
     }
 
     let active_arg = &args[0];
@@ -452,7 +525,7 @@ fn run_arg<'a>(
     // registry and resolve the remaining tokens against it, in a fresh
     // context. Mirrors the `load_spec` substitution path above.
     if active_arg.is_command
-        && !active.is_raw
+        && !ctx.end_of_options
         && let Some(reg) = ctx.registry
         && let Some(loaded) = reg.get(&active.token).or_else(|| {
             // PowerShell/cmd command names are case-insensitive (#106).
@@ -471,8 +544,9 @@ fn run_arg<'a>(
             end_of_options: false,
             case_insensitive: ctx.case_insensitive,
             parent: None,
+            positional_args: &loaded.args,
         };
-        return run_subcommand(&tokens[1..], loaded, nested, false, false);
+        return Transition::Subcommand(&tokens[consumed..], loaded, nested, false, false);
     }
 
     if active_arg.is_variadic {
@@ -480,15 +554,23 @@ fn run_arg<'a>(
         if !from_option {
             new_ctx.positional_args_consumed = true;
         }
-        return run_arg(&tokens[1..], args, sub, new_ctx, from_option, true);
+        return Transition::Arg(&tokens[consumed..], args, sub, new_ctx, from_option, true);
     }
 
     // Move to the next positional arg definition.
     let mut new_ctx = ctx;
     if !from_option {
         new_ctx.positional_args_consumed = true;
+        new_ctx.positional_args = &args[1..];
     }
-    run_arg(&tokens[1..], &args[1..], sub, new_ctx, from_option, false)
+    Transition::Arg(
+        &tokens[consumed..],
+        &args[1..],
+        sub,
+        new_ctx,
+        from_option,
+        false,
+    )
 }
 
 fn find_option<'a>(opts: &[&'a Opt], token: &str, case_insensitive: bool) -> Option<&'a Opt> {
@@ -710,6 +792,152 @@ mod tests {
         Arg::default()
     }
 
+    /// #128: completion runs on a worker stack. Every token transition must
+    /// remain iterative for both options and variadic positional arguments.
+    #[test]
+    fn long_command_lines_resolve_on_a_small_worker_stack() {
+        std::thread::Builder::new()
+            .stack_size(128 * 1024)
+            .spawn(|| {
+                let root = Subcommand {
+                    names: vec!["cmd".into()],
+                    args: vec![Arg {
+                        name: Some("files".into()),
+                        is_variadic: true,
+                        ..Default::default()
+                    }],
+                    options: vec![
+                        make_opt("-v"),
+                        Opt {
+                            args: vec![make_arg()],
+                            ..make_opt("-m")
+                        },
+                    ],
+                    ..Default::default()
+                };
+                for (words, accepted) in [
+                    ("-v ", 20_000),
+                    ("-m value ", 20_000),
+                    ("--unknown ", 0),
+                    ("file ", 0),
+                ] {
+                    let line = format!("cmd {}partial", words.repeat(20_000));
+                    let tokens = tok(&line);
+                    let result = resolve(&root, &tokens);
+                    assert_eq!(result.accepted_option_tokens.len(), accepted);
+                    assert_eq!(result.active_partial.unwrap().token, "partial");
+                    assert_eq!(
+                        result.active_arg.and_then(|a| a.name.as_deref()),
+                        Some("files")
+                    );
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    /// #120: options and `--` between positionals must keep the remaining
+    /// command argument slice, rather than restarting it at the first arg.
+    #[test]
+    fn interspersed_options_preserve_positional_cursor() {
+        let root = Subcommand {
+            names: vec!["cmd".into()],
+            args: ["first", "second", "third"]
+                .into_iter()
+                .map(|name| Arg {
+                    name: Some(name.into()),
+                    ..Default::default()
+                })
+                .collect(),
+            options: vec![
+                make_opt("--verbose"),
+                Opt {
+                    args: vec![make_arg()],
+                    ..make_opt("--mode")
+                },
+                Opt {
+                    args: vec![make_arg()],
+                    ..make_opt("-m")
+                },
+                Opt {
+                    args: vec![make_arg()],
+                    requires_separator: Some(":".into()),
+                    ..make_opt("-D")
+                },
+            ],
+            ..Default::default()
+        };
+        for line in [
+            "cmd one --verbose ",
+            "cmd one --mode chosen ",
+            "cmd one --mode=chosen ",
+            "cmd one -mchosen ",
+            "cmd one -D:chosen ",
+            "cmd one -- ",
+        ] {
+            let tokens = tok(line);
+            let result = resolve(&root, &tokens);
+            assert_eq!(
+                result.active_arg.and_then(|a| a.name.as_deref()),
+                Some("second"),
+                "{line}"
+            );
+            assert!(!result.from_option, "{line}");
+            assert!(!result.args_depleted, "{line}");
+        }
+        let tokens = tok("cmd one -- two ");
+        let result = resolve(&root, &tokens);
+        assert!(result.end_of_options);
+        assert!(result.persistent_options.is_empty());
+        assert_eq!(
+            result.active_arg.and_then(|a| a.name.as_deref()),
+            Some("third")
+        );
+
+        // An exhausted argument list stays exhausted through later options.
+        for line in ["cmd one two three ", "cmd one two three --verbose "] {
+            let tokens = tok(line);
+            let result = resolve(&root, &tokens);
+            assert!(result.active_arg.is_none(), "{line}");
+            assert!(result.args_depleted, "{line}");
+        }
+    }
+
+    #[test]
+    fn variadic_positionals_keep_their_cursor_across_options_and_separator() {
+        let root = Subcommand {
+            names: vec!["cmd".into()],
+            args: vec![
+                make_arg(),
+                Arg {
+                    name: Some("rest".into()),
+                    is_variadic: true,
+                    ..Default::default()
+                },
+            ],
+            options: vec![make_opt("--verbose")],
+            ..Default::default()
+        };
+        for line in [
+            "cmd one two --verbose ",
+            "cmd one two -- ",
+            "cmd one two -- --verbose ",
+        ] {
+            let tokens = tok(line);
+            let result = resolve(&root, &tokens);
+            assert_eq!(
+                result.active_arg.and_then(|a| a.name.as_deref()),
+                Some("rest"),
+                "{line}"
+            );
+            if line.contains(" -- ") {
+                assert!(result.end_of_options);
+                assert!(result.persistent_options.is_empty());
+            }
+        }
+    }
+
     fn tok(s: &str) -> Vec<CommandToken> {
         crate::spec::parse_command(s)
     }
@@ -842,6 +1070,173 @@ mod tests {
         let tokens = crate::spec::parse_command("git ");
         let result = resolve(&spec, &tokens);
         assert_eq!(result.persistent_options.len(), 1);
+    }
+
+    /// #141: option values must win over both real flags and the parser's
+    /// context-free end-of-options annotations.
+    #[test]
+    fn required_option_values_are_data_before_option_dispatch() {
+        let mut pattern = make_opt("-e");
+        pattern.args = vec![Arg {
+            name: Some("pattern".into()),
+            ..Default::default()
+        }];
+        let mut spec = make_spec("grep", vec![], vec![pattern, make_opt("-n")]);
+        spec.args = vec![Arg {
+            name: Some("file".into()),
+            ..Default::default()
+        }];
+
+        for line in ["grep -e -- ", "grep -e -n ", "grep -e=-- "] {
+            let tokens = tok(line);
+            let result = resolve(&spec, &tokens);
+            assert_eq!(
+                result.active_arg.and_then(|arg| arg.name.as_deref()),
+                Some("file"),
+                "{line}"
+            );
+            assert!(!result.from_option, "{line}");
+            assert!(!result.end_of_options, "{line}");
+            assert_eq!(result.accepted_option_tokens, ["-e"], "{line}");
+        }
+
+        // A literal `--` must not disable flags later in the command.
+        let tokens = tok("grep -e -- -n ");
+        let result = resolve(&spec, &tokens);
+        assert_eq!(result.accepted_option_tokens, ["-e", "-n"]);
+        assert!(!result.end_of_options);
+        assert_eq!(
+            result.active_arg.and_then(|a| a.name.as_deref()),
+            Some("file")
+        );
+
+        // A subsequent actual separator still ends option parsing.
+        let tokens = tok("grep -e -- -- -n ");
+        let result = resolve(&spec, &tokens);
+        assert_eq!(result.accepted_option_tokens, ["-e"]);
+        assert!(result.end_of_options);
+        assert!(result.args_depleted);
+    }
+
+    #[test]
+    fn required_option_values_consume_attached_equals_as_one_word() {
+        let mut pattern = make_opt("-e");
+        pattern.args = vec![Arg {
+            name: Some("pattern".into()),
+            ..Default::default()
+        }];
+        let mut define = pattern.clone();
+        define.names = vec!["--define".into()];
+        define.requires_separator = Some("=".into());
+        let mut spec = make_spec("audit", vec![], vec![pattern, define]);
+        spec.args = ["first", "second"]
+            .map(|name| Arg {
+                name: Some(name.into()),
+                ..Default::default()
+            })
+            .to_vec();
+
+        for line in [
+            "audit -e --flag=value ",
+            "audit -e '--flag=value' ",
+            "audit -e --flag=\"va lue\" ",
+            "audit -e --outer=--flag=value ",
+            "audit -e=--flag=value ",
+            "audit --define=--flag=value ",
+        ] {
+            let tokens = tok(line);
+            let result = resolve(&spec, &tokens);
+            assert_eq!(
+                result.active_arg.and_then(|a| a.name.as_deref()),
+                Some("first"),
+                "{line}"
+            );
+            assert!(!result.from_option, "{line}");
+        }
+        for line in [
+            "audit -e --flag=value file ",
+            "audit -e '--flag=value' file ",
+            "audit -e --flag= value ",
+            "audit --define=--flag=value file ",
+            // requiresSeparator must still leave whitespace-separated values alone.
+            "audit --define file ",
+        ] {
+            let tokens = tok(line);
+            let result = resolve(&spec, &tokens);
+            assert_eq!(
+                result.active_arg.and_then(|a| a.name.as_deref()),
+                Some("second"),
+                "{line}"
+            );
+            assert!(!result.from_option, "{line}");
+        }
+        for (line, partial, length) in [
+            ("audit -e --flag=va", "--flag=va", 9),
+            ("audit -e --flag=", "--flag=", 7),
+            ("audit -e '--flag=va'", "--flag=va", 11),
+            ("audit -e --flag=\"va l", "--flag=va l", 12),
+            ("audit -e --outer=--flag=va", "--outer=--flag=va", 17),
+            ("audit -e=--flag=va", "--flag=va", 9),
+            ("audit --define=--flag=va", "--flag=va", 9),
+            // An ordinary attached value still excludes its own option name.
+            ("audit -e=va", "va", 2),
+        ] {
+            let tokens = tok(line);
+            let result = resolve(&spec, &tokens);
+            assert_eq!(
+                result.active_arg.and_then(|a| a.name.as_deref()),
+                Some("pattern"),
+                "{line}"
+            );
+            assert!(result.from_option, "{line}");
+            let active = result.active_partial.unwrap();
+            assert_eq!(active.token, partial, "{line}");
+            assert_eq!(active.token_length, length, "{line}");
+        }
+        for line in [
+            "audit -e --flag=value file",
+            "audit -e '--flag=value' file",
+            "audit -e --flag=\"va lue\" file",
+        ] {
+            let tokens = tok(line);
+            let result = resolve(&spec, &tokens);
+            assert_eq!(
+                result.active_arg.and_then(|a| a.name.as_deref()),
+                Some("first"),
+                "{line}"
+            );
+            assert_eq!(result.active_partial.unwrap().token, "file", "{line}");
+            assert!(!result.from_option, "{line}");
+        }
+    }
+
+    #[test]
+    fn optional_option_values_still_allow_flags_and_subcommands() {
+        let mut maybe = make_opt("--maybe");
+        maybe.args = vec![Arg {
+            name: Some("value".into()),
+            is_optional: true,
+            ..Default::default()
+        }];
+        let mut spec = make_spec(
+            "cmd",
+            vec![make_spec("child", vec![], vec![])],
+            vec![maybe, make_opt("--flag")],
+        );
+        spec.args = vec![Arg {
+            name: Some("file".into()),
+            ..Default::default()
+        }];
+        let tokens = tok("cmd --maybe --flag ");
+        let result = resolve(&spec, &tokens);
+        assert_eq!(result.accepted_option_tokens, ["--maybe", "--flag"]);
+        assert!(!result.from_option);
+        assert_eq!(
+            result.active_arg.and_then(|a| a.name.as_deref()),
+            Some("file")
+        );
+        let tokens = tok("cmd --maybe child ");
+        assert_eq!(resolve(&spec, &tokens).subcommand.name(), "child");
     }
 
     /// `-abc` means `-a -b -c`. Each letter is recorded as accepted.

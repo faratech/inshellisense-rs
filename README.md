@@ -15,8 +15,9 @@ $ git ch█eckout        ← grey suggestion ─ press → to accept
 
 **Close behavioral parity with upstream inshellisense**, validated against the
 upstream binary across the `complete` suggestion engine, CLI surface, and shell
-init. The checked-in parity corpus passes 117/117 cases; `cargo test` runs 320
-tests. 1470 specs are bundled (zstd-compressed), lazy-loaded on demand with
+init. The checked-in parity corpus passes 117/117 cases, alongside unit, CLI,
+and shell integration regressions. 1470 specs are bundled (zstd-compressed),
+lazy-loaded on demand with
 zero-copy byte slice indexing, and extracted statically; offline gaps that would
 need live process state or opaque JS closures are handled with Rust-native
 generators or documented as runtime boundaries. Pure Rust — no JS runtime, no
@@ -68,6 +69,8 @@ The positioning: inshellisense's feature set without the Node runtime.
 
 ### From source
 
+The repository pins Rust 1.99.1 through `rust-toolchain.toml`.
+
 ```sh
 cargo install --path .
 is init bash --install-rc   # appends the bash init snippet to ~/.bashrc
@@ -117,6 +120,10 @@ notably, `is uninstall --dry-run` fails instead of quietly uninstalling.
 ### Keys in the wrapped shell
 
 Ghost text (`--ui ghost`, and the ghost half of the default `hybrid`):
+
+In wrapped Fish sessions, these modes disable Fish's native autosuggestions
+to avoid competing ghost text. Popup mode preserves Fish's native autosuggestion
+setting.
 
 | Key | Action |
 |---|---|
