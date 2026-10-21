@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-10-21
+
+Resolves 35 audit findings tracked in GitHub issues #116 through #150 and
+updates Rust to 1.99.1 alongside project dependencies and CI tooling.
+
 ### Fixed
 - PowerShell and Fish prompt integration can be sourced repeatedly without
   recursive prompt calls (#116, #147).
