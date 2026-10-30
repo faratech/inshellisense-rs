@@ -1149,6 +1149,136 @@ fn apply_pattern(raw: Vec<String>, kind: &PostProcessKind) -> Vec<Suggestion> {
                 })
             })
             .collect(),
+        PostProcessKind::RustupToolchains {} => rustup_toolchains_to_suggestions(raw),
+        PostProcessKind::RustupTargets {} => rustup_targets_to_suggestions(raw),
+        PostProcessKind::TailscaleHosts { append } => tailscale_hosts_to_suggestions(&raw, append),
+    }
+}
+
+/// `rustup toolchain list` lines look like
+/// `stable-x86_64-unknown-linux-gnu (active, default)` or `nightly-...
+/// (installed)`. The status annotation is not part of the toolchain name, so
+/// the suggestion is the name with any trailing ` (…)` dropped. Upstream also
+/// offers the deduplicated short names (`stable`, `nightly`); we emit those
+/// first, then the full names, mirroring that ordering.
+fn rustup_toolchains_to_suggestions(raw: Vec<String>) -> Vec<Suggestion> {
+    let toolchains: Vec<String> = raw
+        .into_iter()
+        .map(|line| first_whitespace_token(&line).to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let mut short: Vec<String> = Vec::new();
+    for tc in &toolchains {
+        let head = tc.split('-').next().unwrap_or(tc);
+        if head.is_empty() || !short.contains(&head.to_string()) {
+            short.push(head.to_string());
+        }
+    }
+
+    let mut names: Vec<String> = Vec::new();
+    for name in short.iter().chain(toolchains.iter()) {
+        if !names.contains(name) {
+            names.push(name.clone());
+        }
+    }
+
+    names
+        .into_iter()
+        .map(|name| Suggestion {
+            name,
+            suggestion_type: SuggestionType::Arg,
+            priority: Some(60),
+            ..Default::default()
+        })
+        .collect()
+}
+
+/// `rustup target list` lines look like `x86_64-unknown-linux-gnu (installed)`
+/// or a bare triple for one that is not installed. The triple is the
+/// suggestion; the `(installed)` marker becomes its description so the list
+/// still shows which targets are present.
+fn rustup_targets_to_suggestions(raw: Vec<String>) -> Vec<Suggestion> {
+    let mut seen = std::collections::BTreeSet::new();
+    raw.into_iter()
+        .filter_map(|line| {
+            let line = line.trim();
+            if line.is_empty() {
+                return None;
+            }
+            let (name, desc) = split_trailing_parenthetical(line);
+            if name.is_empty() || !seen.insert(name.clone()) {
+                return None;
+            }
+            let installed = desc.as_deref() == Some("installed");
+            Some(Suggestion {
+                name,
+                description: installed.then(|| "installed".to_string()),
+                suggestion_type: SuggestionType::Arg,
+                priority: Some(60),
+                ..Default::default()
+            })
+        })
+        .collect()
+}
+
+/// `tailscale status --json` prints one JSON object:
+/// `{"Self":{...},"Peer":{"node":{"DNSName":"a.b.c","HostName":...,"OS":...}}}`.
+/// Each peer's short DNS name is a host; the `:port` form (`tailscale file cp`)
+/// appends the literal `:`. Without this the single blob line would reach the
+/// user as one unusable suggestion.
+fn tailscale_hosts_to_suggestions(raw: &[String], append: &str) -> Vec<Suggestion> {
+    let blob = raw.join("\n");
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&blob) else {
+        return Vec::new();
+    };
+    let Some(peers) = value.get("Peer").and_then(|p| p.as_object()) else {
+        return Vec::new();
+    };
+    let mut seen = std::collections::BTreeSet::new();
+    let mut out: Vec<Suggestion> = Vec::new();
+    for peer in peers.values() {
+        let Some(dns) = peer.get("DNSName").and_then(|d| d.as_str()) else {
+            continue;
+        };
+        let short = dns.split('.').next().unwrap_or(dns).to_string();
+        if short.is_empty() || !seen.insert(short.clone()) {
+            continue;
+        }
+        out.push(Suggestion {
+            name: format!("{short}{append}"),
+            description: peer
+                .get("HostName")
+                .and_then(|h| h.as_str())
+                .map(String::from)
+                .or_else(|| peer.get("OS").and_then(|o| o.as_str()).map(String::from)),
+            suggestion_type: SuggestionType::Arg,
+            priority: Some(60),
+            ..Default::default()
+        });
+    }
+    out
+}
+
+/// The first whitespace-delimited token of a line (or the trimmed line when it
+/// has no whitespace).
+fn first_whitespace_token(line: &str) -> &str {
+    line.split_whitespace().next().unwrap_or(line.trim())
+}
+
+/// Split a `name (annotation)` line into `("name", Some("annotation"))`; a
+/// line with no trailing parenthetical yields `("line", None)`.
+fn split_trailing_parenthetical(line: &str) -> (String, Option<String>) {
+    let open = line.rfind('(');
+    if let Some(i) = open
+        && line.ends_with(')')
+        && i > 0
+    {
+        let name = line[..i].trim().to_string();
+        let annotation = line[i + 1..line.len() - 1].trim().to_string();
+        (name, Some(annotation))
+    } else {
+        (line.trim().to_string(), None)
     }
 }
 
@@ -1835,6 +1965,98 @@ mod tests {
         let got = json_to_suggestions(r#"{"packages":[{"name":"pkg-a"},{"name":"pkg-b"}]}"#, None);
         let names: Vec<String> = got.into_iter().map(|s| s.name).collect();
         assert_eq!(names, vec!["pkg-a", "pkg-b"]);
+    }
+
+    /// #200: `rustup toolchain list` appends a status annotation
+    /// (`stable-… (active, default)`). The suggestion is the name with the
+    /// trailing ` (…)` dropped, plus the deduplicated short names first —
+    /// matching upstream. Pre-fix, `none` left the annotation in the name.
+    #[test]
+    fn rustup_toolchain_lines_drop_status_annotation() {
+        let raw = vec![
+            "stable-x86_64-unknown-linux-gnu (active, default)".to_string(),
+            "nightly-x86_64-unknown-linux-gnu (installed)".to_string(),
+            "1.75.0-x86_64-unknown-linux-gnu".to_string(),
+        ];
+        let got = apply_pattern(raw, &PostProcessKind::RustupToolchains {});
+        let names: Vec<&str> = got.iter().map(|s| s.name.as_str()).collect();
+        // No suggestion carries the annotation.
+        assert!(
+            names.iter().all(|n| !n.contains('(') && !n.contains(")")),
+            "annotation leaked: {names:?}"
+        );
+        // Short names lead, then full names, deduplicated.
+        assert_eq!(
+            names,
+            vec![
+                "stable",
+                "nightly",
+                "1.75.0",
+                "stable-x86_64-unknown-linux-gnu",
+                "nightly-x86_64-unknown-linux-gnu",
+                "1.75.0-x86_64-unknown-linux-gnu"
+            ]
+        );
+    }
+
+    /// #200: `rustup target list` appends ` (installed)` to installed
+    /// triples. The triple is the suggestion; the marker becomes its
+    /// description. Pre-fix, `none` produced `x86_64-… (installed)`.
+    #[test]
+    fn rustup_target_lines_drop_installed_marker() {
+        let raw = vec![
+            "aarch64-unknown-linux-gnu".to_string(),
+            "x86_64-unknown-linux-gnu (installed)".to_string(),
+        ];
+        let got = apply_pattern(raw, &PostProcessKind::RustupTargets {});
+        let by_name = |n: &str| got.iter().find(|s| s.name == n).unwrap();
+        assert_eq!(got.len(), 2);
+        assert_eq!(by_name("aarch64-unknown-linux-gnu").description, None);
+        assert_eq!(
+            by_name("x86_64-unknown-linux-gnu").description.as_deref(),
+            Some("installed")
+        );
+        assert!(got.iter().all(|s| !s.name.contains('(')));
+    }
+
+    /// #200: `tailscale status --json` emits one JSON object. Each peer's
+    /// short DNS name becomes a suggestion (description from HostName/OS);
+    /// the `:` form appends for `tailscale file cp`. Pre-fix, `none` offered
+    /// the whole blob as a single suggestion.
+    #[test]
+    fn tailscale_status_json_becomes_peer_hostnames() {
+        let blob = r#"{"Self":{"DNSName":"myhost.tailnet.ts.net","HostName":"myhost","OS":"linux"},"Peer":{"laptop":{"HostName":"laptop","OS":"macos","DNSName":"laptop.tailnet.ts.net"},"srv":{"HostName":"srv","OS":"linux","DNSName":"srv.tailnet.ts.net"}}}"#;
+        let got = apply_pattern(
+            vec![blob.to_string()],
+            &PostProcessKind::TailscaleHosts {
+                append: String::new(),
+            },
+        );
+        let names: Vec<&str> = got.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, vec!["laptop", "srv"]);
+        // Self is not a peer, so it is not offered.
+        assert!(!names.contains(&"myhost"));
+        // Descriptions fall back from HostName to OS.
+        assert_eq!(got[0].description.as_deref(), Some("laptop"));
+
+        // The `:port` form appends the literal colon.
+        let colons = apply_pattern(
+            vec![blob.to_string()],
+            &PostProcessKind::TailscaleHosts {
+                append: ":".to_string(),
+            },
+        );
+        let colon_names: Vec<&str> = colons.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(colon_names, vec!["laptop:", "srv:"]);
+
+        // Non-JSON output yields nothing rather than a blob suggestion.
+        let not_json = apply_pattern(
+            vec!["not json".to_string()],
+            &PostProcessKind::TailscaleHosts {
+                append: String::new(),
+            },
+        );
+        assert!(not_json.is_empty());
     }
 
     /// A fresh, uniquely named directory for one test.

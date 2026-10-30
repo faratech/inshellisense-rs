@@ -218,6 +218,22 @@ pub enum PostProcessKind {
     /// (same cleanup as `none`) but rank the current branch at priority 100
     /// and the rest at 75, matching upstream.
     GitBranchList {},
+    /// `rustup toolchain list`: each line is `<name> (active, default)` /
+    /// `<name> (installed)`; the trailing status annotation is not a toolchain
+    /// name. Strip it and also emit the deduplicated short names
+    /// (`stable` from `stable-x86_64-unknown-linux-gnu`), matching upstream.
+    RustupToolchains {},
+    /// `rustup target list`: each line is `<triple>` or `<triple> (installed)`;
+    /// the triple is the suggestion, the installed marker its description.
+    RustupTargets {},
+    /// `tailscale status --json`: the whole blob is one JSON object
+    /// (`{"Self":{...},"Peer":{"node":{"DNSName":...,"HostName":...,"OS":...}}}`);
+    /// each peer's short DNS name becomes a suggestion (the `:port` form
+    /// appends the literal `:`). The blob itself is never a suggestion.
+    TailscaleHosts {
+        #[serde(default)]
+        append: String,
+    },
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
