@@ -36,3 +36,4 @@ specs-data/bundle.json
 .env
 .env.*
 !.env.example
+.claude/settings.local.json
