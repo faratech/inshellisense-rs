@@ -44,6 +44,8 @@ pub fn patch(spec: &mut Subcommand, name: &str) {
         "asciinema" => patch_asciinema(spec),
         "cd" => patch_cd(spec),
         "git" => patch_git(spec),
+        "rustup" => patch_rustup(spec),
+        "tailscale" => patch_tailscale(spec),
         "systemctl" => patch_systemctl(spec),
         "tar" => patch_tar(spec),
         "npm" => patch_npm(spec),
@@ -468,6 +470,90 @@ fn patch_git(spec: &mut Subcommand) {
     walk(spec);
 }
 
+/// rustup: toolchain/target listing generators ran with `post_process: none`,
+/// so the trailing status annotation leaked into the suggestion name
+/// (`stable-… (active, default)` is not a toolchain, and
+/// `x86_64-… (installed)` is not a target). The extractor dropped the
+/// upstream JS post-process that stripped these; swap the generators to the
+/// dedicated patterns, mirroring how `patch_git` upgrades branch listings.
+fn patch_rustup(spec: &mut Subcommand) {
+    fn walk(sc: &mut Subcommand) {
+        for arg in &mut sc.args {
+            for g in &mut arg.generators {
+                if let Generator::Script {
+                    input,
+                    post_process,
+                    ..
+                } = g
+                    && matches!(post_process, PostProcess::None {})
+                {
+                    let argv = match input {
+                        ScriptInput::Argv { argv } => argv,
+                        _ => continue,
+                    };
+                    if is_listing(argv, &["rustup", "toolchain", "list"]) {
+                        *post_process = PostProcess::Pattern {
+                            inner: PostProcessKind::RustupToolchains {},
+                        };
+                    } else if is_listing(argv, &["rustup", "target", "list"]) {
+                        *post_process = PostProcess::Pattern {
+                            inner: PostProcessKind::RustupTargets {},
+                        };
+                    }
+                }
+            }
+        }
+        for s in &mut sc.subcommands {
+            walk(s);
+        }
+    }
+    walk(spec);
+}
+
+fn is_listing(argv: &[String], cmd: &[&str]) -> bool {
+    argv.len() == cmd.len() && argv.iter().zip(cmd).all(|(a, c)| a == c)
+}
+
+/// tailscale: host-completing generators ran `tailscale status --json` with
+/// `post_process: none`, so the entire JSON blob reached the user as one
+/// suggestion. Upstream parses the blob and offers each peer's short DNS name.
+/// Swap those generators to the dedicated pattern; the `:port` form used by
+/// `tailscale file cp` appends the literal `:`.
+fn patch_tailscale(spec: &mut Subcommand) {
+    fn walk(sc: &mut Subcommand) {
+        for arg in &mut sc.args {
+            for g in &mut arg.generators {
+                if let Generator::Script {
+                    input,
+                    post_process,
+                    ..
+                } = g
+                    && matches!(post_process, PostProcess::None {})
+                {
+                    let argv = match input {
+                        ScriptInput::Argv { argv } => argv,
+                        _ => continue,
+                    };
+                    if is_listing(argv, &["tailscale", "status", "--json"]) {
+                        let append = if arg.name.as_deref() == Some("file or host") {
+                            ":".to_string()
+                        } else {
+                            String::new()
+                        };
+                        *post_process = PostProcess::Pattern {
+                            inner: PostProcessKind::TailscaleHosts { append },
+                        };
+                    }
+                }
+            }
+        }
+        for s in &mut sc.subcommands {
+            walk(s);
+        }
+    }
+    walk(spec);
+}
+
 fn sub(name: &str, desc: &str) -> Subcommand {
     Subcommand {
         names: vec![name.to_string()],
@@ -587,5 +673,153 @@ fn kill() -> Subcommand {
             opt("-l", "List signal names"),
         ],
         ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::spec::model::Generator;
+
+    /// A `rustup`-shaped spec deserialized exactly like the bundle entry:
+    /// `default` and `target add` args carry `rustup toolchain list` /
+    /// `rustup target list` generators with `post_process: none` (the
+    /// pre-patch bundle shape).
+    fn rustup_spec() -> Subcommand {
+        let json = r#"{
+            "names":["rustup"],
+            "subcommands":[
+                {"names":["default"],"args":{"name":"toolchain","generators":[
+                    {"kind":"script","input":{"kind":"argv","argv":["rustup","toolchain","list"]},"split_on":"\n","post_process":{"kind":"none"},"timeout_ms":5000}
+                ]}},
+                {"names":["target"],"subcommands":[
+                    {"names":["add"],"args":{"name":"target","generators":[
+                        {"kind":"script","input":{"kind":"argv","argv":["rustup","target","list"]},"split_on":"\n","post_process":{"kind":"none"},"timeout_ms":5000}
+                    ]}}
+                ]}
+            ]
+        }"#;
+        let mut spec: Subcommand = serde_json::from_str(json).unwrap();
+        patch(&mut spec, "rustup");
+        spec
+    }
+
+    /// #200: after `patch_rustup`, the `rustup toolchain list` generator uses
+    /// the RustupToolchains pattern (annotation stripping) and the
+    /// `rustup target list` generator uses RustupTargets.
+    #[test]
+    fn patch_rustup_uses_dedicated_patterns() {
+        let spec = rustup_spec();
+        // `rustup default` toolchain arg.
+        let default = &spec
+            .subcommands
+            .iter()
+            .find(|s| s.names == ["default"])
+            .unwrap()
+            .args[0];
+        let toolchain_gen = &default.generators[0];
+        assert!(
+            matches!(
+                toolchain_gen,
+                Generator::Script {
+                    post_process: PostProcess::Pattern {
+                        inner: PostProcessKind::RustupToolchains {}
+                    },
+                    ..
+                }
+            ),
+            "expected RustupToolchains, got {toolchain_gen:?}"
+        );
+        // `rustup target add` target arg.
+        let target = &spec
+            .subcommands
+            .iter()
+            .find(|s| s.names == ["target"])
+            .unwrap()
+            .subcommands[0]
+            .args[0];
+        assert!(
+            matches!(
+                &target.generators[0],
+                Generator::Script {
+                    post_process: PostProcess::Pattern {
+                        inner: PostProcessKind::RustupTargets {}
+                    },
+                    ..
+                }
+            ),
+            "expected RustupTargets, got {:?}",
+            target.generators[0]
+        );
+    }
+
+    /// A `tailscale`-shaped spec deserialized like the bundle: `ip` and
+    /// `file cp` args carry `tailscale status --json` generators with
+    /// `post_process: none`.
+    fn tailscale_spec() -> Subcommand {
+        let json = r#"{
+            "names":["tailscale"],
+            "subcommands":[
+                {"names":["ip"],"args":{"is_optional":true,"generators":[
+                    {"kind":"script","input":{"kind":"argv","argv":["tailscale","status","--json"]},"split_on":"\n","post_process":{"kind":"none"},"timeout_ms":5000}
+                ]}},
+                {"names":["file"],"subcommands":[
+                    {"names":["cp"],"args":[
+                        {"name":"file","templates":["filepaths"]},
+                        {"name":"file or host","is_variadic":true,"generators":[
+                            {"kind":"script","input":{"kind":"argv","argv":["tailscale","status","--json"]},"split_on":"\n","post_process":{"kind":"none"},"timeout_ms":5000},
+                            {"kind":"template","template":"filepaths"}
+                        ]}
+                    ]}
+                ]}
+            ]
+        }"#;
+        let mut spec: Subcommand = serde_json::from_str(json).unwrap();
+        patch(&mut spec, "tailscale");
+        spec
+    }
+
+    /// #200: after `patch_tailscale`, the host generators use
+    /// TailscaleHosts; the `file or host` variant appends the literal `:`.
+    #[test]
+    fn patch_tailscale_uses_dedicated_pattern_with_port_append() {
+        let spec = tailscale_spec();
+        let ip = &spec
+            .subcommands
+            .iter()
+            .find(|s| s.names == ["ip"])
+            .unwrap()
+            .args[0];
+        let inner = match &ip.generators[0] {
+            Generator::Script {
+                post_process: PostProcess::Pattern { inner },
+                ..
+            } => inner.clone(),
+            other => panic!("expected Pattern, got {other:?}"),
+        };
+        assert!(
+            matches!(inner, PostProcessKind::TailscaleHosts { ref append } if append.is_empty()),
+            "ip host should have empty append, got {inner:?}"
+        );
+
+        let cp = &spec
+            .subcommands
+            .iter()
+            .find(|s| s.names == ["file"])
+            .unwrap()
+            .subcommands[0]
+            .args[1];
+        assert_eq!(cp.name.as_deref(), Some("file or host"));
+        let inner = match &cp.generators[0] {
+            Generator::Script {
+                post_process: PostProcess::Pattern { inner },
+                ..
+            } => inner.clone(),
+            other => panic!("expected Pattern, got {other:?}"),
+        };
+        assert!(
+            matches!(inner, PostProcessKind::TailscaleHosts { ref append } if append == ":"),
+            "file-or-host should append ':', got {inner:?}"
+        );
     }
 }
