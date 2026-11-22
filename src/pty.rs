@@ -228,10 +228,14 @@ struct SuggestRequests {
     context: Option<u64>,
     awaiting_echo: bool,
     echo_from: Option<PendingEcho>,
+    cancellation: Option<crate::generator::Cancellation>,
 }
 
 impl SuggestRequests {
     fn invalidate(&mut self) {
+        if let Some(request) = self.cancellation.take() {
+            request.cancel();
+        }
         self.id = self.id.wrapping_add(1);
         self.context = None;
     }
@@ -260,6 +264,9 @@ impl SuggestRequests {
     }
 
     fn observe(&mut self, tracker: &TermTracker, prompt_started: bool, bell: bool) {
+        if prompt_started {
+            self.invalidate();
+        }
         let Some(pending) = self.echo_from.as_ref() else {
             return;
         };
@@ -295,8 +302,9 @@ impl SuggestRequests {
         if self.context == Some(context) {
             return None;
         }
+        self.invalidate();
         self.context = Some(context);
-        self.id = self.id.wrapping_add(1);
+        self.cancellation = Some(crate::generator::Cancellation::default());
         Some(self.id)
     }
 }
@@ -307,9 +315,10 @@ struct SuggestResponse {
     ranked: Vec<Suggestion>,
     history_tail: Option<String>,
     partial: Partial,
+    argument_hint: Option<String>,
 }
 
-type SuggestRequest = (u64, String, String);
+type SuggestRequest = (u64, String, String, Option<crate::generator::Cancellation>);
 
 /// Progress that can change the suggestions, even when the terminal is idle.
 /// Publishing the registry must schedule the line typed while it was loading.
@@ -354,7 +363,12 @@ impl SuggestionTick {
         if self.made_progress
             && let Some(id) = requests.request(typed, cwd)
         {
-            sender.send((id, typed.to_string(), cwd.to_string()))?;
+            sender.send((
+                id,
+                typed.to_string(),
+                cwd.to_string(),
+                requests.cancellation.clone(),
+            ))?;
         }
         Ok(())
     }
@@ -377,6 +391,70 @@ impl SuggestResponse {
         *history_tail = self.history_tail;
         *partial = self.partial;
         true
+    }
+}
+
+fn suggestion_worker(
+    engine: &std::sync::RwLock<Option<Engine>>,
+    req_rx: std::sync::mpsc::Receiver<SuggestRequest>,
+    res_tx: std::sync::mpsc::Sender<SuggestResponse>,
+) {
+    while let Ok(mut request) = req_rx.recv() {
+        // Only the newest request matters; drop anything queued behind
+        // it so a burst of keystrokes doesn't run N generators.
+        while let Ok(newer) = req_rx.try_recv() {
+            request = newer;
+        }
+        let (sig, typed, cwd, cancellation) = request;
+        let Ok(guard) = engine.read() else { continue };
+        let Some(engine_ref) = guard.as_ref() else {
+            let _ = res_tx.send(SuggestResponse {
+                signature: sig,
+                typed,
+                ranked: Vec::new(),
+                history_tail: None,
+                partial: Partial::default(),
+                argument_hint: None,
+            });
+            continue;
+        };
+        let crate::suggest::Completion {
+            suggestions: ranked,
+            active_token,
+            argument_description,
+        } = crate::generator::with_request(cancellation.clone(), || {
+            engine_ref.completion(&typed, &cwd)
+        });
+        if cancellation
+            .as_ref()
+            .is_some_and(crate::generator::Cancellation::is_cancelled)
+        {
+            continue;
+        }
+        let partial = active_token
+            .map(|token| Partial {
+                text: token.token,
+                consumed: token.token_length,
+            })
+            .unwrap_or_default();
+        // The ghost for a ranked suggestion is built on the event
+        // loop from the suggestion itself, so only the history
+        // fallback is needed from the engine. (`Engine::suggest`
+        // would also run `suggest_blob`, and every generator, again.)
+        let history_tail = engine_ref.history_tail(&typed);
+        if res_tx
+            .send(SuggestResponse {
+                signature: sig,
+                typed,
+                ranked,
+                history_tail,
+                partial,
+                argument_hint: argument_description,
+            })
+            .is_err()
+        {
+            return;
+        }
     }
 }
 
@@ -517,51 +595,7 @@ pub fn run_wrapped(
     let (res_tx, res_rx) = std::sync::mpsc::channel::<SuggestResponse>();
     {
         let engine = engine.clone();
-        thread::spawn(move || {
-            while let Ok(mut request) = req_rx.recv() {
-                // Only the newest request matters; drop anything queued behind
-                // it so a burst of keystrokes doesn't run N generators.
-                while let Ok(newer) = req_rx.try_recv() {
-                    request = newer;
-                }
-                let (sig, typed, cwd) = request;
-                let Ok(guard) = engine.read() else { continue };
-                let Some(engine_ref) = guard.as_ref() else {
-                    let _ = res_tx.send(SuggestResponse {
-                        signature: sig,
-                        typed,
-                        ranked: Vec::new(),
-                        history_tail: None,
-                        partial: Partial::default(),
-                    });
-                    continue;
-                };
-                let (ranked, active_token) = engine_ref.suggest_blob_with_token(&typed, &cwd);
-                let partial = active_token
-                    .map(|token| Partial {
-                        text: token.token,
-                        consumed: token.token_length,
-                    })
-                    .unwrap_or_default();
-                // The ghost for a ranked suggestion is built on the event
-                // loop from the suggestion itself, so only the history
-                // fallback is needed from the engine. (`Engine::suggest`
-                // would also run `suggest_blob`, and every generator, again.)
-                let history_tail = engine_ref.history_tail(&typed);
-                if res_tx
-                    .send(SuggestResponse {
-                        signature: sig,
-                        typed,
-                        ranked,
-                        history_tail,
-                        partial,
-                    })
-                    .is_err()
-                {
-                    return;
-                }
-            }
-        });
+        thread::spawn(move || suggestion_worker(&engine, req_rx, res_tx));
     }
 
     let stdout = std::io::stdout();
@@ -573,7 +607,6 @@ pub fn run_wrapped(
     let has_popup = matches!(effective_ui, UiMode::Popup | UiMode::Hybrid);
     let has_ghost = matches!(effective_ui, UiMode::Ghost | UiMode::Hybrid);
     let bindings: Bindings = cfg.bindings.clone();
-    let max_popup_rows = cfg.max_suggestions.max(1) as usize + 1 /* desc line */ + 4 /* desc overflow headroom */;
     let mut render_cfg = cfg.clone();
     render_cfg.ui = effective_ui;
     let mut renderer = Renderer::with_config(
@@ -607,6 +640,7 @@ pub fn run_wrapped(
     let mut ranked_typed = String::new();
     let mut history_tail: Option<String> = None;
     let mut ranked_partial = Partial::default();
+    let mut argument_hint = None;
 
     let mut pty_buf = [0u8; 4096];
     let mut stdin_buf = [0u8; 1024];
@@ -670,6 +704,7 @@ pub fn run_wrapped(
         // The one-shot alias load changes completions for unchanged text.
         // Consume publication before worker responses so old IDs are rejected.
         if aliases_rx.try_recv().is_ok() {
+            argument_hint = None;
             tick.aliases_published(
                 &mut requests,
                 &mut ranked,
@@ -686,7 +721,10 @@ pub fn run_wrapped(
 
         // Pick up anything the suggestion worker finished while we were idle.
         let mut got_suggestions = false;
-        while let Ok(response) = res_rx.try_recv() {
+        while let Ok(mut response) = res_rx.try_recv() {
+            if response.signature == requests.id {
+                argument_hint = response.argument_hint.take();
+            }
             got_suggestions |= response.apply(
                 requests.id,
                 &mut ranked,
@@ -728,10 +766,10 @@ pub fn run_wrapped(
                 // A new prompt means the previous command may have been
                 // appended to the shell's history file. Reload it so ghost
                 // text can suggest what the user just ran.
-                if osc_events
+                let prompt_started = osc_events
                     .iter()
-                    .any(|(_, e)| matches!(e, ansi::IsEvent::PromptStart))
-                {
+                    .any(|(_, e)| matches!(e, ansi::IsEvent::PromptStart));
+                if prompt_started {
                     // `try_write`, never `write`: the suggestion worker may be
                     // holding the read lock across a slow generator, and this
                     // refresh is best-effort.
@@ -741,14 +779,26 @@ pub fn run_wrapped(
                         engine.refresh_history();
                     }
                 }
+                let was_terminal_app_active = tracker.terminal_app_active();
                 tracker.feed_ordered(&clean, &osc_events);
-                requests.observe(
-                    &tracker,
-                    osc_events
-                        .iter()
-                        .any(|(_, e)| matches!(e, ansi::IsEvent::PromptStart)),
-                    clean.contains(&ansi::BEL),
-                );
+                let entered_terminal_app =
+                    !was_terminal_app_active && tracker.terminal_app_active();
+                if entered_terminal_app {
+                    requests.invalidate();
+                    requests.awaiting_echo = false;
+                    requests.echo_from = None;
+                }
+                if prompt_started || entered_terminal_app {
+                    ranked.clear();
+                    ranked_typed.clear();
+                    history_tail = None;
+                    ranked_partial = Partial::default();
+                    argument_hint = None;
+                    popup_mode = PopupMode::Hidden;
+                    in_bracketed_paste = false;
+                    last_stdin_was_history = false;
+                }
+                requests.observe(&tracker, prompt_started, clean.contains(&ansi::BEL));
                 pending_tail = None;
                 tick.made_progress = true;
                 // Check if more data without blocking.
@@ -762,6 +812,12 @@ pub fn run_wrapped(
         // Read stdin if ready.
         if stdin_ready {
             let n = pty.read_stdin(&mut stdin_buf);
+            if tracker.terminal_app_active() {
+                if n > 0 {
+                    pty.pty_write(&stdin_buf[..n as usize]);
+                }
+                continue;
+            }
             // Fallback for ConPTY: OSC 6973 markers are stripped, so the
             // prompt anchor is never set via events. Infer it from the cursor
             // position the moment the user starts typing. This must happen
@@ -792,6 +848,7 @@ pub fn run_wrapped(
                         ranked_typed.clear();
                         history_tail = None;
                         ranked_partial = Partial::default();
+                        argument_hint = None;
                         popup_mode = PopupMode::Hidden;
                         requests.forwarded(&tracker, bytes, false);
                         continue;
@@ -830,6 +887,7 @@ pub fn run_wrapped(
                         ranked_typed.clear();
                         history_tail = None;
                         ranked_partial = Partial::default();
+                        argument_hint = None;
                         let allow_bell = effect == InputEffect::ForwardedNavigation
                             || (effect == InputEffect::Forwarded
                                 && bytes.len() == 1
@@ -846,7 +904,7 @@ pub fn run_wrapped(
             }
         }
 
-        if tick.made_progress {
+        if tick.made_progress && !tracker.terminal_app_active() {
             let state = tracker.state().clone();
             let cwd = tracker.cwd().to_string();
             if requests.awaiting_echo || in_bracketed_paste {
@@ -941,16 +999,22 @@ pub fn run_wrapped(
                 let tail = ghost.as_ref().map(|g| g.display.clone());
                 pending_tail = ghost;
 
-                if has_popup && popup_mode != PopupMode::Dismissed && !ranked.is_empty() {
+                if has_popup
+                    && popup_mode != PopupMode::Dismissed
+                    && (!ranked.is_empty() || argument_hint.is_some())
+                {
+                    let desired_rows =
+                        crate::render::popup::PopupRenderer::desired_rows(&cfg, tracker.cols());
                     let (popup_direction, available_rows, gap_rows) =
-                        popup_placement(&tracker, max_popup_rows);
+                        popup_placement(&tracker, desired_rows);
                     let cursor_col = tracker.state().cursor_col;
                     let term_cols = tracker.cols();
                     renderer
-                        .draw_popup_interactive_with_gap(
+                        .draw_popup_with_hint(
                             &mut out,
                             tail.as_deref(),
                             &ranked,
+                            argument_hint.as_deref(),
                             active_cursor,
                             popup_direction,
                             cursor_col,
@@ -985,6 +1049,7 @@ pub fn run_wrapped(
         // parks the thread when there's no activity.
     }
 
+    requests.invalidate();
     renderer.clear(&mut out).ok();
     // RIS (Reset to Initial State) — resets the entire terminal.
     // This is how upstream inshellisense ensures the parent terminal
@@ -1108,23 +1173,20 @@ fn handle_stdin(
         }
     }
     // Popup key interception.
-    if has_popup
-        && let PopupMode::Visible { cursor } = *popup_mode
-        && !ranked.is_empty()
-    {
-        if bindings.next_suggestion.matches(bytes) {
+    if has_popup && let PopupMode::Visible { cursor } = *popup_mode {
+        if !ranked.is_empty() && bindings.next_suggestion.matches(bytes) {
             *popup_mode = PopupMode::Visible {
                 cursor: (cursor + 1).min(ranked.len() - 1),
             };
             return InputEffect::UiOnly;
         }
-        if bindings.previous_suggestion.matches(bytes) {
+        if !ranked.is_empty() && bindings.previous_suggestion.matches(bytes) {
             *popup_mode = PopupMode::Visible {
                 cursor: cursor.saturating_sub(1),
             };
             return InputEffect::UiOnly;
         }
-        if bindings.accept_suggestion.matches(bytes) {
+        if !ranked.is_empty() && bindings.accept_suggestion.matches(bytes) {
             let typed = tracker.command_before_cursor();
             // Never accept a suggestion computed for different text —
             // its replacement span would not match the current line.
@@ -1575,6 +1637,65 @@ mod tests {
     use super::*;
     use std::cell::{Cell, RefCell};
 
+    #[cfg(unix)]
+    #[test]
+    fn replacing_an_interactive_request_interrupts_its_slow_generator() {
+        use crate::spec::model::{Arg, Generator, ScriptInput, Subcommand};
+        let dir = crate::test_support::unique_temp_dir("interactive-cancel");
+        let cwd = dir.to_str().unwrap();
+        let mut registry = Registry::default();
+        let mut slow = Subcommand::new("slow");
+        slow.args.push(Arg {
+            generators: vec![Generator::Script {
+                input: ScriptInput::Shell {
+                    script: "printf ready > ready; sleep 4; printf stale".into(),
+                },
+                split_on: None,
+                post_process: Default::default(),
+                timeout_ms: 5_000,
+                cache: Some(Default::default()),
+            }],
+            ..Default::default()
+        });
+        registry.insert(slow);
+        let mut fast = Subcommand::new("fast");
+        fast.args.push(Arg {
+            suggestions: vec![sug("next")],
+            ..Default::default()
+        });
+        registry.insert(fast);
+        let engine = std::sync::RwLock::new(Some(Engine::new(registry, Vec::new())));
+        let (req_tx, req_rx) = std::sync::mpsc::channel();
+        let (res_tx, res_rx) = std::sync::mpsc::channel();
+        std::thread::scope(|scope| {
+            scope.spawn(|| suggestion_worker(&engine, req_rx, res_tx));
+            let mut requests = SuggestRequests::default();
+            let tick = SuggestionTick::new(true, false);
+            tick.schedule(&mut requests, "slow ", cwd, &req_tx).unwrap();
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+            while !dir.join("ready").exists() {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "slow generator didn't start"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            tick.schedule(&mut requests, "fast ", cwd, &req_tx).unwrap();
+            drop(req_tx);
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
+            loop {
+                let response = res_rx
+                    .recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
+                    .unwrap();
+                if response.signature == requests.id {
+                    assert_eq!(response.ranked[0].name, "next");
+                    break;
+                }
+            }
+        });
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
     #[test]
     fn slow_alias_load_leaves_published_engine_readable() {
         use std::sync::{Arc, RwLock, mpsc};
@@ -1854,7 +1975,7 @@ mod tests {
                 &sender,
             )
             .unwrap();
-        let (id, typed, cwd) = worker
+        let (id, typed, cwd, _) = worker
             .try_recv()
             .expect("publication must request suggestions");
         assert_eq!((typed.as_str(), cwd.as_str()), ("git ch", "/repo"));
@@ -1888,13 +2009,14 @@ mod tests {
             SuggestionTick::new(true, false)
                 .schedule(&mut requests, "g ch", "/repo", &sender)
                 .unwrap();
-            let (old_id, old_typed, _) = worker.try_recv().unwrap();
+            let (old_id, old_typed, _, _) = worker.try_recv().unwrap();
             let old_response = SuggestResponse {
                 signature: old_id,
                 typed: old_typed.clone(),
                 ranked: vec![sug("old")],
                 history_tail: Some("old".into()),
                 partial: current_partial(&old_typed),
+                argument_hint: None,
             };
             let mut ranked = vec![sug("old")];
             let mut ranked_typed = old_typed.clone();
@@ -1948,7 +2070,7 @@ mod tests {
                 )
                 .unwrap();
             }
-            let (new_id, new_typed, cwd) =
+            let (new_id, new_typed, cwd, _) =
                 worker.try_recv().expect("new alias map must be queried");
             assert_ne!(new_id, old_id);
             assert_eq!(new_typed, if pending_edit { "g che" } else { "g ch" });
@@ -1978,6 +2100,7 @@ mod tests {
             ranked: vec![sug("--flag=value")],
             history_tail: None,
             partial: resolved.clone(),
+            argument_hint: None,
         };
         let mut ranked = Vec::new();
         let mut ranked_typed = String::new();
@@ -1998,6 +2121,7 @@ mod tests {
             ranked: vec![sug("old")],
             history_tail: Some("old".into()),
             partial: current_partial("old"),
+            argument_hint: None,
         };
         assert!(!stale.apply(
             1,
@@ -2069,6 +2193,7 @@ mod tests {
             ranked: vec![sug("add")],
             history_tail: None,
             partial: Partial::default(),
+            argument_hint: None,
         };
         let mut ranked = Vec::new();
         let mut ranked_typed = String::new();
@@ -2113,6 +2238,7 @@ mod tests {
             ranked: vec![sug("branch")],
             history_tail: Some("branch".into()),
             partial: Partial::default(),
+            argument_hint: None,
         };
         assert!(!stale.apply(
             suggestion_signature("git s", "/"),
@@ -2211,6 +2337,7 @@ mod tests {
             ranked: vec![sug("status")],
             history_tail: None,
             partial: current_partial(typed),
+            argument_hint: None,
         };
         let mut ranked = Vec::new();
         let mut ranked_typed = String::new();
@@ -2334,6 +2461,7 @@ mod tests {
                 ranked: vec![sug("status")],
                 history_tail: None,
                 partial: Partial::default(),
+                argument_hint: None,
             }
             .apply(
                 requests.id,
@@ -2358,6 +2486,7 @@ mod tests {
                 ranked: vec![sug("status")],
                 history_tail: None,
                 partial: current_partial("git st"),
+                argument_hint: None,
             }
             .apply(
                 requests.id,
@@ -2442,6 +2571,7 @@ mod tests {
                 ranked: vec![sug("checkout")],
                 history_tail: None,
                 partial: current_partial("git ch"),
+                argument_hint: None,
             }
             .apply(
                 requests.id,

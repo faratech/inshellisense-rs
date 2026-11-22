@@ -63,6 +63,114 @@ fn complete_cwd_flag_before_line_uses_cwd_not_line() {
     assert!(names.contains(&"needle.txt"), "names={names:?}");
 }
 
+#[cfg(unix)]
+#[test]
+fn complete_zoxide_uses_resolved_query_and_ranks_directories() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let home = temp_dir("zoxide");
+    let bin_dir = home.join("bin");
+    let cwd = home.join("cwd");
+    std::fs::create_dir(&bin_dir).unwrap();
+    std::fs::create_dir(&cwd).unwrap();
+    std::fs::create_dir(cwd.join("local repo")).unwrap();
+    std::fs::create_dir(cwd.join("other repo")).unwrap();
+    let zoxide = bin_dir.join("zoxide");
+    std::fs::write(
+        &zoxide,
+        r#"#!/bin/sh
+[ "$1 $2 $3" = "query --list --score" ] || exit 1
+if [ "$#" -ne 3 ]; then
+    [ "$#" -eq 5 ] && [ "$4" = -- ] && [ "$5" = 'work rep' ] || exit 1
+fi
+printf '  15.2 %s/local repo\n10 /remote/work repo\ninvalid line\n' "$PWD"
+"#,
+    )
+    .unwrap();
+    std::fs::set_permissions(&zoxide, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    let run = |line: &str| {
+        let output = isolated_cmd(&home)
+            .env("PATH", &bin_dir)
+            .args(["complete", "--cwd", cwd.to_str().unwrap(), line])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        let json: Value = serde_json::from_slice(&output.stdout).unwrap();
+        json["suggestions"].as_array().unwrap().clone()
+    };
+    for line in ["z ", "z work rep", "sudo z work rep"] {
+        let suggestions = run(line);
+        let names: Vec<_> = suggestions
+            .iter()
+            .map(|s| s["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            names,
+            ["local repo", "other repo", "/remote/work repo"],
+            "{line}"
+        );
+        assert_eq!(suggestions[0]["description"], "Score: 15.2");
+    }
+    std::fs::remove_file(zoxide).unwrap();
+    let suggestions = run("z ");
+    assert_eq!(suggestions.len(), 2);
+    assert_eq!(suggestions[0]["description"], "Score: 0");
+    std::fs::remove_dir_all(home).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn complete_restored_generators_and_argument_metadata() {
+    let home = temp_dir("complete-restored");
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/parity/fixtures");
+    let history = home.join("z-history");
+    std::fs::write(&history, "/work/old-project|4096|1700000000\nmalformed\n").unwrap();
+    let names = |line: &str, cwd: &Path, path: &Path| {
+        let output = isolated_cmd(&home)
+            .env("PATH", path)
+            .env("ZSHZ_DATA", &history)
+            .args(["complete", "--cwd", cwd.to_str().unwrap(), line])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()
+    };
+    let contains = |blob: &Value, name: &str| {
+        assert!(
+            blob["suggestions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|s| s["name"] == name),
+            "{blob}"
+        );
+    };
+    let bin = fixtures.join("bin");
+    contains(
+        &names("docker run --detach ", &home, &bin),
+        "parity-fixture-image",
+    );
+    contains(
+        &names("npm install parity-f", &home, &bin),
+        "parity-fixture",
+    );
+    contains(
+        &names("npm install parity-fixture@1.1", &home, &bin),
+        "1.10.0",
+    );
+    contains(
+        &names("npm install --workspace ", &fixtures.join("cwd/npm"), &bin),
+        "packages/*",
+    );
+    contains(&names("cargo +sta", &home, &bin), "+stable");
+    contains(&names("z old", &home, &bin), "old-project");
+    let hint = names("git commit -m ", &home, &bin);
+    assert_eq!(hint["argumentDescription"], "message");
+    assert_eq!(hint["suggestions"], serde_json::json!([]));
+    std::fs::remove_dir_all(home).unwrap();
+}
+
 #[test]
 fn init_install_rc_targets_requested_shell() {
     let home = temp_dir("init-zsh");

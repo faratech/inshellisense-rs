@@ -18,6 +18,8 @@ pub struct TermTracker {
     /// (0,0) when PE fires. This flag defers anchor-setting until
     /// after the next batch of bytes updates the vt100 screen.
     pending_prompt_end: bool,
+    terminal_app_active: bool,
+    saw_prompt_marker: bool,
     /// Whether prompt paint bytes arrived between PromptStart and
     /// PromptEnd. If they did, the cursor at PromptEnd is already the
     /// post-prompt position and must be snapshotted then; deferring to
@@ -62,9 +64,15 @@ impl TermTracker {
             cwd: String::new(),
             state: CmdState::default(),
             pending_prompt_end: false,
+            terminal_app_active: false,
+            saw_prompt_marker: false,
             saw_prompt_paint: false,
             byte_dump: open_byte_dump(std::env::var_os("INSH_DUMP_BYTES").as_deref()),
         }
+    }
+
+    pub fn terminal_app_active(&self) -> bool {
+        self.terminal_app_active
     }
 
     pub fn cwd(&self) -> &str {
@@ -224,6 +232,8 @@ impl TermTracker {
         // The legacy feed API attaches PromptStart to the prompt paint itself.
         // Capture its starting position before processing those bytes too.
         let starts_prompt = events.iter().any(|ev| matches!(ev, IsEvent::PromptStart));
+        self.saw_prompt_marker |= starts_prompt;
+        let was_alternate_screen = self.parser.screen().alternate_screen();
         if starts_prompt {
             self.state.prompt_start_row = Some(self.parser.screen().cursor_position().0);
         }
@@ -234,6 +244,16 @@ impl TermTracker {
             self.process_prompt_paint(bytes);
         } else {
             self.parser.process(bytes);
+        }
+        if self.parser.screen().alternate_screen() {
+            if !self.terminal_app_active {
+                self.clear_anchor();
+            }
+            self.terminal_app_active = true;
+        } else if starts_prompt || (was_alternate_screen && !self.saw_prompt_marker) {
+            // Markerless shells use the normal first-key anchor after leaving
+            // the alternate screen. Integrated shells wait for a fresh prompt.
+            self.terminal_app_active = false;
         }
         // Apply deferred PromptEnd from a PREVIOUS feed() call.
         // ConPTY sends OSC markers before screen-paint bytes, so we
@@ -543,6 +563,31 @@ fn open_byte_dump(setting: Option<&std::ffi::OsStr>) -> Option<std::fs::File> {
 mod tests {
     use super::*;
     use crate::ansi::IsEvent;
+
+    #[test]
+    fn terminal_app_remains_active_until_the_next_integrated_prompt() {
+        let mut tracker = TermTracker::new(24, 80);
+        tracker.feed(b"> ", &[IsEvent::PromptStart, IsEvent::PromptEnd]);
+        tracker.feed(b"\x1b[?10", &[]);
+        assert!(!tracker.terminal_app_active());
+        tracker.feed(b"49happ", &[]);
+        assert!(tracker.terminal_app_active());
+        assert!(!tracker.has_prompt_anchor());
+        tracker.feed(b"\x1b[?1049l", &[]);
+        assert!(tracker.terminal_app_active());
+        tracker.feed_ordered(
+            b"> git c",
+            &[(0, IsEvent::PromptStart), (2, IsEvent::PromptEnd)],
+        );
+        assert!(!tracker.terminal_app_active());
+        assert_eq!(tracker.command_before_cursor(), "git c");
+
+        let mut markerless = TermTracker::new(24, 80);
+        markerless.feed(b"\x1b[?1049h", &[]);
+        assert!(markerless.terminal_app_active());
+        markerless.feed(b"\x1b[?1049l", &[]);
+        assert!(!markerless.terminal_app_active());
+    }
 
     /// The `INSH_DUMP_BYTES` transcript is private: created 0600, never
     /// written through a planted symlink, and an existing file is tightened

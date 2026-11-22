@@ -1,0 +1,15 @@
+#!/bin/sh
+for arg do
+    case "$arg" in
+        https://api.npms.io/v2/search/suggestions\?*q=parity-f|https://api.npms.io/v2/search/suggestions\?*q=parity-f\&*)
+            printf '%s\n' '[{"package":{"name":"parity-fixture","description":"Package fixture"}}]'
+            exit 0 ;;
+        https://api.npms.io/v2/search/suggestions\?*)
+            printf '%s\n' '[]'
+            exit 0 ;;
+        https://registry.npmjs.org/parity-fixture)
+            printf '%s\n' '{"dist-tags":{"latest":"1.10.0"},"versions":{"1.2.0":{},"1.10.0":{}}}'
+            exit 0 ;;
+    esac
+done
+exit 1

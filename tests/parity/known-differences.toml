@@ -1,0 +1,78 @@
+# Each entry matches only the named case and the observed reason/detail shape.
+# Keep these separate from raw matches and surface unexpected changes as failures.
+[[difference]]
+category = "complete"
+case = "single-char-g"
+reason_prefix = "top[4]: upstream=gem ours=gcloud"
+details = ["top[4]: upstream=gem ours=gcloud"]
+justification = "Rust includes gcloud. Microsoft excludes gcloud, az, and aws from its registry."
+
+[[difference]]
+category = "render"
+case = "single-g"
+reason_prefix = "2 cells differ"
+details = ['│📦  gem                                │', '│📦  gcloud                             │']
+justification = "The popup reflects the additional gcloud completion. The rest of the capture matches."
+
+[[difference]]
+category = "complete"
+case = "complete-aws"
+reason_prefix = "top[0]: upstream=aws-vault ours=aws"
+details = ["top[0]: upstream=aws-vault ours=aws", "top[1]: upstream=awsume ours=aws-vault"]
+justification = "Rust includes the actual aws command. Microsoft excludes it from its spec registry."
+
+[[difference]]
+category = "complete"
+case = "single-char-p"
+reason_prefix = "top[1]: upstream=pageres ours=pack"
+details = ["top[1]: upstream=pageres ours=pack", "top[2]: upstream=palera1n ours=pageres", "top[3]: upstream=pandoc ours=palera1n", "top[4]: upstream=paper ours=pandoc"]
+justification = "Rust includes the pack command in the broader bundled corpus."
+
+[[difference]]
+category = "complete"
+case = "git-subcommands"
+reason_prefix = "missing from ours: See"
+details = ["missing from ours: See"]
+justification = "See is a fragment of Git help prose. Rust only offers usable Git commands here."
+
+[[difference]]
+category = "complete"
+case = "git-after-option"
+reason_prefix = "missing from ours: See"
+details = ["missing from ours: See"]
+justification = "See is a fragment of Git help prose. Rust only offers usable Git commands here."
+
+[[difference]]
+category = "complete"
+case = "ls-args"
+reason_prefix = "missing from ours: -,"
+details = ["missing from ours: -,"]
+justification = "The comma option is unsupported by the Linux ls exercised by this scan."
+
+[[difference]]
+category = "complete"
+case = "ls-shortopt"
+reason_prefix = "missing from ours: -,"
+details = ["missing from ours: -,"]
+justification = "The comma option is unsupported by the Linux ls exercised by this scan."
+
+[[difference]]
+category = "complete"
+case = "tar-shortopt"
+reason_prefix = "count: upstream=52 ours=46 (missing suggestions)"
+details = ["count: upstream=52 ours=46 (missing suggestions)", "missing from ours: --no-null, --no-verbatim-files-from, --sparse-version, --suffix, --verbatim-files-from"]
+justification = "Rust hides the six dependent flags until the matching --files-from, --sparse, or --backup prerequisite is present."
+
+[[difference]]
+category = "specs"
+case = "specs content: just"
+reason_prefix = "4 suggestion(s) missing from our spec"
+details = ["missing: --check, --dump-format, --fmt, --working-directory"]
+justification = "All four options exist in the spec. Rust honors their declared prerequisites."
+
+[[difference]]
+category = "specs"
+case = "specs content: youtube-dl"
+reason_prefix = "3 suggestion(s) missing from our spec"
+details = ["missing: --audio-format, --external-downloader-args, --max-sleep-interval"]
+justification = "All three options exist in the spec. Rust honors their declared prerequisites."

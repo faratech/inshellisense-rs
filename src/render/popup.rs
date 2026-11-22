@@ -158,6 +158,9 @@ pub struct PopupRenderer {
     icons: IconSet,
     border_style: BoxBorderStyle,
     active_bg: String,
+    description_width: usize,
+    description_height: usize,
+    truncate_descriptions: bool,
     last_drawn_rows: u16,
     last_direction: Direction,
     last_gap_rows: u16,
@@ -181,10 +184,39 @@ impl PopupRenderer {
             icons,
             border_style,
             active_bg,
+            description_width: DESCRIPTION_WIDTH,
+            description_height: DESCRIPTION_HEIGHT,
+            truncate_descriptions: true,
             last_drawn_rows: 0,
             last_direction: Direction::Below,
             last_gap_rows: 0,
             last_signature: None,
+        }
+    }
+
+    pub fn with_config(cfg: &crate::config::Config, icons: IconSet) -> Self {
+        let mut popup = Self::with_options(
+            cfg.max_suggestions,
+            icons,
+            cfg.box_border_style,
+            Some(&cfg.active_suggestion_background_color),
+        );
+        popup.description_width = cfg.description_width.max(3);
+        popup.description_height = cfg.description_height.max(1);
+        popup.truncate_descriptions = cfg.truncate_descriptions;
+        popup
+    }
+
+    pub fn desired_rows(cfg: &crate::config::Config, cols: u16) -> usize {
+        let suggestions = cfg.max_suggestions.max(1) as usize;
+        if !cfg.truncate_descriptions {
+            usize::MAX
+        } else if (cols as usize) < SUGGESTION_WIDTH.saturating_add(cfg.description_width) {
+            (suggestions + 2 * BORDER_WIDTH).saturating_add(cfg.description_height)
+        } else {
+            suggestions
+                .max(cfg.description_height)
+                .saturating_add(BORDER_WIDTH)
         }
     }
 
@@ -261,114 +293,123 @@ impl PopupRenderer {
         available_rows: usize,
         gap_rows: u16,
     ) -> io::Result<()> {
-        if all.is_empty() || available_rows < BORDER_WIDTH + 1 {
+        self.draw_with_argument_hint(
+            out,
+            all,
+            None,
+            cursor,
+            direction,
+            cursor_col,
+            term_cols,
+            available_rows,
+            gap_rows,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn draw_with_argument_hint(
+        &mut self,
+        out: &mut impl Write,
+        all: &[Suggestion],
+        argument_hint: Option<&str>,
+        cursor: usize,
+        direction: Direction,
+        cursor_col: u16,
+        term_cols: u16,
+        available_rows: usize,
+        gap_rows: u16,
+    ) -> io::Result<()> {
+        if (all.is_empty() && argument_hint.is_none()) || available_rows < BORDER_WIDTH + 1 {
             self.clear(out)?;
             return Ok(());
         }
 
-        let inner_rows = available_rows - BORDER_WIDTH;
-        let max = (self.max_suggestions as usize).min(inner_rows);
-        let description_height = DESCRIPTION_HEIGHT.min(inner_rows);
-
-        // Paging — upstream:
-        //   page = min(floor(active/max)+1, floor(len/max)+1)
-        let max_page = all.len() / max + 1;
-        let page = ((cursor / max) + 1).min(max_page);
-        let start = (page - 1) * max;
-        let end = (start + max).min(all.len());
-        let visible = &all[start..end];
-        let active_in_page = cursor.saturating_sub(start);
-
-        // Active description (for the right-hand box).
-        let active = &all[cursor.min(all.len() - 1)];
-        let mut active_desc = active.description.clone().unwrap_or_default();
-
-        // Adapt the layout to the terminal. The boxes used to be an
-        // unconditional 40 (+30) cells wide: in a narrower terminal every row
-        // wrapped, while `last_drawn_rows` counted *logical* rows, so `clear`
-        // erased the wrong lines and left the popup smeared on screen.
-        let cols = term_cols.max(1) as usize;
+        let cols = term_cols as usize;
         if cols < MIN_POPUP_WIDTH {
             self.clear(out)?;
             return Ok(());
         }
+
+        let max = (self.max_suggestions as usize).min(available_rows - BORDER_WIDTH);
+        let cursor = cursor.min(all.len().saturating_sub(1));
+        let start = cursor / max * max;
+        let visible = &all[start..(start + max).min(all.len())];
+        let active_in_page = cursor - start;
+        let description = all
+            .get(cursor)
+            .and_then(|s| s.description.as_deref())
+            .filter(|s| !s.is_empty())
+            .or(argument_hint)
+            .unwrap_or_default();
+        // Treat whitespace as word boundaries and make other controls visible.
+        let description = description.replace(char::is_whitespace, " ");
+        let active_desc = super::printable(&description);
+        let active_desc = active_desc.trim();
         let sug_width = SUGGESTION_WIDTH.min(cols);
-        if cols < sug_width + DESCRIPTION_WIDTH {
-            active_desc.clear();
+        let stacked = visible.is_empty() || cols < sug_width.saturating_add(self.description_width);
+        let (base_width, width_limit, row_limit) = if visible.is_empty() {
+            (self.description_width, cols, available_rows)
+        } else if stacked {
+            (
+                sug_width.max(self.description_width),
+                cols,
+                available_rows.saturating_sub(visible.len() + BORDER_WIDTH),
+            )
+        } else {
+            (self.description_width, cols - sug_width, available_rows)
+        };
+        let (description_width, description_height) =
+            if active_desc.is_empty() || width_limit <= BORDER_WIDTH || row_limit <= BORDER_WIDTH {
+                (0, 0)
+            } else {
+                let height_limit = row_limit - BORDER_WIDTH;
+                if self.truncate_descriptions {
+                    (
+                        base_width.min(width_limit),
+                        self.description_height.min(height_limit),
+                    )
+                } else {
+                    expanded_description_size(
+                        active_desc,
+                        base_width,
+                        self.description_height,
+                        width_limit,
+                        height_limit,
+                    )
+                }
+            };
+        if visible.is_empty() && description_height == 0 {
+            return self.clear(out);
         }
-
-        // Padding + swap decision (port of _calculatePadding).
+        let panel_width = if visible.is_empty() {
+            description_width
+        } else if stacked {
+            sug_width.max(description_width)
+        } else {
+            sug_width
+        };
+        let side_width = if stacked { 0 } else { description_width };
         let (padding, swap_description) =
-            calculate_padding(cursor_col, term_cols, &active_desc, sug_width);
+            calculate_padding(cursor_col, term_cols, side_width, panel_width);
 
-        // Render each column.
-        let suggestion_box = render_suggestion_box(
-            visible,
-            active_in_page,
-            self.icons,
-            sug_width,
+        let suggestion_box = if visible.is_empty() {
+            Vec::new()
+        } else {
+            render_suggestion_box(
+                visible,
+                active_in_page,
+                self.icons,
+                panel_width,
+                self.border_style,
+                &self.active_bg,
+            )
+        };
+        let description_box = render_description_box(
+            active_desc,
             self.border_style,
-            &self.active_bg,
+            description_width,
+            description_height,
         );
-        let description_box =
-            render_description_box(&active_desc, self.border_style, description_height);
-
-        let max_rows = suggestion_box.len().max(description_box.len());
-
-        // Build the list of (row_pad, data) pairs. For `direction="above"`
-        // each column's rows align to the BOTTOM of the combined block,
-        // so we index from the end.
-        let mut rows: Vec<(usize, String)> = Vec::with_capacity(max_rows);
-        for i in 0..max_rows {
-            let (sug_row, desc_row) = if direction == Direction::Above {
-                // Bottom-align (#110): a box shorter than max_rows starts
-                // at row (max_rows - len), so both boxes share the bottom
-                // row adjacent to the prompt. The old `i + len-max`
-                // (saturating) top-aligned the shorter box instead.
-                let sug_off = max_rows - suggestion_box.len();
-                let desc_off = max_rows - description_box.len();
-                (
-                    if i >= sug_off {
-                        suggestion_box.get(i - sug_off).cloned()
-                    } else {
-                        None
-                    },
-                    if i >= desc_off {
-                        description_box.get(i - desc_off).cloned()
-                    } else {
-                        None
-                    },
-                )
-            } else {
-                (
-                    suggestion_box.get(i).cloned(),
-                    description_box.get(i).cloned(),
-                )
-            };
-
-            let data = if swap_description {
-                format!(
-                    "{}{}",
-                    desc_row.clone().unwrap_or_default(),
-                    sug_row.clone().unwrap_or_default()
-                )
-            } else {
-                format!(
-                    "{}{}",
-                    sug_row.clone().unwrap_or_default(),
-                    desc_row.clone().unwrap_or_default()
-                )
-            };
-
-            let row_pad = calc_row_padding(
-                padding,
-                swap_description,
-                sug_row.is_some(),
-                desc_row.is_some(),
-                sug_width,
-            );
-            rows.push((row_pad, data));
-        }
 
         // Signature hash: skip redraw when nothing visible has changed.
         // Uses a u64 hash instead of formatting a 300-byte String to
@@ -383,13 +424,15 @@ impl PopupRenderer {
             sug_width,
             term_cols,
             description_height,
+            description_width,
+            stacked,
             gap_rows,
         };
         let sig = signature_hash(
             visible,
             active_in_page,
             direction,
-            &active_desc,
+            active_desc,
             &layout,
             self.icons,
             self.border_style,
@@ -398,6 +441,43 @@ impl PopupRenderer {
         if Some(sig) == self.last_signature && self.last_direction == direction {
             return Ok(());
         }
+        let rows: Vec<_> = if stacked {
+            suggestion_box
+                .into_iter()
+                .chain(description_box)
+                .map(|row| (padding, row))
+                .collect()
+        } else {
+            let height = suggestion_box.len().max(description_box.len());
+            let row_index = |row: usize, box_height: usize| match direction {
+                Direction::Above => row.checked_sub(height - box_height),
+                Direction::Below => Some(row),
+            };
+            (0..height)
+                .map(|row| {
+                    let suggestion = row_index(row, suggestion_box.len())
+                        .and_then(|index| suggestion_box.get(index));
+                    let description = row_index(row, description_box.len())
+                        .and_then(|index| description_box.get(index));
+                    let row_padding = calc_row_padding(
+                        padding,
+                        swap_description,
+                        suggestion.is_some(),
+                        description.is_some(),
+                        sug_width,
+                        description_width,
+                    );
+                    let suggestion = suggestion.map_or("", String::as_str);
+                    let description = description.map_or("", String::as_str);
+                    let data = if swap_description {
+                        format!("{description}{suggestion}")
+                    } else {
+                        format!("{suggestion}{description}")
+                    };
+                    (row_padding, data)
+                })
+                .collect()
+        };
         self.clear(out)?;
 
         // Upstream uses SCO save/restore (`\x1b[s` / `\x1b[u`) rather
@@ -505,19 +585,19 @@ impl PopupRenderer {
 fn calculate_padding(
     cursor_col: u16,
     term_cols: u16,
-    description: &str,
+    description_width: usize,
     sug_width: usize,
 ) -> (usize, bool) {
     let cols = term_cols.max(1) as usize;
     let wrapped_padding = (cursor_col as usize) % cols;
-    let max_padding = if !description.is_empty() {
-        cols.saturating_sub(sug_width + DESCRIPTION_WIDTH)
+    let max_padding = if description_width > 0 {
+        cols.saturating_sub(sug_width + description_width)
     } else {
         cols.saturating_sub(sug_width)
     };
-    let swap_description = wrapped_padding > max_padding && !description.is_empty();
+    let swap_description = wrapped_padding > max_padding && description_width > 0;
     let swapped_padding = if swap_description {
-        wrapped_padding.saturating_sub(DESCRIPTION_WIDTH)
+        wrapped_padding.saturating_sub(description_width)
     } else {
         wrapped_padding
     };
@@ -532,10 +612,11 @@ fn calc_row_padding(
     has_suggestion: bool,
     has_description: bool,
     sug_width: usize,
+    description_width: usize,
 ) -> usize {
     if swap_description {
         if !has_description {
-            padding + DESCRIPTION_WIDTH
+            padding + description_width
         } else {
             padding
         }
@@ -607,19 +688,14 @@ fn render_suggestion_box(
 fn render_description_box(
     description: &str,
     border_style: BoxBorderStyle,
+    width: usize,
     max_lines: usize,
 ) -> Vec<String> {
-    if description.is_empty() {
+    if description.is_empty() || max_lines == 0 {
         return Vec::new();
     }
-    let width = DESCRIPTION_WIDTH;
     let inner = width - BORDER_WIDTH; // 28 cells
-    // Descriptions can be a `package.json` script body or a crate's manifest
-    // description. Whitespace controls (`\n`, `\t`) only separate words when
-    // wrapped; every other control character is made visible so no escape
-    // sequence reaches the terminal.
-    let description = super::printable(&description.replace(char::is_whitespace, " ")).into_owned();
-    let lines = wrap_multiline(&description, inner, max_lines);
+    let lines = wrap_multiline(description, inner, max_lines);
     let mut out = Vec::with_capacity(lines.len() + 2);
     let bar = repeat_bar(inner);
     out.push(format!(
@@ -629,8 +705,7 @@ fn render_description_box(
         border_style.top_right()
     ));
     for line in &lines {
-        let padded = pad_right_wc(line, inner);
-        out.push(format!("\x1b[0m│{}│", padded));
+        out.push(format!("\x1b[0m│{line}│"));
     }
     out.push(format!(
         "\x1b[0m{}{}{}",
@@ -650,6 +725,8 @@ struct Layout {
     sug_width: usize,
     term_cols: u16,
     description_height: usize,
+    description_width: usize,
+    stacked: bool,
     gap_rows: u16,
 }
 
@@ -683,6 +760,8 @@ fn signature_hash(
     layout.sug_width.hash(&mut h);
     layout.term_cols.hash(&mut h);
     layout.description_height.hash(&mut h);
+    layout.description_width.hash(&mut h);
+    layout.stacked.hash(&mut h);
     layout.gap_rows.hash(&mut h);
     std::mem::discriminant(&icons).hash(&mut h);
     std::mem::discriminant(&border_style).hash(&mut h);
@@ -791,7 +870,7 @@ fn truncate_or_pad_wc(s: &str, width: usize) -> String {
 
 fn pad_right_wc(s: &str, width: usize) -> String {
     let current = UnicodeWidthStr::width(s);
-    if current >= width {
+    if current > width {
         let mut acc = String::new();
         let mut acc_w = 0;
         for ch in s.chars() {
@@ -815,111 +894,94 @@ fn pad_right_wc(s: &str, width: usize) -> String {
     out
 }
 
-/// Greedy word-wrap into at most `max_lines` of width `width` (display
-/// cells). Port of `truncateMultilineText`.
-#[allow(unused_assignments)]
-fn wrap_multiline(text: &str, width: usize, max_lines: usize) -> Vec<String> {
-    let mut lines: Vec<String> = Vec::new();
-    let mut current = String::new();
-    let mut current_w = 0usize;
+/// Return up to one extra row so the caller can detect clipped text.
+fn wrapped_rows(text: &str, width: usize, limit: usize) -> Vec<String> {
+    let mut rows = Vec::new();
+    let mut line = String::new();
+    let mut cells = 0;
     for word in text.split_whitespace() {
-        let word_w = UnicodeWidthStr::width(word);
-        if word_w > width {
-            if !current.is_empty() {
-                lines.push(current.clone());
-                current.clear();
-                current_w = 0;
-                if lines.len() >= max_lines {
-                    break;
-                }
+        let word_cells = UnicodeWidthStr::width(word);
+        if !line.is_empty() && cells + 1 + word_cells > width {
+            rows.push(std::mem::take(&mut line));
+            if rows.len() == limit {
+                return rows;
             }
-            let mut remaining = word.to_string();
-            loop {
-                let rw = UnicodeWidthStr::width(remaining.as_str());
-                if rw <= width {
-                    current = remaining;
-                    current_w = rw;
-                    break;
-                }
-                let mut chunk = String::new();
-                let mut chunk_w = 0;
-                let mut tail = String::new();
-                let mut past = false;
-                for ch in remaining.chars() {
-                    let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
-                    if past {
-                        tail.push(ch);
-                    } else if chunk_w + cw > width {
-                        past = true;
-                        tail.push(ch);
-                    } else {
-                        chunk.push(ch);
-                        chunk_w += cw;
-                    }
-                }
-                lines.push(chunk);
-                remaining = tail;
-                if lines.len() >= max_lines {
-                    break;
-                }
-            }
+            cells = 0;
+        }
+        if !line.is_empty() {
+            line.push(' ');
+            cells += 1;
+        }
+        if word_cells <= width {
+            line.push_str(word);
+            cells += word_cells;
             continue;
         }
-        let need = if current.is_empty() {
-            word_w
-        } else {
-            current_w + 1 + word_w
-        };
-        if need > width {
-            lines.push(current.clone());
-            current.clear();
-            current_w = 0;
-            if lines.len() >= max_lines {
-                break;
-            }
-            current.push_str(word);
-            current_w = word_w;
-        } else {
-            if !current.is_empty() {
-                current.push(' ');
-                current_w += 1;
-            }
-            current.push_str(word);
-            current_w += word_w;
-        }
-    }
-    if !current.is_empty() && lines.len() < max_lines {
-        lines.push(current);
-    }
-    if lines.len() > max_lines {
-        lines.truncate(max_lines);
-        if let Some(last) = lines.last_mut() {
-            // Replace last char with '…'.
-            let mut acc = String::new();
-            let mut acc_w = 0;
-            let chars: Vec<char> = last.chars().collect();
-            for ch in chars.iter().take(chars.len().saturating_sub(1)) {
-                let cw = unicode_width::UnicodeWidthChar::width(*ch).unwrap_or(0);
-                if acc_w + cw > width.saturating_sub(1) {
-                    break;
+        for ch in word.chars() {
+            let char_cells = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+            let (ch, char_cells) = if char_cells > width {
+                ('…', 1)
+            } else {
+                (ch, char_cells)
+            };
+            if cells + char_cells > width {
+                rows.push(std::mem::take(&mut line));
+                if rows.len() == limit {
+                    return rows;
                 }
-                acc.push(*ch);
-                acc_w += cw;
+                cells = 0;
             }
-            acc.push('…');
-            *last = acc;
+            line.push(ch);
+            cells += char_cells;
         }
     }
-    // Pad lines to full width.
-    for line in lines.iter_mut() {
-        let w = UnicodeWidthStr::width(line.as_str());
-        if w < width {
-            for _ in 0..(width - w) {
-                line.push(' ');
+    if !line.is_empty() {
+        rows.push(line);
+    }
+    rows
+}
+
+fn expanded_description_size(
+    text: &str,
+    base_width: usize,
+    base_height: usize,
+    width_limit: usize,
+    height_limit: usize,
+) -> (usize, usize) {
+    let mut width = base_width.min(width_limit);
+    let mut height = base_height.min(height_limit);
+    let usable_width = UnicodeWidthStr::width(text).saturating_add(BORDER_WIDTH);
+    let width_limit = width_limit.min(usable_width.max(width));
+    loop {
+        let rows = wrapped_rows(text, width - BORDER_WIDTH, height_limit.saturating_add(1));
+        if rows.len() <= height {
+            return (width, height);
+        }
+        if width == width_limit {
+            return (width, rows.len().min(height_limit));
+        }
+        width += 1;
+        height = base_height
+            .saturating_mul(width)
+            .div_ceil(base_width)
+            .min(height_limit);
+    }
+}
+
+fn wrap_multiline(text: &str, width: usize, max_lines: usize) -> Vec<String> {
+    let mut rows = wrapped_rows(text, width, max_lines.saturating_add(1));
+    if rows.len() > max_lines {
+        rows.truncate(max_lines);
+        if let Some(last) = rows.last_mut() {
+            let mut end = last.len();
+            while UnicodeWidthStr::width(&last[..end]) >= width && end > 0 {
+                end = last[..end].char_indices().next_back().unwrap().0;
             }
+            last.truncate(end);
+            last.push('…');
         }
     }
-    lines
+    rows.iter().map(|row| pad_right_wc(row, width)).collect()
 }
 
 #[cfg(test)]
@@ -1008,6 +1070,7 @@ mod tests {
         let box_ = render_description_box(
             "Switch branches or restore working tree files",
             BoxBorderStyle::Square,
+            DESCRIPTION_WIDTH,
             DESCRIPTION_HEIGHT,
         );
         assert!(!box_.is_empty());
@@ -1017,6 +1080,7 @@ mod tests {
         let rounded = render_description_box(
             "Switch branches or restore working tree files",
             BoxBorderStyle::Rounded,
+            DESCRIPTION_WIDTH,
             DESCRIPTION_HEIGHT,
         );
         assert!(!rounded.is_empty());
@@ -1348,14 +1412,14 @@ mod tests {
 
     #[test]
     fn calculate_padding_no_swap_near_left_edge() {
-        let (pad, swap) = calculate_padding(5, 120, "some desc", SUGGESTION_WIDTH);
+        let (pad, swap) = calculate_padding(5, 120, DESCRIPTION_WIDTH, SUGGESTION_WIDTH);
         assert_eq!(pad, 5);
         assert!(!swap);
     }
 
     #[test]
     fn calculate_padding_swaps_near_right_edge() {
-        let (_pad, swap) = calculate_padding(80, 120, "some desc", SUGGESTION_WIDTH);
+        let (_pad, swap) = calculate_padding(80, 120, DESCRIPTION_WIDTH, SUGGESTION_WIDTH);
         assert!(swap);
     }
 
@@ -1405,27 +1469,62 @@ mod tests {
         assert!(!text.contains('┌'), "popup drawn in an 8-column terminal");
     }
 
-    /// The description box is dropped rather than wrapped when it cannot fit.
     #[test]
-    fn description_is_dropped_when_it_cannot_fit() {
-        let sugs = vec![mk(
+    fn description_stacks_on_narrow_terminals_with_room() {
+        let suggestions = [mk(
             "checkout",
             "Switch branches",
             SuggestionType::Subcommand,
         )];
-        let mut r = PopupRenderer::new(5, IconSet::default());
+        let mut popup = PopupRenderer::new(5, IconSet::default());
         let mut out = Vec::new();
-        r.draw_full(&mut out, &sugs, 0, Direction::Below, 0, 50)
+        popup
+            .draw_full_with_rows(&mut out, &suggestions, 0, Direction::Below, 0, 50, 6)
             .unwrap();
-        let text = String::from_utf8(out).unwrap();
-        assert!(!text.contains("Switch branches"));
-
-        let mut r = PopupRenderer::new(5, IconSet::default());
-        let mut out = Vec::new();
-        r.draw_full(&mut out, &sugs, 0, Direction::Below, 0, 100)
-            .unwrap();
-        let text = String::from_utf8(out).unwrap();
+        let text = String::from_utf8_lossy(&out);
         assert!(text.contains("Switch branches"));
+        assert_eq!(popup.last_drawn_rows, 6);
+        out.clear();
+        popup
+            .draw_full_with_rows(&mut out, &suggestions, 0, Direction::Above, 0, 50, 5)
+            .unwrap();
+        assert!(!String::from_utf8_lossy(&out).contains("Switch branches"));
+        assert_eq!(popup.last_drawn_rows, 3);
+        out.clear();
+        popup
+            .draw_full_with_rows(&mut out, &suggestions, 0, Direction::Above, 0, 100, 5)
+            .unwrap();
+        assert!(String::from_utf8_lossy(&out).contains("Switch branches"));
+        assert_eq!(popup.last_drawn_rows, 3);
+        popup.clear(&mut out).unwrap();
+        assert!(!popup.is_visible());
+    }
+
+    #[test]
+    fn description_expands_and_clips_by_display_width() {
+        let description = "漢字 漢字 漢字";
+        let mut cfg = crate::config::Config {
+            description_width: 6,
+            description_height: 1,
+            ..Default::default()
+        };
+        let suggestions = [mk("checkout", description, SuggestionType::Subcommand)];
+        let mut out = Vec::new();
+        PopupRenderer::with_config(&cfg, IconSet::default())
+            .draw_full_with_rows(&mut out, &suggestions, 0, Direction::Below, 0, 60, 6)
+            .unwrap();
+        assert!(String::from_utf8_lossy(&out).contains('…'));
+        cfg.truncate_descriptions = false;
+        out.clear();
+        PopupRenderer::with_config(&cfg, IconSet::default())
+            .draw_full_with_rows(&mut out, &suggestions, 0, Direction::Below, 0, 60, 6)
+            .unwrap();
+        let text = String::from_utf8_lossy(&out);
+        assert!(!text.contains('…'));
+        for row in visible_rows(&text) {
+            assert!(UnicodeWidthStr::width(row.as_str()) <= 60);
+        }
+        assert_eq!(wrap_multiline("漢字", 1, 1), ["…"]);
     }
 
     /// Strip escapes and split on the CNL the renderer emits between rows.

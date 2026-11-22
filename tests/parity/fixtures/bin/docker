@@ -1,0 +1,5 @@
+#!/bin/sh
+case "$1" in
+    images) printf '%s\n' 'parity-fixture-image 50MB latest abc123' ;;
+    *) exit 1 ;;
+esac

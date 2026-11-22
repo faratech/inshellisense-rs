@@ -25,13 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
 
-      - name: Install Fish for shell integration regressions
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fish
+      - name: Install Fish and zsh for shell integration regressions
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fish zsh
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.99.1"
+          toolchain: "1.100.0"
           components: clippy, rustfmt
 
       - name: Cache cargo registry
@@ -93,6 +93,16 @@ jobs:
         run: |
           cargo test --release --locked corpus_drives_parity_above_threshold -- --nocapture 2>&1 \
             | grep -E "parity corpus|cases pass|threshold" || true
+
+  windows-generator:
+    name: Windows generator regression
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.100.0"
+      - run: cargo test --lib --locked windows_generator_releases_inherited_stdout
 
   extractor-regression:
     name: Extractor regression

@@ -19,8 +19,8 @@
 //!     an opaque JS closure the extractor can't evaluate.
 
 use crate::spec::model::{
-    Arg, Generator, Opt, PostProcess, PostProcessKind, ScriptInput, Subcommand, Suggestion,
-    SuggestionType, Template,
+    Arg, FilterStrategy, Generator, Opt, PostProcess, PostProcessKind, ScriptInput, Subcommand,
+    Suggestion, SuggestionType, Template,
 };
 
 pub fn all() -> Vec<Subcommand> {
@@ -35,7 +35,51 @@ pub fn all() -> Vec<Subcommand> {
 /// re-extraction of the bundle (they live here, not in the bundle).
 pub fn patch(spec: &mut Subcommand, name: &str) {
     match name {
+        "z" if spec.args.is_empty() => {
+            spec.description
+                .get_or_insert_with(|| "Jump to a frequently visited directory".into());
+            spec.args.push(Arg {
+                name: Some("directory".into()),
+                is_variadic: true,
+                is_optional: true,
+                filter_strategy: FilterStrategy::Fuzzy,
+                generators: vec![Generator::Zoxide],
+                ..Default::default()
+            });
+        }
         "yarn" => patch_yarn(spec),
+        "bunx" | "npx" => patch_node_runner(spec),
+        "login" => {
+            if let Some(arg) = spec.args.first_mut()
+                && arg.generators.is_empty()
+            {
+                arg.generators.push(Generator::LocalLoginNames);
+            }
+        }
+        "ssh-keygen" => patch_ssh_keygen(spec),
+        "cargo" => {
+            // The placeholder leaves the caret ready for a rustup toolchain.
+            let arg = if spec.args.is_empty() {
+                spec.args.push(Arg::default());
+                &mut spec.args[0]
+            } else {
+                &mut spec.args[0]
+            };
+            if !arg
+                .generators
+                .iter()
+                .any(|generator| matches!(generator, Generator::RustToolchains))
+            {
+                arg.generators.push(Generator::RustToolchains);
+            }
+            arg.suggestions.push(Suggestion {
+                name: "+".into(),
+                insert_value: Some("+{cursor}".into()),
+                description: Some("Select a rustup toolchain".into()),
+                priority: Some(40),
+                ..Default::default()
+            });
+        }
         "gh" => patch_gh(spec),
         "make" => {
             patch_make(spec);
@@ -47,6 +91,17 @@ pub fn patch(spec: &mut Subcommand, name: &str) {
         "systemctl" => patch_systemctl(spec),
         "tar" => patch_tar(spec),
         "npm" => patch_npm(spec),
+        "docker" => {
+            if let Some(image) = spec
+                .subcommands
+                .iter_mut()
+                .find(|s| s.name() == "run")
+                .and_then(|s| s.args.first_mut())
+                && image.generators.is_empty()
+            {
+                image.generators.push(Generator::DockerImages);
+            }
+        }
         "tmux" => patch_tmux(spec),
         "pnpm" => patch_pnpm(spec),
         "composer" => patch_composer(spec),
@@ -55,7 +110,7 @@ pub fn patch(spec: &mut Subcommand, name: &str) {
         // includes `..`; add it as a static entry (filepaths generators don't
         // synthesize `..` generally — that would wrongly add it to e.g.
         // `git checkout <file>`).
-        "python" | "python3" | "node" => add_parent_suggestion(spec),
+        "python" | "python3" | "node" | "elixir" | "robot" => add_parent_suggestion(spec),
         _ => {}
     }
 }
@@ -178,35 +233,126 @@ fn add_option(spec: &mut Subcommand, name: &str, description: &str) {
     spec.options.push(opt(name, description));
 }
 
-/// npm: the `run`/`run-script` subcommand is missing the `--workspace(s)`
-/// options upstream lists.
-fn patch_npm(spec: &mut Subcommand) {
-    const ADD: &[(&str, &str, bool)] = &[
+fn patch_node_runner(spec: &mut Subcommand) {
+    let Some(arg) = spec.args.first_mut() else {
+        return;
+    };
+    // The static extractor cannot follow bunx's imported npxSuggestions array.
+    const COMMON: &str = "autocannon vite babel create-react-native-app react-native tailwindcss next nuxi gltfjsx prisma eslint prettier tsc typeorm @withfig/autocomplete-tools create-completion-spec @fig/publish-spec-to-team fig-teams@latest create-next-app create-t3-app create-discord-bot create-video remotion create-remix remix playwright ignite-cli vsce degit @preset/cli mikro-orm pod-install capacitor cap @magnolia/cli stencil swagger-typescript-api sta @wordpress/create-block astro";
+    if arg.suggestions.is_empty() {
+        arg.suggestions
+            .extend(COMMON.split_whitespace().map(|name| Suggestion {
+                name: name.into(),
+                ..Default::default()
+            }));
+    }
+    if arg.generators.is_empty() {
+        arg.generators.push(Generator::NodeExecutables);
+    }
+}
+
+fn patch_ssh_keygen(spec: &mut Subcommand) {
+    // The extractor drops modes whose exclusiveOn lists are built by JS.
+    const MODES: &[(&str, &str, Option<&str>)] = &[
+        ("-A", "Generate missing host keys", None),
+        ("-B", "Show a bubblebabble key digest", None),
+        ("-c", "Change the key comment", None),
+        ("-e", "Export a public key", None),
+        ("-F", "Find a host in known_hosts", Some("hostname")),
+        ("-H", "Hash the known_hosts file", None),
+        ("-I", "Set the certificate key identity", Some("identity")),
+        ("-i", "Import a key", None),
         (
-            "--workspace",
-            "Run the command in the context of the given workspace",
-            true,
+            "-K",
+            "Download resident keys from a FIDO authenticator",
+            None,
         ),
+        ("-k", "Generate a key revocation list", None),
+        ("-L", "Print the contents of a certificate", None),
+        ("-l", "Show a key fingerprint", None),
         (
-            "--workspaces",
-            "Run the command in the context of all workspaces",
-            false,
+            "-M",
+            "Generate or screen Diffie-Hellman moduli",
+            Some("operation"),
         ),
+        ("-p", "Change a key passphrase", None),
+        ("-Q", "Check for revoked keys", None),
+        ("-R", "Remove a host from known_hosts", Some("hostname")),
+        ("-r", "Print the SSHFP record", Some("hostname")),
+        ("-Y", "Sign or verify a signature", Some("operation")),
+        ("-y", "Read a private key and print the public key", None),
     ];
-    for s in &mut spec.subcommands {
-        let is_run = s.names.iter().any(|n| n == "run" || n == "run-script");
-        if !is_run {
+    for (name, description, argument) in MODES {
+        if spec
+            .options
+            .iter()
+            .any(|option| option.names.iter().any(|value| value == name))
+        {
             continue;
         }
-        for (n, d, takes_arg) in ADD {
-            if s.options.iter().any(|o| o.names.iter().any(|x| x == n)) {
-                continue;
+        let mut option = opt(name, description);
+        if let Some(argument) = argument {
+            option.args.push(Arg {
+                name: Some((*argument).into()),
+                ..Default::default()
+            });
+        }
+        spec.options.push(option);
+    }
+}
+
+/// Restore npm generators dropped by static extraction.
+fn patch_npm(spec: &mut Subcommand) {
+    for command in &mut spec.subcommands {
+        let is_install = command.names.iter().any(|n| n == "install");
+        if !is_install
+            && !command
+                .names
+                .iter()
+                .any(|n| n == "run" || n == "run-script")
+        {
+            continue;
+        }
+        if is_install
+            && let Some(arg) = command.args.first_mut()
+            && arg.generators.is_empty()
+        {
+            arg.generators.push(Generator::NpmRegistry);
+        }
+        if let Some(option) = command
+            .options
+            .iter_mut()
+            .find(|o| o.names.iter().any(|n| n == "--workspace"))
+        {
+            if let Some(arg) = option.args.first_mut()
+                && arg.generators.is_empty()
+            {
+                arg.generators.push(Generator::NpmWorkspaces);
             }
-            let mut o = opt(n, d);
-            if *takes_arg {
-                o.args = vec![Arg::default()];
-            }
-            s.options.push(o);
+        } else {
+            let mut option = opt(
+                "--workspace",
+                "Run the command in the context of the given workspace",
+            );
+            option.names.push("-w".into());
+            option.args.push(Arg {
+                name: Some("workspace".into()),
+                generators: vec![Generator::NpmWorkspaces],
+                ..Default::default()
+            });
+            command.options.push(option);
+        }
+        if !command
+            .options
+            .iter()
+            .any(|o| o.names.iter().any(|n| n == "--workspaces"))
+        {
+            let mut option = opt(
+                "--workspaces",
+                "Run the command in the context of all workspaces",
+            );
+            option.names.push("-ws".into());
+            command.options.push(option);
         }
     }
 }
@@ -258,6 +404,13 @@ fn patch_tar(spec: &mut Subcommand) {
             spec.options.push(opt(n, d));
         }
     }
+    const MODES: &[&str] = &["-A", "-c", "-d", "-t", "-r", "-u", "-x"];
+    spec.options.sort_by_key(|option| {
+        MODES
+            .iter()
+            .position(|mode| option.names.iter().any(|name| name == *mode))
+            .unwrap_or(MODES.len())
+    });
 }
 
 /// systemctl: unit-taking subcommands (`status`, `start`, …) complete unit
@@ -440,6 +593,15 @@ fn patch_cd(spec: &mut Subcommand) {
 /// correct priorities) everywhere a `git branch` listing appears.
 fn patch_git(spec: &mut Subcommand) {
     fn walk(sc: &mut Subcommand) {
+        if sc.name() == "checkout"
+            && let Some(arg) = sc.args.first_mut()
+        {
+            for suggestion in &mut arg.suggestions {
+                if matches!(suggestion.name.as_str(), "-" | "--") {
+                    suggestion.priority = Some(40);
+                }
+            }
+        }
         for arg in &mut sc.args {
             for g in &mut arg.generators {
                 if let Generator::Script {

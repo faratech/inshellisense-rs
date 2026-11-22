@@ -69,7 +69,7 @@ The positioning: inshellisense's feature set without the Node runtime.
 
 ### From source
 
-The repository pins Rust 1.99.1 through `rust-toolchain.toml`.
+The repository pins Rust 1.100.0 through `rust-toolchain.toml`.
 
 ```sh
 cargo install --path .
@@ -154,6 +154,10 @@ max_suggestions = 5
 use_nerd_font   = false      # Nerd Font glyphs instead of emoji in the popup
 use_aliases     = false      # resolve shell aliases before completing
 
+description_width = 30      # columns including borders, minimum 3
+description_height = 5      # text rows, minimum 1
+truncate_descriptions = true # set false to let descriptions grow to fit
+
 [specs]
 path = ["/extra/spec/dir"]
 
@@ -171,6 +175,16 @@ Environment variables:
 | `INSH_RS_SPECS_DIR` | Extra directory of JSON specs to load |
 | `INSH_RS_NO_COREUTILS` | Skip coreutils detection |
 | `ISTERM` / `INSH_RS` | Set inside a wrapped session; used as the re-entry guard |
+
+If zoxide is installed, `z` completions include its scored directory matches.
+Local directories also appear as suggestions. When zoxide is unavailable,
+`z` also reads legacy directory history from `ZSHZ_DATA`, `_Z_DATA`, or `~/.z`.
+
+`npm install` queries the public package registry for package and version
+suggestions as you type. Workspace suggestions come from local project metadata.
+
+The live parity scanner separates raw matches from documented differences.
+Its fixtures mock Docker, npm, and rustup and use an isolated Git repository.
 
 ## User-defined specs
 

@@ -46,6 +46,8 @@ pub struct ResolveResult<'a> {
     pub parent_subcommand: Option<&'a Subcommand>,
     /// The arg the user is currently typing into, if any.
     pub active_arg: Option<&'a Arg>,
+    /// Tokens following the resolved command or subcommand, including the partial.
+    pub(crate) command_args: &'a [CommandToken],
     /// All options currently in scope (subcommand + ancestors' persistent).
     pub persistent_options: Vec<&'a Opt>,
     /// True when no more positional args remain and we should fall back to
@@ -86,6 +88,7 @@ pub fn resolve<'a>(root: &'a Subcommand, tokens: &'a [CommandToken]) -> ResolveR
         case_insensitive: false,
         parent: None,
         positional_args: &root.args,
+        command_args: rest,
     };
     resolve_loop(Transition::Subcommand(rest, root, ctx, false, false))
 }
@@ -122,6 +125,7 @@ pub fn resolve_with_options<'a>(
         case_insensitive,
         parent: None,
         positional_args: &root.args,
+        command_args: rest,
     };
     resolve_loop(Transition::Subcommand(rest, root, ctx, false, false))
 }
@@ -143,6 +147,7 @@ struct Ctx<'a> {
     /// Remaining command positionals. Option arguments use a separate slice,
     /// so returning from an option cannot restart the command's argument list.
     positional_args: &'a [Arg],
+    command_args: &'a [CommandToken],
 }
 
 /// The tokenizer marks every word after `--` raw without knowing whether an
@@ -208,6 +213,7 @@ fn step_subcommand<'a>(
         return Transition::Finished(ResolveResult {
             subcommand: surface(&ctx, sub),
             parent_subcommand: ctx.parent,
+            command_args: ctx.command_args,
             active_arg: ctx.positional_args.first(),
             persistent_options: visible_options(&ctx, &sub.options),
             args_depleted,
@@ -224,6 +230,7 @@ fn step_subcommand<'a>(
         return Transition::Finished(ResolveResult {
             subcommand: surface(&ctx, sub),
             parent_subcommand: ctx.parent,
+            command_args: ctx.command_args,
             active_arg: ctx.positional_args.first(),
             persistent_options: visible_options(&ctx, &sub.options),
             args_depleted,
@@ -312,6 +319,7 @@ fn step_subcommand<'a>(
             new_ctx.parent = Some(sub);
             let resolved = maybe_substitute(next, &new_ctx);
             new_ctx.positional_args = &resolved.args;
+            new_ctx.command_args = &tokens[1..];
             return Transition::Subcommand(&tokens[1..], resolved, new_ctx, false, false);
         }
     }
@@ -328,6 +336,7 @@ fn step_subcommand<'a>(
     Transition::Finished(ResolveResult {
         subcommand: &EMPTY_SUBCOMMAND,
         parent_subcommand: ctx.parent,
+        command_args: ctx.command_args,
         active_arg: None,
         persistent_options: Vec::new(),
         args_depleted: true,
@@ -355,6 +364,7 @@ fn step_option<'a>(
                 return Transition::Finished(ResolveResult {
                     subcommand: &EMPTY_SUBCOMMAND,
                     parent_subcommand: ctx.parent,
+                    command_args: ctx.command_args,
                     active_arg: None,
                     persistent_options: Vec::new(),
                     args_depleted: true,
@@ -393,6 +403,7 @@ fn step_arg<'a>(
         return Transition::Finished(ResolveResult {
             subcommand: surface(&ctx, sub),
             parent_subcommand: ctx.parent,
+            command_args: ctx.command_args,
             active_arg: Some(&args[0]),
             persistent_options: visible_options(&ctx, &sub.options),
             args_depleted: false,
@@ -422,6 +433,7 @@ fn step_arg<'a>(
         return Transition::Finished(ResolveResult {
             subcommand: surface(&ctx, sub),
             parent_subcommand: ctx.parent,
+            command_args: ctx.command_args,
             active_arg: Some(&args[0]),
             persistent_options: visible_options(&ctx, &sub.options),
             args_depleted: false,
@@ -484,6 +496,7 @@ fn step_arg<'a>(
             return Transition::Finished(ResolveResult {
                 subcommand: surface(&ctx, sub),
                 parent_subcommand: ctx.parent,
+                command_args: ctx.command_args,
                 active_arg: Some(&args[0]),
                 persistent_options: visible_options(&ctx, &sub.options),
                 args_depleted: false,
@@ -515,6 +528,7 @@ fn step_arg<'a>(
         new_ctx.parent = Some(sub);
         let resolved = maybe_substitute(next, &new_ctx);
         new_ctx.positional_args = &resolved.args;
+        new_ctx.command_args = &tokens[1..];
         return Transition::Subcommand(&tokens[1..], resolved, new_ctx, false, false);
     }
 
@@ -545,6 +559,7 @@ fn step_arg<'a>(
             case_insensitive: ctx.case_insensitive,
             parent: None,
             positional_args: &loaded.args,
+            command_args: &tokens[consumed..],
         };
         return Transition::Subcommand(&tokens[consumed..], loaded, nested, false, false);
     }

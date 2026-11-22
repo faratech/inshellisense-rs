@@ -128,15 +128,31 @@ pub enum Generator {
         cache: Option<CacheSpec>,
     },
     /// Opaque JS generator (no-op without a JS runtime).
-    Custom { fn_id: u32 },
+    Custom {
+        fn_id: u32,
+    },
     /// A built-in template (filepaths, folders, history, help).
-    Template { template: Template },
+    Template {
+        template: Template,
+    },
     /// Shell glob expansion.
-    Glob { pattern: String },
+    Glob {
+        pattern: String,
+    },
     /// Phase 6.2: read a project file at completion time and derive
     /// suggestions from one of its well-known fields. The reader
     /// dictates which file is read and how its contents are mapped.
-    ProjectFile { reader: ProjectFileReader },
+    ProjectFile {
+        reader: ProjectFileReader,
+    },
+    /// Query the installed zoxide executable for directory matches.
+    Zoxide,
+    DockerImages,
+    NpmRegistry,
+    NpmWorkspaces,
+    LocalLoginNames,
+    NodeExecutables,
+    RustToolchains,
     /// Phase 6.2: if a file exists at the relative path (and optionally
     /// contains a substring), emit the given subcommand. Static
     /// alternative to many `generateSpec: async` idioms.
@@ -348,6 +364,9 @@ pub struct Suggestion {
     /// from a spec, so a spec cannot opt its own text into or out of it.
     #[serde(skip)]
     pub external: bool,
+    /// The typed spelling may include a prefix the menu omits (npm versions).
+    #[serde(skip)]
+    pub(crate) match_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq)]

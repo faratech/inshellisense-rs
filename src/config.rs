@@ -46,6 +46,12 @@ pub struct Config {
     #[serde(alias = "maxSuggestions")]
     pub max_suggestions: u8,
     pub ui: UiMode,
+    #[serde(alias = "descriptionWidth")]
+    pub description_width: usize,
+    #[serde(alias = "descriptionHeight")]
+    pub description_height: usize,
+    #[serde(alias = "truncateDescriptions")]
+    pub truncate_descriptions: bool,
     #[serde(alias = "boxBorderStyle")]
     pub box_border_style: BoxBorderStyle,
     #[serde(alias = "activeSuggestionBackgroundColor")]
@@ -61,6 +67,9 @@ impl Default for Config {
             use_nerd_font: false,
             max_suggestions: 5,
             ui: UiMode::Hybrid,
+            description_width: crate::render::popup::DESCRIPTION_WIDTH,
+            description_height: crate::render::popup::DESCRIPTION_HEIGHT,
+            truncate_descriptions: true,
             box_border_style: BoxBorderStyle::default(),
             active_suggestion_background_color: "#7D56F4".to_string(),
         }
@@ -114,6 +123,12 @@ struct PartialConfig {
     #[serde(alias = "maxSuggestions")]
     max_suggestions: Option<u8>,
     ui: Option<UiMode>,
+    #[serde(alias = "descriptionWidth")]
+    description_width: Option<usize>,
+    #[serde(alias = "descriptionHeight")]
+    description_height: Option<usize>,
+    #[serde(alias = "truncateDescriptions")]
+    truncate_descriptions: Option<bool>,
     #[serde(alias = "boxBorderStyle")]
     box_border_style: Option<BoxBorderStyle>,
     #[serde(alias = "activeSuggestionBackgroundColor")]
@@ -471,6 +486,15 @@ fn merge_partial(mut base: Config, override_: PartialConfig) -> Config {
     if let Some(v) = override_.ui {
         base.ui = v;
     }
+    if let Some(v) = override_.description_width {
+        base.description_width = v.max(3);
+    }
+    if let Some(v) = override_.description_height {
+        base.description_height = v.max(1);
+    }
+    if let Some(v) = override_.truncate_descriptions {
+        base.truncate_descriptions = v;
+    }
     if let Some(s) = override_.box_border_style {
         base.box_border_style = s;
     }
@@ -749,5 +773,25 @@ active_suggestion_background_color = "#112233"
 
         let partial: PartialConfig = toml::from_str(toml_camel).unwrap();
         assert!(partial.unknown_keys().is_empty());
+    }
+    #[test]
+    fn description_settings_accept_both_naming_styles_and_merge_by_field() {
+        let original = toml::from_str(
+            "descriptionWidth = 50\ndescriptionHeight = 8\ntruncateDescriptions = false",
+        )
+        .unwrap();
+        let override_ =
+            toml::from_str("description_width = 1\ntruncate_descriptions = true").unwrap();
+        let cfg = merge_partial(merge_partial(Config::default(), original), override_);
+        assert_eq!(
+            (
+                cfg.description_width,
+                cfg.description_height,
+                cfg.truncate_descriptions
+            ),
+            (3, 8, true)
+        );
+        let override_ = toml::from_str("description_height = 0").unwrap();
+        assert_eq!(merge_partial(cfg, override_).description_height, 1);
     }
 }

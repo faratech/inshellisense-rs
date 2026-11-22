@@ -73,20 +73,10 @@ impl Renderer {
     pub fn with_config(cfg: &crate::config::Config, icons: popup::IconSet) -> Self {
         match cfg.ui {
             UiMode::Ghost => Renderer::Ghost(ghost::GhostRenderer::new()),
-            UiMode::Popup => Renderer::Popup(popup::PopupRenderer::with_options(
-                cfg.max_suggestions,
-                icons,
-                cfg.box_border_style,
-                Some(&cfg.active_suggestion_background_color),
-            )),
+            UiMode::Popup => Renderer::Popup(popup::PopupRenderer::with_config(cfg, icons)),
             UiMode::Hybrid => Renderer::Hybrid {
                 ghost: ghost::GhostRenderer::new(),
-                popup: popup::PopupRenderer::with_options(
-                    cfg.max_suggestions,
-                    icons,
-                    cfg.box_border_style,
-                    Some(&cfg.active_suggestion_background_color),
-                ),
+                popup: popup::PopupRenderer::with_config(cfg, icons),
             },
         }
     }
@@ -171,12 +161,41 @@ impl Renderer {
         available_rows: usize,
         gap_rows: u16,
     ) -> io::Result<()> {
+        self.draw_popup_with_hint(
+            out,
+            tail,
+            all,
+            None,
+            cursor,
+            direction,
+            cursor_col,
+            term_cols,
+            available_rows,
+            gap_rows,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn draw_popup_with_hint(
+        &mut self,
+        out: &mut impl io::Write,
+        tail: Option<&str>,
+        all: &[Suggestion],
+        argument_hint: Option<&str>,
+        cursor: usize,
+        direction: Direction,
+        cursor_col: u16,
+        term_cols: u16,
+        available_rows: usize,
+        gap_rows: u16,
+    ) -> io::Result<()> {
         let ghost_cells = term_cols.saturating_sub(cursor_col) as usize;
         match self {
             Renderer::Ghost(g) => g.draw(out, tail, ghost_cells),
-            Renderer::Popup(p) => p.draw_full_with_gap(
+            Renderer::Popup(p) => p.draw_with_argument_hint(
                 out,
                 all,
+                argument_hint,
                 cursor,
                 direction,
                 cursor_col,
@@ -186,9 +205,10 @@ impl Renderer {
             ),
             Renderer::Hybrid { ghost, popup } => {
                 ghost.draw(out, tail, ghost_cells)?;
-                popup.draw_full_with_gap(
+                popup.draw_with_argument_hint(
                     out,
                     all,
+                    argument_hint,
                     cursor,
                     direction,
                     cursor_col,

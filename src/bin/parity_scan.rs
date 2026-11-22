@@ -164,19 +164,17 @@ fn main() -> ExitCode {
     // Console summary.
     println!();
     println!("parity-scan summary:");
-    println!("┌──────────┬────────┬──────┬──────┐");
-    println!("│ Category │  Score │ PASS │ FAIL │");
-    println!("├──────────┼────────┼──────┼──────┤");
+    println!("Category      Score   Match   Known   Fail");
     for cat in &report.categories {
         println!(
-            "│ {:<8} │ {:>5.1}% │ {:>4} │ {:>4} │",
+            "{:<12} {:>5.1}% {:>7} {:>7} {:>6}",
             cat.category.name(),
             cat.score() * 100.0,
             cat.pass_count(),
+            cat.expected_count(),
             cat.fail_count()
         );
     }
-    println!("└──────────┴────────┴──────┴──────┘");
     println!("report: {}", cfg.output_path.display());
     println!("raw captures: {}", cfg.raw_dir.display());
 

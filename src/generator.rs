@@ -12,11 +12,49 @@ use crate::spec::model::{
     Arg, CacheSpec, CacheStrategy, Generator, PostProcess, PostProcessKind, ProjectFileReader,
     ScriptInput, Subcommand, Suggestion, SuggestionType, Template,
 };
+use crate::spec::parser::CommandToken;
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Condvar, LazyLock, Mutex};
 use std::time::{Duration, Instant};
+
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+#[derive(Clone, Default)]
+pub(crate) struct Cancellation(Arc<AtomicBool>);
+
+impl Cancellation {
+    pub(crate) fn cancel(&self) {
+        self.0.store(true, Ordering::Release);
+    }
+
+    pub(crate) fn is_cancelled(&self) -> bool {
+        self.0.load(Ordering::Acquire)
+    }
+}
+
+thread_local! {
+    static REQUEST: std::cell::RefCell<Option<Cancellation>> = const { std::cell::RefCell::new(None) };
+}
+
+fn current_request() -> Option<Cancellation> {
+    REQUEST.with(|slot| slot.borrow().clone())
+}
+
+/// Keep cancellation scoped to one completion, including its generator fan-out.
+pub(crate) fn with_request<T>(request: Option<Cancellation>, run: impl FnOnce() -> T) -> T {
+    struct Restore(Option<Cancellation>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            REQUEST.with(|slot| slot.replace(self.0.take()));
+        }
+    }
+    let _restore = Restore(REQUEST.with(|slot| slot.replace(request)));
+    run()
+}
+
+const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// Successful outputs are shared between the cached snapshot and any callers
 /// awaiting the same execution. `None` means the subprocess failed.
@@ -46,28 +84,48 @@ struct CacheFlight {
     // Outer None: still running. Inner None: completed unsuccessfully.
     result: Mutex<Option<ScriptOutput>>,
     done: Condvar,
+    cancel: Cancellation,
+    waiters: AtomicUsize,
+    refresh: bool,
 }
 
 impl CacheFlight {
-    fn wait(&self, timeout_ms: u32) -> ScriptOutput {
-        let result = self.result.lock().unwrap_or_else(|e| e.into_inner());
-        // Sharing a longer-running invocation must not extend this caller's
-        // timeout. The grace matches the subprocess reader's shutdown grace.
-        let wait = Duration::from_millis(u64::from(timeout_ms.max(1)) + 50);
-        let (result, _) = self
-            .done
-            .wait_timeout_while(result, wait, |result| result.is_none())
-            .unwrap_or_else(|e| e.into_inner());
+    fn wait(&self, timeout_ms: u32, request: Option<&Cancellation>) -> ScriptOutput {
+        let mut result = self.result.lock().unwrap_or_else(|e| e.into_inner());
+        let deadline = Instant::now() + Duration::from_millis(u64::from(timeout_ms) + 50);
+        while result.is_none() {
+            if request.is_some_and(Cancellation::is_cancelled) {
+                return None;
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return None;
+            }
+            let wait = if request.is_some() {
+                remaining.min(POLL_INTERVAL)
+            } else {
+                remaining
+            };
+            (result, _) = self
+                .done
+                .wait_timeout(result, wait)
+                .unwrap_or_else(|e| e.into_inner());
+        }
+        if request.is_some_and(Cancellation::is_cancelled) {
+            return None;
+        }
         result.as_ref().cloned().flatten()
     }
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 struct CacheKey {
     command: Invocation,
     cwd: Option<String>,
     separator: String,
 }
+
+const MAX_CACHE_ENTRIES: usize = 512;
 
 static CACHE: LazyLock<Mutex<HashMap<CacheKey, Arc<CacheEntry>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -82,6 +140,7 @@ pub fn suggestions_for_arg(
     arg: &Arg,
     cwd: &str,
     prefix: &str,
+    command_args: &[CommandToken],
     include_history: bool,
     help_subcommands: &[Subcommand],
     shell: Option<Shell>,
@@ -111,19 +170,32 @@ pub fn suggestions_for_arg(
                 &arg.generators[0],
                 cwd,
                 prefix,
+                command_args,
                 include_history,
                 help_subcommands,
                 shell,
             ));
         }
         _ => {
+            let request = current_request();
             let results: Vec<Vec<Suggestion>> = std::thread::scope(|scope| {
                 let handles: Vec<_> = arg
                     .generators
                     .iter()
                     .map(|g| {
+                        let request = request.clone();
                         scope.spawn(move || {
-                            run_generator(g, cwd, prefix, include_history, help_subcommands, shell)
+                            with_request(request, || {
+                                run_generator(
+                                    g,
+                                    cwd,
+                                    prefix,
+                                    command_args,
+                                    include_history,
+                                    help_subcommands,
+                                    shell,
+                                )
+                            })
                         })
                     })
                     .collect();
@@ -142,11 +214,26 @@ fn run_generator(
     g: &Generator,
     cwd: &str,
     prefix: &str,
+    command_args: &[CommandToken],
     include_history: bool,
     help_subcommands: &[Subcommand],
     shell: Option<Shell>,
 ) -> Vec<Suggestion> {
-    let mut out = run_generator_inner(g, cwd, prefix, include_history, help_subcommands, shell);
+    if current_request()
+        .as_ref()
+        .is_some_and(Cancellation::is_cancelled)
+    {
+        return Vec::new();
+    }
+    let mut out = run_generator_inner(
+        g,
+        cwd,
+        prefix,
+        command_args,
+        include_history,
+        help_subcommands,
+        shell,
+    );
     // Script output, glob matches and project files are whatever the
     // directory or the tools in it say, not spec text: mark them so the
     // accept path quotes them. Templates are handled by type (filesystem
@@ -155,7 +242,16 @@ fn run_generator(
     // own subcommand names.
     if matches!(
         g,
-        Generator::Script { .. } | Generator::Glob { .. } | Generator::ProjectFile { .. }
+        Generator::Script { .. }
+            | Generator::Glob { .. }
+            | Generator::ProjectFile { .. }
+            | Generator::Zoxide
+            | Generator::DockerImages
+            | Generator::NpmRegistry
+            | Generator::NpmWorkspaces
+            | Generator::LocalLoginNames
+            | Generator::NodeExecutables
+            | Generator::RustToolchains
     ) {
         for s in &mut out {
             s.external = true;
@@ -168,6 +264,7 @@ fn run_generator_inner(
     g: &Generator,
     cwd: &str,
     prefix: &str,
+    command_args: &[CommandToken],
     include_history: bool,
     help_subcommands: &[Subcommand],
     shell: Option<Shell>,
@@ -204,12 +301,401 @@ fn run_generator_inner(
         Generator::Glob { pattern } => glob_paths(pattern, cwd),
         Generator::Custom { .. } => Vec::new(), // always empty without JS
         Generator::ProjectFile { reader } => project_file_suggestions(*reader, cwd),
+        Generator::Zoxide => zoxide_suggestions(cwd, command_args),
+        Generator::DockerImages => docker_images(cwd),
+        Generator::NpmRegistry => npm_registry(cwd, prefix),
+        Generator::NpmWorkspaces => npm_workspaces(cwd),
+        Generator::LocalLoginNames => local_login_names(),
+        Generator::NodeExecutables => node_modules_binaries(cwd, false),
+        Generator::RustToolchains => rust_toolchains(cwd, prefix),
         Generator::FileExistsThen {
             path,
             content_contains,
             subcommand,
         } => file_exists_then(path, content_contains.as_deref(), subcommand, cwd),
     }
+}
+
+fn zoxide_suggestions(cwd: &str, tokens: &[CommandToken]) -> Vec<Suggestion> {
+    let mut argv = ["zoxide", "query", "--list", "--score"]
+        .map(String::from)
+        .to_vec();
+    let mut end_of_options = false;
+    let terms: Vec<_> = tokens
+        .iter()
+        .filter_map(|token| {
+            if !end_of_options && token.is_option && token.token == "--" {
+                end_of_options = true;
+                return None;
+            }
+            if token.token.is_empty() || (!end_of_options && token.is_option) {
+                return None;
+            }
+            Some(token.token.as_str())
+        })
+        .collect();
+    if !terms.is_empty() {
+        argv.extend(["--".into(), terms.join(" ")]);
+    }
+
+    let local = std::path::absolute(if cwd.is_empty() { "." } else { cwd }).ok();
+    let raw = try_run_command(&Invocation::Argv(argv), cwd, 5_000);
+    let legacy = raw.as_ref().is_err_and(|err| {
+        matches!(
+            err.kind(),
+            std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied
+        )
+    });
+    let mut out = Vec::new();
+    if let Ok(Some(raw)) = raw {
+        for line in String::from_utf8_lossy(&raw).lines() {
+            let Some((score, path)) = line.trim_start().split_once(char::is_whitespace) else {
+                continue;
+            };
+            let Ok(score) = score.parse::<f64>() else {
+                continue;
+            };
+            let path = path.trim_start();
+            let absolute = Path::new(path);
+            if !score.is_finite() || !absolute.is_absolute() {
+                continue;
+            }
+            let immediate_child = local
+                .as_deref()
+                .is_some_and(|cwd| absolute.parent() == Some(cwd));
+            let name = if immediate_child {
+                let Some(name) = absolute.file_name() else {
+                    continue;
+                };
+                name.to_string_lossy().into_owned()
+            } else {
+                path.to_owned()
+            };
+            out.push(Suggestion {
+                name,
+                description: Some(format!("Score: {score}")),
+                icon: Some("💾".into()),
+                // Local matches precede any other result. Rust priorities use
+                // a smaller range than upstream's, and zoxide's output order
+                // is preserved when multiple scores cap at the same value.
+                priority: Some(if immediate_child {
+                    100
+                } else {
+                    score.clamp(0.0, 98.0) as u8
+                }),
+                ..Default::default()
+            });
+        }
+    }
+    if legacy {
+        out.extend(legacy_z_history(&terms));
+    }
+    for entry in list_paths(cwd, "", true, false) {
+        if !entry.name.starts_with('.')
+            && (!legacy || terms.iter().all(|term| entry.name.contains(term)))
+        {
+            out.push(Suggestion {
+                name: entry.name,
+                description: Some("Score: 0".into()),
+                icon: Some("📁".into()),
+                priority: Some(if legacy { 50 } else { 99 }),
+                ..Default::default()
+            });
+        }
+    }
+    out
+}
+
+fn legacy_z_history(terms: &[&str]) -> Vec<Suggestion> {
+    let path = ["ZSHZ_DATA", "_Z_DATA"]
+        .into_iter()
+        .filter_map(std::env::var_os)
+        .find(|path| !path.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| crate::paths::home().map(|home| home.join(".z")));
+    let Some(data) = path.and_then(|path| read_bounded_file(&path, MAX_GENERATOR_OUTPUT as u64))
+    else {
+        return Vec::new();
+    };
+    String::from_utf8_lossy(&data)
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.rsplitn(3, '|');
+            let _time = fields.next()?.parse::<u64>().ok()?;
+            let weight = fields.next()?.parse::<f64>().ok()?;
+            let path = fields.next()?;
+            let name = Path::new(path).file_name()?.to_str()?;
+            if !weight.is_finite()
+                || !Path::new(path).is_absolute()
+                || terms.contains(&name)
+                || !terms.iter().all(|term| path.contains(term))
+            {
+                return None;
+            }
+            Some(Suggestion {
+                name: name.into(),
+                description: Some(path.into()),
+                icon: Some("📁".into()),
+                priority: Some((75.0 + weight.clamp(0.0, 9000.0) * 25.0 / 9000.0) as u8),
+                ..Default::default()
+            })
+        })
+        .collect()
+}
+
+fn rust_toolchains(cwd: &str, prefix: &str) -> Vec<Suggestion> {
+    if !prefix.is_empty() && !prefix.starts_with('+') {
+        return Vec::new();
+    }
+    let command = Invocation::Argv(["rustup", "toolchain", "list"].map(String::from).to_vec());
+    let cache = CacheSpec {
+        by_dir: false,
+        ..Default::default()
+    };
+    run_shell_line(&command, "\n", 2_000, Some(&cache), cwd)
+        .into_iter()
+        .filter_map(|line| {
+            let mut words = line.split_whitespace();
+            let toolchain = words.next()?;
+            // Rustup prints a sentence, not a toolchain, when its home is empty.
+            if words.next().is_some_and(|word| !word.starts_with('(')) {
+                return None;
+            }
+            let name = [
+                "-x86_64-",
+                "-aarch64-",
+                "-i686-",
+                "-arm-",
+                "-armv7-",
+                "-riscv64gc-",
+                "-powerpc64le-",
+                "-s390x-",
+                "-loongarch64-",
+            ]
+            .into_iter()
+            .find_map(|target| toolchain.split_once(target).map(|(name, _)| name))
+            .unwrap_or(toolchain);
+            Some(Suggestion {
+                name: format!("+{name}"),
+                description: Some(line),
+                icon: Some("🧰".into()),
+                priority: Some(45),
+                ..Default::default()
+            })
+        })
+        .collect()
+}
+
+fn docker_images(cwd: &str) -> Vec<Suggestion> {
+    let argv = [
+        "docker",
+        "images",
+        "--format",
+        "{{.Repository}} {{.Size}} {{.Tag}} {{.ID}}",
+    ];
+    let command = Invocation::Argv(argv.map(String::from).to_vec());
+    run_shell_line(&command, "\n", 5_000, None, cwd)
+        .into_iter()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let repository = fields.next()?;
+            let size = fields.next()?;
+            let tag = fields.next()?;
+            let id = fields.next()?;
+            if repository == "<none>" || fields.next().is_some() {
+                return None;
+            }
+            Some(Suggestion {
+                name: repository.into(),
+                description: Some(format!("{id}@{tag} - {size}")),
+                icon: Some("🐳".into()),
+                priority: Some(60),
+                ..Default::default()
+            })
+        })
+        .collect()
+}
+
+#[cfg(unix)]
+fn local_login_names() -> Vec<Suggestion> {
+    let Some(bytes) = read_bounded_file(Path::new("/etc/passwd"), MAX_MANIFEST_BYTES) else {
+        return Vec::new();
+    };
+    String::from_utf8_lossy(&bytes)
+        .lines()
+        .filter_map(|line| {
+            let (name, _) = line.split_once(':')?;
+            if name.is_empty() || name.starts_with(['#', '+', '-']) {
+                return None;
+            }
+            Some(Suggestion {
+                name: name.into(),
+                icon: Some("👤".into()),
+                priority: Some(60),
+                ..Default::default()
+            })
+        })
+        .collect()
+}
+
+#[cfg(not(unix))]
+fn local_login_names() -> Vec<Suggestion> {
+    Vec::new()
+}
+
+fn npm_workspaces(cwd: &str) -> Vec<Suggestion> {
+    for dir in Path::new(if cwd.is_empty() { "." } else { cwd }).ancestors() {
+        let Some(text) = read_project_file(&dir.join("package.json"), MAX_MANIFEST_BYTES) else {
+            continue;
+        };
+        let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&text) else {
+            continue;
+        };
+        let Some(workspaces) = manifest["workspaces"]
+            .as_array()
+            .or_else(|| manifest["workspaces"]["packages"].as_array())
+        else {
+            continue;
+        };
+        return workspaces
+            .iter()
+            .filter_map(|workspace| {
+                Some(Suggestion {
+                    name: workspace.as_str()?.into(),
+                    description: Some("Workspaces".into()),
+                    ..Default::default()
+                })
+            })
+            .collect();
+    }
+    Vec::new()
+}
+
+fn encode_url_part(input: &str) -> String {
+    use std::fmt::Write;
+    let mut encoded = String::new();
+    for byte in input.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+            encoded.push(byte.into());
+        } else {
+            let _ = write!(encoded, "%{byte:02X}");
+        }
+    }
+    encoded
+}
+
+fn npm_registry(cwd: &str, prefix: &str) -> Vec<Suggestion> {
+    if prefix.is_empty()
+        || prefix.starts_with('-')
+        || prefix.len() > 256
+        || prefix.chars().any(char::is_whitespace)
+    {
+        return Vec::new();
+    }
+    let version = prefix
+        .strip_prefix('@')
+        .unwrap_or(prefix)
+        .split_once('@')
+        .map(|(name, _)| {
+            if prefix.starts_with('@') {
+                format!("@{name}")
+            } else {
+                name.to_owned()
+            }
+        });
+    let (url, accept) = match &version {
+        Some(pkg) => (
+            format!("https://registry.npmjs.org/{}", encode_url_part(pkg)),
+            "Accept: application/vnd.npm.install-v1+json",
+        ),
+        None => (
+            format!(
+                "https://api.npms.io/v2/search/suggestions?size=20&q={}",
+                encode_url_part(prefix)
+            ),
+            "Accept: application/json",
+        ),
+    };
+    let argv = [
+        "curl",
+        "--disable",
+        "--fail",
+        "--silent",
+        "--max-time",
+        "4",
+        "--proto",
+        "=https",
+        "-H",
+        accept,
+        &url,
+    ];
+    let cache = CacheSpec {
+        ttl_secs: if version.is_some() { 172_800 } else { 60 },
+        by_dir: false,
+        ..Default::default()
+    };
+    // Parse the whole document since curl may return formatted JSON.
+    let raw = run_shell_line(
+        &Invocation::Argv(argv.map(String::from).to_vec()),
+        "\0",
+        5_000,
+        Some(&cache),
+        cwd,
+    );
+    let Ok(value) =
+        serde_json::from_str::<serde_json::Value>(raw.first().map_or("", String::as_str))
+    else {
+        return Vec::new();
+    };
+    if let Some(pkg) = version {
+        let mut out = Vec::new();
+        if let Some(tags) = value["dist-tags"].as_object() {
+            out.extend(tags.iter().map(|(tag, version)| Suggestion {
+                name: tag.clone(),
+                insert_value: Some(format!("{pkg}@{tag}")),
+                match_name: Some(format!("{pkg}@{tag}")),
+                description: version.as_str().map(str::to_owned),
+                priority: Some(60),
+                ..Default::default()
+            }));
+        }
+        if let Some(versions) = value["versions"].as_object() {
+            let mut versions: Vec<_> = versions.keys().map(String::as_str).collect();
+            versions.sort_by_cached_key(|version| {
+                let (base, pre) = version.split_once('-').unwrap_or((version, ""));
+                let mut parts = base.split('.').map(|n| n.parse::<u64>().unwrap_or(0));
+                std::cmp::Reverse((
+                    parts.next(),
+                    parts.next(),
+                    parts.next(),
+                    pre.is_empty(),
+                    pre.to_owned(),
+                ))
+            });
+            out.extend(versions.into_iter().map(|version| Suggestion {
+                name: version.into(),
+                insert_value: Some(format!("{pkg}@{version}")),
+                match_name: Some(format!("{pkg}@{version}")),
+                priority: Some(60),
+                ..Default::default()
+            }));
+        }
+        return out;
+    }
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|result| {
+            let package = &result["package"];
+            Some(Suggestion {
+                name: package["name"].as_str()?.into(),
+                description: package["description"].as_str().map(str::to_owned),
+                priority: Some(60),
+                ..Default::default()
+            })
+        })
+        .collect()
 }
 
 fn file_exists_then(
@@ -395,7 +881,7 @@ fn project_file_suggestions(reader: ProjectFileReader, cwd: &str) -> Vec<Suggest
     match reader {
         ProjectFileReader::PackageJsonScripts => package_json_scripts(cwd),
         ProjectFileReader::PackageJsonNodeClis => package_json_node_clis(cwd),
-        ProjectFileReader::NodeModulesBinaries => node_modules_binaries(cwd),
+        ProjectFileReader::NodeModulesBinaries => node_modules_binaries(cwd, true),
         ProjectFileReader::CargoWorkspaceMembers => cargo_workspace_members(cwd),
     }
 }
@@ -455,7 +941,7 @@ fn package_json_node_clis(cwd: &str) -> Vec<Suggestion> {
         .collect()
 }
 
-fn node_modules_binaries(cwd: &str) -> Vec<Suggestion> {
+fn node_modules_binaries(cwd: &str, known_only: bool) -> Vec<Suggestion> {
     let mut dir = std::path::PathBuf::from(if cwd.is_empty() { "." } else { cwd });
     if let Ok(canon) = dir.canonicalize() {
         dir = canon;
@@ -469,7 +955,7 @@ fn node_modules_binaries(cwd: &str) -> Vec<Suggestion> {
             return entries
                 .flatten()
                 .filter_map(|e| e.file_name().into_string().ok())
-                .filter(|n| is_known_node_cli(n))
+                .filter(|n| !known_only || is_known_node_cli(n))
                 .map(|name| Suggestion {
                     name: name.clone(),
                     description: Some(format!("Run {} from node_modules", name)),
@@ -568,7 +1054,7 @@ fn template_suggestions(
 /// Split a path prefix into its directory part and the basename being typed.
 /// Windows accepts `\\` as a separator, so `src\\ma` must split at the
 /// backslash rather than being treated as one long filename.
-fn split_path_prefix(prefix: &str) -> (&str, &str) {
+pub(crate) fn split_path_prefix(prefix: &str) -> (&str, &str) {
     let sep = if cfg!(windows) {
         prefix.rfind(['/', '\\'])
     } else {
@@ -750,6 +1236,10 @@ fn run_shell_line(
     cache: Option<&CacheSpec>,
     cwd: &str,
 ) -> Vec<String> {
+    let request = current_request();
+    if request.as_ref().is_some_and(Cancellation::is_cancelled) {
+        return Vec::new();
+    }
     let timeout_ms = timeout_ms.max(1);
     // No policy, or a zero TTL, bypasses both cache reads and cache writes.
     // In particular another generator's longer TTL cannot override this call.
@@ -765,12 +1255,26 @@ fn run_shell_line(
         cwd: spec.by_dir.then(|| cwd.to_string()),
         separator: sep.to_string(),
     };
-    let entry = CACHE
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .entry(key)
-        .or_default()
-        .clone();
+    let entry = {
+        let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(entry) = cache.get(&key) {
+            entry.clone()
+        } else if cache.len() < MAX_CACHE_ENTRIES {
+            cache.entry(key).or_default().clone()
+        } else if let Some(idle) = cache
+            .iter()
+            .find(|(_, entry)| Arc::strong_count(entry) == 1)
+            .map(|(key, _)| key.clone())
+        {
+            cache.remove(&idle);
+            cache.entry(key).or_default().clone()
+        } else {
+            // Never evict active flights. Run this request without a cache
+            // entry if all slots are busy.
+            drop(cache);
+            return run_and_split(command, sep, timeout_ms, cwd).unwrap_or_default();
+        }
+    };
     let mut state = entry.state.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(cached) = &state.cached
         && cached.at.elapsed() < spec.ttl()
@@ -791,41 +1295,58 @@ fn run_shell_line(
         // its timeout. Their next request can retry if that refresh fails.
         return (**stale).clone();
     }
-    if let Some(flight) = state.in_flight.get(&timeout_ms).cloned() {
-        drop(state);
-        // Cold and max-age callers with the same timeout share this result,
-        // including a failure, without launching one subprocess per request.
-        return flight
-            .wait(timeout_ms)
-            .map(|v| (*v).clone())
-            .unwrap_or_default();
+    let (flight, launch) = match state.in_flight.get(&timeout_ms) {
+        Some(flight) => (flight.clone(), false),
+        None => {
+            let flight = Arc::new(CacheFlight {
+                refresh: stale.is_some(),
+                ..Default::default()
+            });
+            state.in_flight.insert(timeout_ms, flight.clone());
+            (flight, true)
+        }
+    };
+    if stale.is_none() {
+        flight.waiters.fetch_add(1, Ordering::Relaxed);
     }
-    let flight = Arc::new(CacheFlight::default());
-    state.in_flight.insert(timeout_ms, flight.clone());
     drop(state);
 
-    if let Some(stale) = stale {
+    if launch {
         let entry_for_thread = entry.clone();
         let flight_for_thread = flight.clone();
         let command = command.clone();
         let sep = sep.to_string();
         let cwd = cwd.to_string();
         if std::thread::Builder::new()
-            .name("is-cache-refresh".into())
+            .name("is-generator-cache".into())
             .spawn(move || {
-                let output = run_and_split(&command, &sep, timeout_ms, &cwd).map(Arc::new);
+                let output = with_request(Some(flight_for_thread.cancel.clone()), || {
+                    run_and_split(&command, &sep, timeout_ms, &cwd).map(Arc::new)
+                });
                 finish_cache_run(&entry_for_thread, &flight_for_thread, timeout_ms, output);
             })
             .is_err()
         {
-            // A failed thread spawn must not leave the entry permanently busy.
             finish_cache_run(&entry, &flight, timeout_ms, None);
         }
+    }
+    if let Some(stale) = stale {
         return (*stale).clone();
     }
 
-    let output = run_and_split(command, sep, timeout_ms, cwd).map(Arc::new);
-    finish_cache_run(&entry, &flight, timeout_ms, output.clone());
+    let output = flight.wait(timeout_ms, request.as_ref());
+    // Serialize the last departure with registration of another waiter.
+    let mut state = entry.state.lock().unwrap_or_else(|e| e.into_inner());
+    if flight.waiters.fetch_sub(1, Ordering::Relaxed) == 1
+        && !flight.refresh
+        && state
+            .in_flight
+            .get(&timeout_ms)
+            .is_some_and(|current| Arc::ptr_eq(current, &flight))
+    {
+        flight.cancel.cancel();
+        state.in_flight.remove(&timeout_ms);
+    }
     output.map(|v| (*v).clone()).unwrap_or_default()
 }
 
@@ -836,15 +1357,19 @@ fn finish_cache_run(
     output: ScriptOutput,
 ) {
     let mut state = entry.state.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(values) = &output {
-        state.cached = Some(CachedOutput {
-            at: Instant::now(),
-            values: values.clone(),
-        });
+    if state
+        .in_flight
+        .get(&timeout_ms)
+        .is_some_and(|current| std::ptr::eq(current.as_ref(), flight))
+    {
+        if let Some(values) = &output {
+            state.cached = Some(CachedOutput {
+                at: Instant::now(),
+                values: values.clone(),
+            });
+        }
+        state.in_flight.remove(&timeout_ms);
     }
-    // Failure preserves the previous successful snapshot for stale callers,
-    // and leaves cold callers free to retry on their next request.
-    state.in_flight.remove(&timeout_ms);
     drop(state);
     *flight.result.lock().unwrap_or_else(|e| e.into_inner()) = Some(output);
     flight.done.notify_all();
@@ -900,7 +1425,21 @@ fn run_command_with_timeout(
     cwd: &str,
     timeout_ms: u32,
 ) -> Option<Vec<u8>> {
-    let mut command = build_command(invocation)?;
+    try_run_command(invocation, cwd, timeout_ms).ok().flatten()
+}
+
+fn try_run_command(
+    invocation: &Invocation,
+    cwd: &str,
+    timeout_ms: u32,
+) -> std::io::Result<Option<Vec<u8>>> {
+    let request = current_request();
+    if request.as_ref().is_some_and(Cancellation::is_cancelled) {
+        return Ok(None);
+    }
+    let Some(mut command) = build_command(invocation) else {
+        return Ok(None);
+    };
     command
         .current_dir(if cwd.is_empty() { "." } else { cwd })
         .stdin(Stdio::null())
@@ -917,7 +1456,17 @@ fn run_command_with_timeout(
             }
         });
     }
-    let mut child = command.spawn().ok()?;
+    let child = command.spawn()?;
+    let timeout = Duration::from_millis(timeout_ms.max(1) as u64);
+    Ok(capture_generator(child, timeout, request.as_ref()))
+}
+
+#[cfg(not(windows))]
+fn capture_generator(
+    mut child: std::process::Child,
+    timeout: Duration,
+    request: Option<&Cancellation>,
+) -> Option<Vec<u8>> {
     let mut stdout = child.stdout.take()?;
     // The reader runs on its own thread and reports through a channel, so the
     // wait for it can be bounded. `join()` could block forever: a backgrounded
@@ -946,13 +1495,12 @@ fn run_command_with_timeout(
     }
     let overflowed = || overflowed.load(std::sync::atomic::Ordering::Acquire);
 
-    let timeout = Duration::from_millis(timeout_ms.max(1) as u64);
     let start = Instant::now();
     loop {
         // Over the cap: the output is unusable, so stop the generator (and
         // its process group) now instead of letting it block on a full pipe
         // until the timeout.
-        if overflowed() {
+        if overflowed() || request.is_some_and(Cancellation::is_cancelled) {
             kill_generator_child(&mut child);
             let _ = child.wait();
             return None;
@@ -969,11 +1517,27 @@ fn run_command_with_timeout(
                 let grace = timeout
                     .saturating_sub(start.elapsed())
                     .max(Duration::from_millis(50));
-                let bytes = rx.recv_timeout(grace).ok();
-                if !status.success() || overflowed() {
+                if !status.success() {
                     return None;
                 }
-                return bytes;
+                let deadline = Instant::now() + grace;
+                while !request.is_some_and(Cancellation::is_cancelled) {
+                    let remaining = deadline.saturating_duration_since(Instant::now());
+                    if remaining.is_zero() {
+                        break;
+                    }
+                    let wait = if request.is_some() {
+                        remaining.min(POLL_INTERVAL)
+                    } else {
+                        remaining
+                    };
+                    match rx.recv_timeout(wait) {
+                        Ok(bytes) => return (!overflowed()).then_some(bytes),
+                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                    }
+                }
+                return None;
             }
             Ok(None) => {
                 if start.elapsed() >= timeout {
@@ -996,11 +1560,86 @@ fn run_command_with_timeout(
     }
 }
 
+#[cfg(windows)]
+fn capture_generator(
+    mut child: std::process::Child,
+    timeout: Duration,
+    request: Option<&Cancellation>,
+) -> Option<Vec<u8>> {
+    use std::io::{ErrorKind, Read};
+    use std::os::windows::io::AsRawHandle;
+    use std::ptr::null_mut;
+    use windows_sys::Win32::System::Pipes::PeekNamedPipe;
+
+    let mut stdout = child.stdout.take()?;
+    let start = Instant::now();
+    let mut output = Vec::new();
+    let mut buf = [0; 8192];
+    let result = loop {
+        if request.is_some_and(Cancellation::is_cancelled) {
+            break None;
+        }
+        let exited = match child.try_wait() {
+            Ok(Some(status)) if status.success() => true,
+            Ok(Some(_)) | Err(_) => break None,
+            Ok(None) => false,
+        };
+        let mut available = 0;
+        // This handle has one reader. Read only bytes reported available so
+        // a descendant retaining its write handle cannot strand a reader.
+        if unsafe {
+            PeekNamedPipe(
+                stdout.as_raw_handle(),
+                null_mut(),
+                0,
+                null_mut(),
+                &mut available,
+                null_mut(),
+            )
+        } == 0
+            && std::io::Error::last_os_error().kind() != ErrorKind::BrokenPipe
+        {
+            break None;
+        }
+        if available == 0 && exited {
+            break Some(output);
+        }
+        let remaining = timeout.saturating_sub(start.elapsed());
+        if remaining.is_zero() {
+            break None;
+        }
+        if available == 0 {
+            std::thread::sleep(remaining.min(Duration::from_millis(10)));
+            continue;
+        }
+        let n = (available as usize)
+            .min(buf.len())
+            .min(MAX_GENERATOR_OUTPUT + 1 - output.len());
+        match stdout.read(&mut buf[..n]) {
+            Ok(n) => {
+                output.extend_from_slice(&buf[..n]);
+                if output.len() > MAX_GENERATOR_OUTPUT {
+                    break None;
+                }
+            }
+            Err(err) if err.kind() == ErrorKind::Interrupted => {}
+            Err(_) => break None,
+        }
+    };
+    drop(stdout);
+    if result.is_none() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    result
+}
+
 /// Most bytes of generator stdout kept. Completion lists are a few KiB; even
 /// every installable package on a distribution (`apt-cache pkgnames`) is
 /// around 1 MiB. Output over the cap is discarded as a failed generator.
 const MAX_GENERATOR_OUTPUT: usize = 4 * 1024 * 1024;
 
+#[cfg(not(windows))]
 fn kill_generator_child(child: &mut std::process::Child) {
     #[cfg(unix)]
     unsafe {
@@ -1099,7 +1738,9 @@ fn apply_pattern(raw: Vec<String>, kind: &PostProcessKind) -> Vec<Suggestion> {
                 let is_current = line.trim_start().starts_with('*');
                 (is_current, clean_raw_line(line))
             })
-            .filter(|(_, name)| !name.is_empty())
+            .filter(|(_, name)| {
+                !name.is_empty() && !name.contains(" -> ") && !name.starts_with("(HEAD ")
+            })
             .map(|(is_current, name)| Suggestion {
                 name,
                 suggestion_type: SuggestionType::Arg,
@@ -1236,6 +1877,177 @@ fn json_value_to_suggestions(v: &serde_json::Value) -> Vec<Suggestion> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    #[test]
+    fn cancelling_one_cache_waiter_keeps_the_shared_generator_alive() {
+        let dir = crate::test_support::unique_temp_dir("shared-cache-cancel");
+        let cwd = dir.to_str().unwrap();
+        let command = Invocation::Shell(
+            "echo start >> calls; while [ ! -f release ]; do sleep .02; done; printf ready".into(),
+        );
+        let key = CacheKey {
+            command: command.clone(),
+            cwd: Some(cwd.into()),
+            separator: "\n".into(),
+        };
+        let policy = CacheSpec::default();
+        let request = Cancellation::default();
+        std::thread::scope(|scope| {
+            let first = scope.spawn(|| {
+                with_request(Some(request.clone()), || {
+                    run_shell_line(&command, "\n", 5_000, Some(&policy), cwd)
+                })
+            });
+            let second = scope.spawn(|| run_shell_line(&command, "\n", 5_000, Some(&policy), cwd));
+            let deadline = Instant::now() + Duration::from_secs(2);
+            loop {
+                let entry = CACHE.lock().unwrap().get(&key).cloned();
+                if entry.is_some_and(|entry| {
+                    entry
+                        .state
+                        .lock()
+                        .unwrap()
+                        .in_flight
+                        .get(&5_000)
+                        .is_some_and(|flight| flight.waiters.load(Ordering::Relaxed) == 2)
+                }) {
+                    break;
+                }
+                assert!(Instant::now() < deadline);
+                std::thread::sleep(POLL_INTERVAL);
+            }
+            request.cancel();
+            assert!(first.join().unwrap().is_empty());
+            std::fs::write(dir.join("release"), "").unwrap();
+            assert_eq!(second.join().unwrap(), ["ready"]);
+        });
+        assert_eq!(
+            std::fs::read_to_string(dir.join("calls")).unwrap(),
+            "start\n"
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "subprocess fixture, invoked by windows_generator_releases_inherited_stdout"]
+    fn windows_pipe_helper() {
+        use std::io::Write;
+
+        fn wait_for(path: &str) {
+            let deadline = Instant::now() + Duration::from_secs(15);
+            while !Path::new(path).exists() {
+                assert!(Instant::now() < deadline, "waiting for {path}");
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+
+        if std::env::var_os("INSH_TEST_PIPE_DESCENDANT").is_some() {
+            std::fs::write("ready", "").unwrap();
+            wait_for("release");
+            let result = std::io::stdout().write_all(b"descendant output\n");
+            std::fs::write("result", if result.is_err() { "closed" } else { "open" }).unwrap();
+            // The libtest harness itself writes to stdout on return.
+            std::process::exit(0);
+        }
+        let _descendant = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--ignored",
+                "--exact",
+                "generator::tests::windows_pipe_helper",
+                "--nocapture",
+            ])
+            .env("INSH_TEST_PIPE_DESCENDANT", "1")
+            .spawn()
+            .unwrap();
+        wait_for("ready");
+        println!("generator output");
+        if Path::new("time-out").exists() {
+            wait_for("release");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_generator_releases_inherited_stdout() {
+        let executable = std::env::current_exe()
+            .unwrap()
+            .into_os_string()
+            .into_string()
+            .unwrap();
+        let command = Invocation::Argv(vec![
+            executable,
+            "--ignored".into(),
+            "--exact".into(),
+            "generator::tests::windows_pipe_helper".into(),
+            "--nocapture".into(),
+        ]);
+        for (time_out, cancel) in [(true, false), (true, false), (true, true), (false, false)] {
+            let dir = crate::test_support::unique_temp_dir("generator-pipe");
+            if time_out {
+                std::fs::write(dir.join("time-out"), "").unwrap();
+            }
+            let output = if cancel {
+                let request = Cancellation::default();
+                std::thread::scope(|scope| {
+                    scope.spawn(|| {
+                        let deadline = Instant::now() + Duration::from_secs(2);
+                        while !dir.join("ready").exists() {
+                            assert!(
+                                Instant::now() < deadline,
+                                "descendant was not ready for cancellation"
+                            );
+                            std::thread::sleep(POLL_INTERVAL);
+                        }
+                        request.cancel();
+                    });
+                    let start = Instant::now();
+                    let result = with_request(Some(request.clone()), || {
+                        run_command_with_timeout(&command, dir.to_str().unwrap(), 10_000)
+                    });
+                    assert!(
+                        start.elapsed() < Duration::from_secs(4),
+                        "cancellation waited for the timeout"
+                    );
+                    result
+                })
+            } else {
+                run_command_with_timeout(&command, dir.to_str().unwrap(), 2_000)
+            };
+            let ready = dir.join("ready").exists();
+            // Release the descendant even if reporting a failure below.
+            std::fs::write(dir.join("release"), "").unwrap();
+            let deadline = Instant::now() + Duration::from_secs(4);
+            let state = loop {
+                if let Ok(state) = std::fs::read_to_string(dir.join("result"))
+                    && !state.is_empty()
+                {
+                    break state;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "descendant did not report pipe status"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            };
+            std::fs::remove_dir_all(dir).unwrap();
+            assert!(
+                ready,
+                "descendant did not inherit the generator pipe before cancellation"
+            );
+            assert_eq!(
+                state, "closed",
+                "descendant could still write to generator stdout"
+            );
+            if time_out {
+                assert!(output.is_none());
+            } else {
+                let output = String::from_utf8(output.unwrap()).unwrap();
+                assert!(output.contains("generator output"));
+            }
+        }
+    }
+
     use super::*;
 
     /// #123: a leading separator is meaningful even when it is the only one.
@@ -1710,7 +2522,7 @@ mod tests {
             ..Default::default()
         };
         let names = |shell| -> Vec<String> {
-            suggestions_for_arg(&arg, ".", "", true, &[], Some(shell))
+            suggestions_for_arg(&arg, ".", "", &[], true, &[], Some(shell))
                 .into_iter()
                 .map(|s| s.name)
                 .collect()
@@ -1817,7 +2629,7 @@ mod tests {
             ],
             ..Default::default()
         };
-        let got = suggestions_for_arg(&arg, dir.to_str().unwrap(), "", false, &[], None);
+        let got = suggestions_for_arg(&arg, dir.to_str().unwrap(), "", &[], false, &[], None);
         let _ = std::fs::remove_dir_all(&dir);
         let external = |name: &str| {
             got.iter()

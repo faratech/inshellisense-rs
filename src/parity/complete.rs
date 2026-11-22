@@ -18,6 +18,7 @@ use std::process::Command;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedBlob {
     pub suggestions: Vec<NormalizedSuggestion>,
+    pub argument_description: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,6 +36,10 @@ struct CorpusEntry {
     /// Optional human label for the report.
     #[serde(default)]
     label: Option<String>,
+    argument_description: Option<String>,
+    expected_suggestion: Option<String>,
+    #[serde(default)]
+    legacy_z: bool,
 }
 
 pub fn run(cfg: &ScanConfig) -> CategoryReport {
@@ -75,30 +80,26 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
     let ours_home = super::isolated_home_ours(cfg);
     let upstream_home = super::isolated_home_upstream(cfg);
 
+    let fixtures = match prepare_fixtures(cfg, &fixture_cwd, &ours_home, &entries) {
+        Ok(fixtures) => fixtures,
+        Err(error) => {
+            report.push_fail("fixtures", error.to_string(), Vec::new(), 90);
+            return report;
+        }
+    };
+
     // Run all test cases in parallel via std::thread::scope.
     let cases: Vec<Case> = std::thread::scope(|s| {
         let handles: Vec<_> = entries
             .iter()
             .map(|entry| {
+                let fixtures = &fixtures;
                 s.spawn(|| {
                     let label = entry.label.clone().unwrap_or_else(|| entry.line.clone());
 
-                    let ours_json = run_complete(
-                        &cfg.ours,
-                        &entry.line,
-                        entry.cwd.as_deref(),
-                        true,
-                        &fixture_cwd,
-                        &ours_home,
-                    );
-                    let upstream_json = run_complete(
-                        &cfg.upstream,
-                        &entry.line,
-                        entry.cwd.as_deref(),
-                        false,
-                        &fixture_cwd,
-                        &upstream_home,
-                    );
+                    let ours_json = run_complete(&cfg.ours, entry, true, fixtures, &ours_home);
+                    let upstream_json =
+                        run_complete(&cfg.upstream, entry, false, fixtures, &upstream_home);
 
                     let ours_blob = match parse_suggestions(&ours_json) {
                         Ok(b) => b,
@@ -127,7 +128,30 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
                         }
                     };
 
-                    let diff = diff_blobs(&upstream_blob, &ours_blob);
+                    let mut diff = diff_blobs(&upstream_blob, &ours_blob);
+                    if let Some(expected) = &entry.argument_description {
+                        for (side, blob) in [("upstream", &upstream_blob), ("ours", &ours_blob)] {
+                            if blob.argument_description.as_deref() != Some(expected) {
+                                diff.push(format!(
+                                    "{side} argumentDescription: expected {expected:?}, got {:?}",
+                                    blob.argument_description
+                                ));
+                            }
+                        }
+                    }
+                    if let Some(expected) = &entry.expected_suggestion {
+                        for (side, blob) in [("upstream", &upstream_blob), ("ours", &ours_blob)] {
+                            if !blob
+                                .suggestions
+                                .iter()
+                                .any(|candidate| &candidate.name == expected)
+                            {
+                                diff.push(format!(
+                                    "{side} is missing fixture suggestion {expected:?}"
+                                ));
+                            }
+                        }
+                    }
                     if diff.is_empty() {
                         Case {
                             name: label,
@@ -183,27 +207,152 @@ fn load_corpus(path: &Path) -> std::io::Result<Vec<CorpusEntry>> {
     Ok(out)
 }
 
+struct Fixtures {
+    cwd: std::path::PathBuf,
+    bin: std::path::PathBuf,
+    z_history: Option<std::path::PathBuf>,
+    z_bin: std::path::PathBuf,
+}
+
+fn prepare_fixtures(
+    cfg: &ScanConfig,
+    source: &Path,
+    home: &Path,
+    entries: &[CorpusEntry],
+) -> std::io::Result<Fixtures> {
+    let cwd = cfg.raw_dir.canonicalize()?.join("complete-cwd");
+    fn copy_directory(source: &Path, target: &Path) -> std::io::Result<()> {
+        fs::create_dir_all(target)?;
+        if !source.is_dir() {
+            return Ok(());
+        }
+        for entry in fs::read_dir(source)? {
+            let entry = entry?;
+            let target = target.join(entry.file_name());
+            if entry.file_type()?.is_dir() {
+                copy_directory(&entry.path(), &target)?;
+            } else if entry.file_type()?.is_file() {
+                fs::copy(entry.path(), target)?;
+            }
+        }
+        Ok(())
+    }
+    copy_directory(source, &cwd)?;
+    if entries
+        .iter()
+        .any(|entry| entry.cwd.as_deref() == Some("git"))
+    {
+        let git = cwd.join("git");
+        fs::create_dir_all(&git)?;
+        if !git.join(".git").exists() {
+            fs::write(git.join("tracked.txt"), "Tracked parity fixture\n")?;
+            for args in [
+                &["init", "--initial-branch=main"][..],
+                &["add", "tracked.txt"][..],
+                &[
+                    "-c",
+                    "user.name=Parity",
+                    "-c",
+                    "user.email=parity@example.invalid",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "commit",
+                    "-m",
+                    "Fixture",
+                ][..],
+                &["branch", "fixture-feature"][..],
+            ] {
+                let mut cmd = Command::new("git");
+                super::deterministic(&mut cmd, home);
+                let output = cmd
+                    .current_dir(&git)
+                    .env("GIT_CONFIG_NOSYSTEM", "1")
+                    .args(args)
+                    .output()?;
+                if !output.status.success() {
+                    return Err(std::io::Error::other(format!(
+                        "git fixture: {}",
+                        String::from_utf8_lossy(&output.stderr)
+                    )));
+                }
+            }
+        }
+    }
+    let z_bin = cfg.raw_dir.canonicalize()?.join("legacy-z-bin");
+    #[cfg(unix)]
+    if entries.iter().any(|entry| entry.legacy_z) {
+        fs::create_dir_all(&z_bin)?;
+        let path = std::env::var_os("PATH").unwrap_or_default();
+        for program in ["bash", "zsh", "cat", "ls"] {
+            let target = z_bin.join(program);
+            if let Some(executable) = std::env::split_paths(&path)
+                .filter_map(|dir| dir.join(program).canonicalize().ok())
+                .find(|file| file.is_file())
+                && !target.exists()
+            {
+                std::os::unix::fs::symlink(executable, target)?;
+            }
+        }
+    }
+    let z_history = cfg.raw_dir.canonicalize()?.join("z-history");
+    let z_history = if entries.iter().any(|entry| entry.legacy_z) {
+        fs::write(
+            &z_history,
+            if cfg!(windows) {
+                "C:/work/old-project|4096|1700000000\n"
+            } else {
+                "/work/old-project|4096|1700000000\n"
+            },
+        )?;
+        Some(z_history)
+    } else {
+        None
+    };
+    Ok(Fixtures {
+        cwd,
+        bin: cfg.corpus_dir.join("fixtures/bin"),
+        z_history,
+        z_bin,
+    })
+}
+
 fn run_complete(
     bin: &Path,
-    line: &str,
-    cwd: Option<&str>,
+    entry: &CorpusEntry,
     ours: bool,
-    fixture_cwd: &Path,
+    fixtures: &Fixtures,
     home: &Path,
 ) -> String {
     let mut cmd = Command::new(bin);
     super::deterministic(&mut cmd, home);
+    if fixtures.bin.is_dir() {
+        let path = std::env::var_os("PATH").unwrap_or_default();
+        let paths = std::iter::once(fixtures.bin.clone()).chain(std::env::split_paths(&path));
+        if let Ok(path) = std::env::join_paths(paths) {
+            cmd.env("PATH", path);
+        }
+    }
+    if entry.legacy_z {
+        // This fixture needs bash and zsh for upstream, and deliberately
+        // excludes any user-installed zoxide from PATH.
+        cmd.env("PATH", &fixtures.z_bin);
+        if let Some(path) = &fixtures.z_history {
+            cmd.env("ZSHZ_DATA", path);
+        }
+    }
     cmd.arg("complete");
     if ours {
         cmd.arg("--json");
     }
-    cmd.arg(line);
-    // Both binaries need to run in the SAME cwd or their filepath
-    // templates return different entries.
-    let resolved_cwd = cwd
-        .filter(|s| !s.is_empty() && *s != ".")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| fixture_cwd.to_path_buf());
+    let resolved_cwd = entry
+        .cwd
+        .as_deref()
+        .map_or_else(|| fixtures.cwd.clone(), |cwd| fixtures.cwd.join(cwd));
+    cmd.arg(
+        entry
+            .line
+            .replace("{fixture_cwd}", &resolved_cwd.to_string_lossy()),
+    );
     cmd.current_dir(&resolved_cwd);
     match cmd.output() {
         Ok(o) => {
@@ -247,9 +396,14 @@ fn parse_suggestions(s: &str) -> Result<NormalizedBlob, String> {
     {
         return Ok(NormalizedBlob {
             suggestions: Vec::new(),
+            argument_description: None,
         });
     }
     let value: serde_json::Value = serde_json::from_str(trimmed).map_err(|e| e.to_string())?;
+    let argument_description = value
+        .get("argumentDescription")
+        .and_then(|v| v.as_str())
+        .map(str::to_owned);
     let rows = match value {
         serde_json::Value::Array(rows) => rows,
         serde_json::Value::Object(map) => match map.get("suggestions") {
@@ -292,7 +446,10 @@ fn parse_suggestions(s: &str) -> Result<NormalizedBlob, String> {
             description,
         });
     }
-    Ok(NormalizedBlob { suggestions })
+    Ok(NormalizedBlob {
+        suggestions,
+        argument_description,
+    })
 }
 
 fn json_kind(v: &serde_json::Value) -> &'static str {

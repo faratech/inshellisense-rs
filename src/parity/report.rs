@@ -15,14 +15,15 @@ pub fn write_markdown(report: &Report, out_path: &Path) -> std::io::Result<()> {
 
     // Summary table
     s.push_str("## Summary\n\n");
-    s.push_str("| Category | Score | PASS | FAIL | Details |\n");
-    s.push_str("|----------|------:|-----:|-----:|---------|\n");
+    s.push_str("| Category | Score | Match | Known | Fail | Details |\n");
+    s.push_str("|----------|------:|------:|------:|-----:|---------|\n");
     for cat in &report.categories {
         s.push_str(&format!(
-            "| {} | {:.1}% | {} | {} | {} |\n",
+            "| {} | {:.1}% | {} | {} | {} | {} |\n",
             cat.category.name(),
             cat.score() * 100.0,
             cat.pass_count(),
+            cat.expected_count(),
             cat.fail_count(),
             cat.summary
         ));
@@ -33,7 +34,7 @@ pub fn write_markdown(report: &Report, out_path: &Path) -> std::io::Result<()> {
     let mut all_fails: Vec<(&super::CategoryReport, &super::Case)> = Vec::new();
     for cat in &report.categories {
         for case in &cat.cases {
-            if !case.result.is_pass() {
+            if matches!(case.result, CaseResult::Fail { .. }) {
                 all_fails.push((cat, case));
             }
         }
@@ -76,10 +77,26 @@ pub fn write_markdown(report: &Report, out_path: &Path) -> std::io::Result<()> {
             cat.cases.len()
         ));
         for case in &cat.cases {
-            let status = if case.result.is_pass() { "✓" } else { "✗" };
-            s.push_str(&format!("- {} `{}`", status, case.name));
-            if let CaseResult::Fail { reason, .. } = &case.result {
-                s.push_str(&format!(" — {}", reason));
+            let status = match &case.result {
+                CaseResult::Pass => "✓",
+                CaseResult::ExpectedDifference { .. } => "≈",
+                CaseResult::Fail { .. } => "✗",
+            };
+            s.push_str(&format!("- {status} `{}`", case.name));
+            match &case.result {
+                CaseResult::Pass => {}
+                CaseResult::ExpectedDifference {
+                    observed,
+                    justification,
+                } => {
+                    s.push_str(&format!(" — {observed}. {justification}"));
+                }
+                CaseResult::Fail { reason, details } => {
+                    s.push_str(&format!(" — {reason}"));
+                    for detail in details {
+                        s.push_str(&format!("\n  - {detail}"));
+                    }
+                }
             }
             s.push('\n');
         }

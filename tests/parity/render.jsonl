@@ -3,3 +3,4 @@
 {"name": "single-l", "keys": "l", "settle_ms": 5000}
 {"name": "single-d", "keys": "d", "settle_ms": 5000}
 {"name": "single-c", "keys": "c", "settle_ms": 5000}
+{"name":"git-message-hint","keys":"git commit -m ","settle_ms":5000,"expected_text":"message"}

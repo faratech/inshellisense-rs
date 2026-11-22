@@ -5,13 +5,13 @@
 {"line": "git ch", "label": "git-ch-partial"}
 {"line": "git che", "label": "git-che-partial"}
 {"line": "git checkout", "label": "git-checkout-complete"}
-{"line": "git checkout ", "label": "git-checkout-args"}
+{"line": "git checkout ", "cwd": "git", "label": "git-checkout-args"}
 {"line": "git commit -", "label": "git-commit-shortopt"}
 {"line": "git commit --", "label": "git-commit-longopt"}
 {"line": "docker", "label": "complete-docker"}
 {"line": "docker ", "label": "docker-subcommands"}
 {"line": "docker run", "label": "docker-run-complete"}
-{"line": "docker run ", "label": "docker-run-args"}
+{"line": "docker run ", "label": "docker-run-args", "expected_suggestion": "parity-fixture-image"}
 {"line": "docker run -", "label": "docker-run-shortopt"}
 {"line": "docker run --", "label": "docker-run-longopt"}
 {"line": "cargo", "label": "complete-cargo"}
@@ -59,11 +59,11 @@
 {"line": "", "label": "empty-input"}
 {"line": "   ", "label": "whitespace-only"}
 {"line": "git --version ", "label": "git-after-option"}
-{"line": "git -C /tmp status ", "label": "git-option-value-binding"}
+{"line": "git -C \"{fixture_cwd}\" status ", "cwd": "git", "label": "git-option-value-binding"}
 {"line": "git commit -m ", "label": "git-commit-message-arg"}
 {"line": "git log -- ", "label": "git-double-dash-raw"}
 {"line": "docker run ", "label": "docker-run-subcommand"}
-{"line": "docker run --detach ", "label": "docker-run-detach"}
+{"line": "docker run --detach ", "label": "docker-run-detach", "expected_suggestion": "parity-fixture-image"}
 {"line": "cargo build --target ", "label": "cargo-build-target-arg"}
 {"line": "cargo test --release -- ", "label": "cargo-test-double-dash"}
 {"line": "npm install ", "label": "npm-install-args"}
@@ -71,3 +71,10 @@
 {"line": "chmod ", "label": "chmod-args"}
 {"line": "curl --header ", "label": "curl-header-arg"}
 {"line": "tar -x", "label": "tar-short-flag-partial"}
+{"line":"git commit -m ","label":"git-argument-hint","argument_description":"message"}
+{"line":"git checkout -b ","label":"git-branch-hint","argument_description":"New Branch"}
+{"line":"npm install parity-f","label":"npm-package-lookup","expected_suggestion":"parity-fixture"}
+{"line":"npm install --workspace ","cwd":"npm","label":"npm-workspace-lookup","expected_suggestion":"packages/*"}
+{"line":"z old","label":"legacy-z-history","legacy_z":true,"expected_suggestion":"old-project"}
+{"line":"npm install parity-fixture@","label":"npm-version-lookup","expected_suggestion":"1.10.0"}
+{"line":"cargo +sta","label":"cargo-toolchain-lookup","expected_suggestion":"+stable"}

@@ -26,6 +26,7 @@ struct Scenario {
     then: Option<String>,
     #[serde(default)]
     then_settle_ms: Option<u64>,
+    expected_text: Option<String>,
 }
 
 fn default_settle() -> u64 {
@@ -99,6 +100,29 @@ pub fn run(cfg: &ScanConfig) -> CategoryReport {
                         );
                     }
 
+                    if let Some(expected) = &scenario.expected_text
+                        && let (Ok(ours), Ok(upstream)) = (&ours, &upstream)
+                    {
+                        let missing: Vec<_> = [("ours", ours), ("upstream", upstream)]
+                            .into_iter()
+                            .filter(|(_, bytes)| {
+                                !String::from_utf8_lossy(bytes).contains(expected.as_str())
+                            })
+                            .map(|(side, _)| side.to_string())
+                            .collect();
+                        return Case {
+                            name: scenario.name.clone(),
+                            result: if missing.is_empty() {
+                                CaseResult::Pass
+                            } else {
+                                CaseResult::Fail {
+                                    reason: format!("missing rendered hint {expected:?}"),
+                                    details: missing,
+                                }
+                            },
+                            impact: 70,
+                        };
+                    }
                     evaluate_capture(scenario.name.clone(), ours, upstream)
                 })
             })

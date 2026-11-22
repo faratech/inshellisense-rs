@@ -31,7 +31,11 @@ pub fn run(line: &str, text_mode: bool, cwd: &str, shell: Option<Shell>) -> Resu
     let icons = IconSet::from_config(crate::config::load().use_nerd_font);
     // Upstream emits a null activeToken once the last token is complete
     // (i.e. the line ends in whitespace) — only an in-progress token counts.
-    let (blob, active_token) = engine.suggest_blob_with_token(line, cwd);
+    let suggest::Completion {
+        suggestions: blob,
+        active_token,
+        argument_description,
+    } = engine.completion(line, cwd);
     let suggestions: Vec<serde_json::Value> = blob
         .into_iter()
         .map(|s| {
@@ -59,11 +63,14 @@ pub fn run(line: &str, text_mode: bool, cwd: &str, shell: Option<Shell>) -> Resu
 
     let active_token_json = active_token_json(active_token);
 
-    let output = serde_json::json!({
+    let mut output = serde_json::json!({
         "suggestions": suggestions,
         "activeToken": active_token_json,
     });
 
+    if let Some(description) = argument_description {
+        output["argumentDescription"] = serde_json::Value::String(description);
+    }
     println!("{}", serde_json::to_string(&output)?);
     Ok(())
 }

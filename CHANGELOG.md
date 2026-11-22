@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.9] - 2026-11-22
+
+Closes the gaps found in the tested Microsoft inshellisense 0.1.0 cases and
+updates the toolchain to Rust 1.100.0.
+
+### Added
+- Complete Docker images, npm packages and versions, npm workspaces,
+  installed Rust toolchains, and directories from zoxide or legacy z history.
+- Show argument hints in popups and include them in JSON completion output.
+- Fit popups to narrow terminals and make description size and truncation
+  configurable.
+
+### Fixed
+- Cancel obsolete completion requests so slow generators do not delay new
+  suggestions. Close generator stdout on Windows even when a descendant
+  retains the write handle.
+- Forward keys directly to alternate-screen applications, and preserve the
+  user's zsh history path.
+- Rank file and folder suggestions by match quality. Restore missing
+  suggestions for bunx, login, and ssh-keygen.
+
+### Changed
+- Pin Rust 1.100.0 and refresh Cargo and extractor dependencies.
+- Add deterministic parity fixtures, record intentional differences, and
+  run the generator cleanup regression in Windows CI.
+
 ## [0.0.8] - 2026-10-21
 
 Resolves 35 audit findings tracked in GitHub issues #116 through #150 and

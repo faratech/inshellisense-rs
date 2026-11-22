@@ -421,6 +421,9 @@ fn zsh_dotdir_contents(shell_dir: &str) -> Vec<(&'static str, String)> {
     );
     let rc_contents = format!(
         "# inshellisense-rs zsh .zshrc\n\
+         if [[ -n \"${{USER_ZDOTDIR:-}}\" && \"${{HISTFILE:-}}\" == \"$ZDOTDIR/.zsh_history\" ]]; then\n\
+             HISTFILE=\"$USER_ZDOTDIR/.zsh_history\"\n\
+         fi\n\
          if [[ -n \"${{USER_ZDOTDIR:-}}\" && -f \"${{USER_ZDOTDIR}}/.zshrc\" ]]; then\n\
              source \"${{USER_ZDOTDIR}}/.zshrc\"\n\
          fi\n\
@@ -658,6 +661,52 @@ mod tests {
             .find(|(file, _)| *file == name)
             .map(|(_, contents)| *contents)
             .unwrap()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn generated_zsh_rc_preserves_history_and_custom_overrides() {
+        use std::process::Command;
+        if Command::new("zsh").arg("--version").output().is_err() {
+            return;
+        }
+        let dir = crate::test_support::unique_temp_dir("rs-zsh-history");
+        let user = dir.join("user config");
+        fs::create_dir(&user).unwrap();
+        let wrapper = dir.join(".zshrc");
+        fs::write(&wrapper, generated_zsh_file(".zshrc")).unwrap();
+        let run = |history: Option<&str>| {
+            let mut cmd = Command::new("zsh");
+            cmd.args([
+                "-f",
+                "-c",
+                "source \"$1\"; print -r -- \"${HISTFILE-unset}\"",
+                "zsh",
+            ])
+            .arg(&wrapper)
+            .env("ZDOTDIR", &dir)
+            .env("USER_ZDOTDIR", &user)
+            .env_remove("HISTFILE");
+            if let Some(history) = history {
+                cmd.env("HISTFILE", history);
+            }
+            let output = cmd.output().unwrap();
+            assert!(output.status.success(), "{:?}", output);
+            String::from_utf8(output.stdout)
+                .unwrap()
+                .trim_end()
+                .to_owned()
+        };
+        let wrapper_history = dir.join(".zsh_history");
+        assert_eq!(
+            run(Some(wrapper_history.to_str().unwrap())),
+            user.join(".zsh_history").to_str().unwrap()
+        );
+        assert_eq!(run(Some("custom_history")), "custom_history");
+        assert_eq!(run(None), "unset");
+        fs::write(user.join(".zshrc"), "HISTFILE=my_override\n").unwrap();
+        assert_eq!(run(Some(wrapper_history.to_str().unwrap())), "my_override");
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

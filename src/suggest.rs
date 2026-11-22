@@ -18,6 +18,12 @@ use crate::spec::{
 };
 use std::collections::HashMap;
 
+pub(crate) struct Completion {
+    pub suggestions: Vec<Suggestion>,
+    pub active_token: Option<CommandToken>,
+    pub argument_description: Option<String>,
+}
+
 pub struct Engine {
     registry: Registry,
     history: Vec<String>,
@@ -95,7 +101,7 @@ impl Engine {
             None => return None,
         };
         if let Some(top) = blob.first()
-            && let Some(tail) = ci_tail(&top.name, &partial)
+            && let Some(tail) = ci_tail(top.match_name.as_deref().unwrap_or(&top.name), &partial)
         {
             return Some(tail);
         }
@@ -133,9 +139,20 @@ impl Engine {
         line: &str,
         cwd: &str,
     ) -> (Vec<Suggestion>, Option<CommandToken>) {
+        let result = self.completion(line, cwd);
+        (result.suggestions, result.active_token)
+    }
+
+    pub(crate) fn completion(&self, line: &str, cwd: &str) -> Completion {
         let mut active_token = None;
-        let suggestions = self.suggest_blob_inner(line, cwd, &mut active_token);
-        (suggestions, active_token)
+        let mut argument_description = None;
+        let suggestions =
+            self.suggest_blob_inner(line, cwd, &mut active_token, &mut argument_description);
+        Completion {
+            suggestions,
+            active_token,
+            argument_description,
+        }
     }
 
     fn suggest_blob_inner(
@@ -143,6 +160,7 @@ impl Engine {
         line: &str,
         cwd: &str,
         active_token: &mut Option<CommandToken>,
+        argument_description: &mut Option<String>,
     ) -> Vec<Suggestion> {
         let original_tokens = spec::parse_command_for(line, flavor_of(self.shell));
         *active_token = original_tokens.last().filter(|t| !t.complete).cloned();
@@ -237,6 +255,11 @@ impl Engine {
         let completing_option = !trailing_space
             && (partial.starts_with('-') || partial_matches_option(&result, &partial));
         let completing_name = !trailing_space && !completing_option;
+        if result.from_option || !completing_option || result.end_of_options {
+            *argument_description = result
+                .active_arg
+                .and_then(|arg| arg.description.as_ref().or(arg.name.as_ref()).cloned());
+        }
 
         if !result.from_option && (trailing_space || completing_name) {
             for s in &result.subcommand.subcommands {
@@ -343,6 +366,7 @@ impl Engine {
                 arg,
                 cwd,
                 &partial,
+                result.command_args,
                 !self.offline,
                 // `help` completes the *parent's* subcommands: `git help <TAB>`
                 // must list git's subcommands, not `help`'s (it has none).
@@ -376,6 +400,8 @@ impl Engine {
 
         // Filter by partial, using each candidate's effective filter strategy.
         let strategy = active_filter_strategy(&result);
+        let (_, path_query) = generator::split_path_prefix(&partial);
+        let path_query = path_query.to_lowercase();
         candidates.retain(|c| {
             if c.name.is_empty() {
                 return false;
@@ -389,11 +415,14 @@ impl Engine {
                 c.suggestion_type,
                 SuggestionType::Folder | SuggestionType::File
             ) {
-                let base = c.name.rsplit('/').next().unwrap_or(c.name.as_str());
-                let needle = partial.rsplit('/').next().unwrap_or(partial.as_str());
-                return base.to_lowercase().contains(&needle.to_lowercase());
+                let (_, base) = generator::split_path_prefix(&c.name);
+                return base.to_lowercase().contains(&path_query);
             }
-            matches(strategy, &c.name, &partial)
+            matches(
+                strategy,
+                c.match_name.as_deref().unwrap_or(&c.name),
+                &partial,
+            )
         });
 
         // Stable sort by EXACT-case prefix matches first, then priority DESC.
@@ -410,6 +439,7 @@ impl Engine {
             eb.cmp(&ea).then_with(|| pb.cmp(&pa))
         });
 
+        rank_matching_paths(&mut candidates, &partial, &path_query);
         dedup_by_name(candidates)
     }
 
@@ -453,6 +483,52 @@ impl Engine {
         // top-level command completion.
         out.sort_by(|a, b| a.name.cmp(&b.name));
         out
+    }
+}
+
+/// Reorder path slots within each group of the stable sort above.
+fn rank_matching_paths(candidates: &mut [Suggestion], partial: &str, query: &str) {
+    if query.is_empty() {
+        return;
+    }
+    for group in candidates.chunk_by_mut(|a, b| {
+        a.priority.unwrap_or(50) == b.priority.unwrap_or(50)
+            && a.name.starts_with(partial) == b.name.starts_with(partial)
+    }) {
+        let paths: Vec<_> = group
+            .iter()
+            .enumerate()
+            .filter_map(|(index, candidate)| {
+                if !matches!(
+                    candidate.suggestion_type,
+                    SuggestionType::File | SuggestionType::Folder
+                ) {
+                    return None;
+                }
+                let (_, base) = generator::split_path_prefix(&candidate.name);
+                let folded = base.to_lowercase();
+                let quality = if folded == query {
+                    0
+                } else if folded.starts_with(query) {
+                    1
+                } else {
+                    2
+                };
+                Some((
+                    index,
+                    (quality, base.chars().count(), folded, base.to_owned()),
+                ))
+            })
+            .collect();
+        let mut ranked: Vec<_> = paths
+            .iter()
+            .map(|(index, _)| std::mem::take(&mut group[*index]))
+            .collect();
+        let mut order: Vec<_> = (0..paths.len()).collect();
+        order.sort_by(|&a, &b| paths[a].1.cmp(&paths[b].1));
+        for ((slot, _), rank) in paths.into_iter().zip(order) {
+            group[slot] = std::mem::take(&mut ranked[rank]);
+        }
     }
 }
 
@@ -754,7 +830,46 @@ fn _first_arg(s: &Subcommand) -> Option<&crate::spec::model::Arg> {
 #[cfg(test)]
 mod pick_primary_tests {
     use super::{Engine, Registry, Subcommand, pick_primary};
+    use super::{Suggestion, SuggestionType, rank_matching_paths};
     use crate::shell::Shell;
+
+    #[test]
+    fn path_ranking_preserves_nonpath_slots_and_sort_groups() {
+        let entry = |name: &str, suggestion_type, priority| Suggestion {
+            name: name.into(),
+            suggestion_type,
+            priority: Some(priority),
+            ..Default::default()
+        };
+        use SuggestionType::{File, Folder, Subcommand};
+        let mut candidates = [
+            entry("dir/spare", File, 56),
+            entry("dir/stale", File, 55),
+            entry("dir/subcommand", Subcommand, 55),
+            entry("dir/s", Folder, 55),
+            entry("dir/src", Folder, 55),
+            entry("dir/docs", Folder, 55),
+            entry("dir/S", Folder, 55),
+            entry("dir/As", Folder, 55),
+        ];
+        rank_matching_paths(&mut candidates, "dir/s", "s");
+        let names = candidates
+            .each_ref()
+            .map(|candidate| candidate.name.as_str());
+        assert_eq!(
+            names,
+            [
+                "dir/spare",
+                "dir/s",
+                "dir/subcommand",
+                "dir/src",
+                "dir/stale",
+                "dir/S",
+                "dir/As",
+                "dir/docs"
+            ]
+        );
+    }
 
     #[test]
     fn required_attached_equals_value_drives_suggestions_ghost_and_replacement() {

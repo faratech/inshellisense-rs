@@ -1,8 +1,8 @@
 [package]
 name = "inshellisense-rs"
-version = "0.0.8"
+version = "0.0.9"
 edition = "2024"
-rust-version = "1.99.1"
+rust-version = "1.100.0"
 description = "Rust port of inshellisense: IDE-style autocomplete as ghost text for your shell"
 license = "MIT"
 authors = ["Fara Technologies LLC"]
@@ -20,10 +20,12 @@ vt100 = { package = "vt100-ctt", version = "0.17.1", default-features = false }
 anyhow = "1.0.104"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["raw_value"] }
-toml = "1.1.8"
-libc = "0.2.191"
-unicode-width = "0.2.2"
+toml = "1.2.2"
+unicode-width = "0.2.3"
 ruzstd = "0.9.1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.191"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = [

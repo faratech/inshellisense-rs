@@ -79,6 +79,10 @@ pub enum CaseResult {
         reason: String,
         details: Vec<String>,
     },
+    ExpectedDifference {
+        observed: String,
+        justification: String,
+    },
 }
 
 impl CaseResult {
@@ -142,8 +146,18 @@ impl CategoryReport {
         self.cases.iter().filter(|c| c.result.is_pass()).count()
     }
 
+    pub fn expected_count(&self) -> usize {
+        self.cases
+            .iter()
+            .filter(|c| matches!(c.result, CaseResult::ExpectedDifference { .. }))
+            .count()
+    }
+
     pub fn fail_count(&self) -> usize {
-        self.cases.len() - self.pass_count()
+        self.cases
+            .iter()
+            .filter(|c| matches!(c.result, CaseResult::Fail { .. }))
+            .count()
     }
 
     /// A category that ran no cases proved nothing. Scoring it 1.0 meant a
@@ -153,7 +167,7 @@ impl CategoryReport {
         if self.cases.is_empty() {
             return 0.0;
         }
-        self.pass_count() as f64 / self.cases.len() as f64
+        (self.pass_count() + self.expected_count()) as f64 / self.cases.len() as f64
     }
 }
 
@@ -361,6 +375,44 @@ pub fn spawn_check(bin: &std::path::Path) -> Result<(), String> {
     }
 }
 
+#[derive(serde::Deserialize)]
+struct KnownDifferences {
+    difference: Vec<KnownDifference>,
+}
+
+#[derive(serde::Deserialize)]
+struct KnownDifference {
+    category: String,
+    case: String,
+    reason_prefix: String,
+    #[serde(default)]
+    details: Vec<String>,
+    justification: String,
+}
+
+impl KnownDifference {
+    fn applies(&self, category: Category, case: &Case) -> bool {
+        self.category == category.name()
+            && self.case == case.name
+            && matches!(&case.result, CaseResult::Fail { reason, details }
+                if !self.reason_prefix.is_empty()
+                    && reason.starts_with(&self.reason_prefix)
+                    && details.len() == self.details.len()
+                    && details.iter().zip(&self.details).all(|(actual, expected)| actual.contains(expected)))
+    }
+}
+
+fn load_known_differences(corpus: &std::path::Path) -> Result<Vec<KnownDifference>, String> {
+    let path = corpus.join("known-differences.toml");
+    match std::fs::read_to_string(&path) {
+        Ok(contents) => toml::from_str::<KnownDifferences>(&contents)
+            .map(|known| known.difference)
+            .map_err(|error| format!("{}: {error}", path.display())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(error) => Err(format!("{}: {error}", path.display())),
+    }
+}
+
 /// Drive all requested categories. Each category owns its own IO.
 pub fn run_scan(cfg: &ScanConfig) -> Report {
     let mut report = Report::new();
@@ -381,11 +433,12 @@ pub fn run_scan(cfg: &ScanConfig) -> Report {
         return report;
     }
 
+    let known = load_known_differences(&cfg.corpus_dir);
     for cat in &cfg.categories {
         if cfg.verbose {
             eprintln!("parity-scan: running {} …", cat.name());
         }
-        let cat_report = match cat {
+        let mut cat_report = match cat {
             Category::Cli => cli::run(cfg),
             Category::Init => init::run(cfg),
             Category::Doctor => doctor::run(cfg),
@@ -394,6 +447,22 @@ pub fn run_scan(cfg: &ScanConfig) -> Report {
             #[cfg(unix)]
             Category::Render => render::run(cfg),
         };
+        match &known {
+            Ok(known) => {
+                for case in &mut cat_report.cases {
+                    if let Some(exception) =
+                        known.iter().find(|exception| exception.applies(*cat, case))
+                        && let CaseResult::Fail { reason, .. } = &case.result
+                    {
+                        case.result = CaseResult::ExpectedDifference {
+                            observed: reason.clone(),
+                            justification: exception.justification.clone(),
+                        };
+                    }
+                }
+            }
+            Err(error) => cat_report.push_fail("known differences", error, Vec::new(), 90),
+        }
         if cfg.verbose {
             eprintln!(
                 "parity-scan: {} done — {}/{} pass ({:.1}%)",
